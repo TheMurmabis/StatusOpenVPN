@@ -4,12 +4,10 @@
 set -e
 
 # Переменные
-REPO_URL="https://github.com/TheMurmabis/StatusOpenVPN.git"  # Замените на URL вашего репозитория
 TARGET_DIR="/root/web"  # Папка, куда будет клонирован репозиторий
 
 # Клонирование репозитория в папку web
 echo "Cloning repository into $TARGET_DIR..."
-git clone $REPO_URL $TARGET_DIR
 
 # Переход в директорию проекта
 cd $TARGET_DIR
