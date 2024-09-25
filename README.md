@@ -7,7 +7,7 @@
 
 ## Установка и запуск
 
-Для установки и запуска приложения в терминале под root выполнить
+Для установки и запуска приложения в терминале под root выполнить следующие команды:
 
 ### 1. Установка git
 ```bash
@@ -22,7 +22,9 @@ git clone https://github.com/TheMurmabis/StatusOpenVPN.git web
 chmod +x web/setup.sh && web/setup.sh
 ```
 ## Упрощенная команда
+
+Для установки одной строкой выполнить команду:
 ```bash
 apt update && apt install -y git && git clone https://github.com/TheMurmabis/StatusOpenVPN.git web && chmod +x web/setup.sh && web/setup.sh
 ```
-Установка одной командой.
+
