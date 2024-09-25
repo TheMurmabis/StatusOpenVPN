@@ -8,8 +8,6 @@
 
 Для установки и запуска приложения выполните следующие шаги:
 
-### 1. Клонирование репозитория
-
-Необхоимо скачать файл setup.sh и запустить команду 
+### 1. В терминале под root выполнить
 ```bash
-chmod +x setup.sh $$ sudo ./setup.sh
+apt update && apt install -y git && git clone https://github.com/TheMurmabis/StatusOpenVPN.git web && chmod +x web/setup.sh && web/setup.sh
