@@ -1,0 +1,48 @@
+/* Стиль для сайдбара и основного контента */
+body {
+    font-size: .875rem;
+}
+
+.navbar-brand {
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+    background-color: rgba(0, 0, 0, .25);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, .1);
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100; 
+    padding: 48px 0 0; 
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar-sticky {
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto; 
+}
+
+.table-responsive {
+    margin-top: 20px;
+}
+
+.table thead th {
+    vertical-align: bottom;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table tbody tr {
+    border-top: 1px solid #dee2e6;
+}
+
+.table-dark {
+    background-color: #343a40;
+    color: white;
+}

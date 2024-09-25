@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Список клиентов OpenVPN{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Клиенты OpenVPN {{server_ip}}</h1>
+    </div>
+
+    <h2>Список клиентов</h2>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>Клиент</th>
+                    <th>Реальный IP</th>
+                    <th>Локальный IP</th>
+                    <th>Передано</th>
+                    <th>Получено</th>
+                    <th>Подключен с</th>
+                    <th>Протокол</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr>
+                    {% for field in client %}
+                    <td>{{ field }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+                <tr class="table-dark">
+                    <td colspan="3">Онлайн: {{ total_clients_str }}</td>
+                    <td>{{ total_received }}</td>
+                    <td>{{ total_sent }}</td>
+                    <td colspan="2"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
