@@ -21,7 +21,7 @@ git clone https://github.com/TheMurmabis/StatusOpenVPN.git web
 ```bash
 chmod +x web/setup.sh && web/setup.sh
 ```
-## Упрощенная команда
+# Упрощенная команда
 
 Для установки одной строкой выполнить команду:
 ```bash
