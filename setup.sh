@@ -103,8 +103,10 @@ EXTERNAL_IP=$(curl -s ifconfig.me)
 clear
 
 # Вывод информации о доступности сервера
+echo "--------------------------------------------"
 echo -e "\e[32mSetup completed successfully\e[0m"
 echo -e "\e[36mServer is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo "--------------------------------------------"
 
 
 rm -f $TARGET_DIR/setup.sh $TARGET_DIR/README.md

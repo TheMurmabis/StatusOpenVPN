@@ -7,7 +7,7 @@ success_status() {
 
 # Остановка и отключение сервиса
 echo "Stopping and disabling the service"
-if sudo systemctl stop myapp && sudo systemctl disable myapp; then
+if sudo systemctl stop StatusOpenVPN && sudo systemctl disable StatusOpenVPN; then
   success_status "Service stopped and disabled successfully"
 else
   echo "Failed to stop and disable the service"
@@ -15,7 +15,7 @@ fi
 
 # Удаление systemd unit файла
 echo "Deleting the systemd unit file"
-if sudo rm /etc/systemd/system/myapp.service; then
+if sudo rm /etc/systemd/system/StatusOpenVPN.service; then
   success_status "Systemd unit file deleted successfully"
 else
   echo "Failed to delete the systemd unit file"
