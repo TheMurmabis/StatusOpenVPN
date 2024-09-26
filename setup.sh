@@ -18,7 +18,7 @@ check_port_free() {
 }
 
 # Запрос на изменение порта
-read -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): " CHANGE_PORT
+read -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): N" CHANGE_PORT
 
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
     while true; do
@@ -70,7 +70,7 @@ else
 fi
 
 # Создание и настройка systemd-сервиса
-SERVICE_FILE="/etc/systemd/system/myapp.service"
+SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 echo "Creating systemd service file at $SERVICE_FILE..."
 
 # Создание systemd service файла
@@ -94,14 +94,17 @@ EOF
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
-echo "Starting myapp service..."
-sudo systemctl start myapp
+echo "Starting StatusOpenVPN service..."
+sudo systemctl start StatusOpenVPN
 
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
 
+clear
+
 # Вывод информации о доступности сервера
-echo "Setup completed successfully!"
-echo "Server is available at: http://$EXTERNAL_IP:$PORT"
+echo -e "\e[32mSetup completed successfully\e[0m"
+echo -e "\e[36mServer is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+
 
 rm -f $TARGET_DIR/setup.sh $TARGET_DIR/README.md
