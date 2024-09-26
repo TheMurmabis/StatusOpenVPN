@@ -112,3 +112,4 @@ EXTERNAL_IP=$(curl -s ifconfig.me)
 echo "Setup completed successfully!"
 echo "Server is available at: http://$EXTERNAL_IP:$PORT"
 
+rm -f $TARGET_DIR/setup.sh $TARGET_DIR/README.md
