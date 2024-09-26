@@ -97,32 +97,8 @@
 
 ## Удаление
 
-Для удаления сервиса и всех его компонентов выполните следующие команды:
+Для удаления сервиса и всех его компонентов выполните запустите `uninstall.sh`.
 
-1. Остановите и отключите сервис:
-
-    ```bash
-    sudo systemctl stop myapp
-    sudo systemctl disable myapp
-    ```
-
-2. Удалите systemd unit файл:
-
-    ```bash
-    sudo rm /etc/systemd/system/myapp.service
-    ```
-
-3. Перезагрузите systemd:
-
-    ```bash
-    sudo systemctl daemon-reload
-    ```
-
-4. Удалите директорию с проектом:
-
-    ```bash
-    sudo rm -rf /root/web
-    ```
 
 ## Примечания
 
