@@ -71,7 +71,7 @@
 
 Для удаления сервиса и всех его компонентов запустите команду:
 ```bash
-chmod +x web/uninstall.sh && web/uninstall.sh    
+chmod +x web/uninstall.sh && web/uninstall.sh
 ```
 
 
