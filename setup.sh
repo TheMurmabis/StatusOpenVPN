@@ -61,14 +61,6 @@ python3 -m venv venv
 echo "Activating virtual environment..."
 source venv/bin/activate
 
-# Установка Flask
-echo "Installing Flask..."
-pip install Flask
-
-# Установка Gunicorn
-echo "Installing Gunicorn..."
-pip install gunicorn
-
 # Установка зависимостей из requirements.txt, если файл существует
 if [ -f "requirements.txt" ]; then
     echo "Installing requirements from requirements.txt..."
