@@ -69,12 +69,12 @@ def read_csv(file_path, protocol):
 
 @app.route('/')
 def index():
-    udp_clients, udp_received, udp_sent = read_csv('/etc/openvpn/server/logs/antizapret-udp-status.log', 'UDP')
-    tcp_clients, tcp_received, tcp_sent = read_csv('/etc/openvpn/server/logs/antizapret-tcp-status.log', 'TCP')
+    #udp_clients, udp_received, udp_sent = read_csv('/etc/openvpn/server/logs/antizapret-udp-status.log', 'UDP')
+    #tcp_clients, tcp_received, tcp_sent = read_csv('/etc/openvpn/server/logs/antizapret-tcp-status.log', 'TCP')
     
     #Для проверки
-    #udp_clients, udp_received, udp_sent = read_csv('antizapret-udp-status.log', 'UDP')
-    #tcp_clients, tcp_received, tcp_sent = read_csv('antizapret-tcp-status.log', 'TCP')
+    udp_clients, udp_received, udp_sent = read_csv('antizapret-udp-status.log', 'UDP')
+    tcp_clients, tcp_received, tcp_sent = read_csv('antizapret-tcp-status.log', 'TCP')
 
     clients = udp_clients + tcp_clients
     total_clients = len(clients)
@@ -85,6 +85,9 @@ def index():
     
     return render_template('index.html', clients=clients, total_clients_str=pluralize_clients(total_clients),
                                   total_received=total_received, total_sent=total_sent, server_ip=server_ip)
+@app.route('/test')
+def test():
+    return render_template('test.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=1234)

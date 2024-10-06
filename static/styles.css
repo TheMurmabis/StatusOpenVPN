@@ -1,48 +1,60 @@
-/* Стиль для сайдбара и основного контента */
-body {
-    font-size: .875rem;
-}
-
-.navbar-brand {
-    padding-top: .75rem;
-    padding-bottom: .75rem;
-    background-color: rgba(0, 0, 0, .25);
-    box-shadow: inset -1px 0 0 rgba(255, 255, 255, .1);
-}
-
-.sidebar {
+/* Закрепленный header */
+header {
+    background-color: #343a40;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     position: fixed;
     top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 100; 
-    padding: 48px 0 0; 
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    width: 100%;
+    z-index: 1000;
 }
 
-.sidebar-sticky {
-    position: sticky;
-    top: 0;
-    height: calc(100vh - 48px);
-    padding-top: .5rem;
-    overflow-x: hidden;
-    overflow-y: auto; 
+/* Стили для контента под header, чтобы не перекрывал шапку */
+body {
+    padding-top: 70px; /* Высота header */
 }
 
-.table-responsive {
-    margin-top: 20px;
+header a.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: bold;
 }
 
-.table thead th {
-    vertical-align: bottom;
-    border-bottom: 2px solid #dee2e6;
+header form input {
+    border: 2px solid #fff;
+    background-color: #495057;
+    color: #fff;
 }
 
-.table tbody tr {
-    border-top: 1px solid #dee2e6;
+header form input::placeholder {
+    color: #adb5bd;
 }
 
-.table-dark {
+header form button {
+    border: 2px solid #fff;
     background-color: #343a40;
-    color: white;
+    color: #fff;
+}
+
+/* Закрепленный footer */
+footer {
+    background-color: #343a40;
+    color: #adb5bd;
+    font-size: 0.9rem;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+/* Стили для контента над футером, чтобы не перекрывал его */
+body {
+    padding-bottom: 60px; /* Высота footer */
+}
+
+footer a {
+    color: #adb5bd;
+    text-decoration: none;
+}
+
+footer a:hover {
+    color: #fff;
 }
