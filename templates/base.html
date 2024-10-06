@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,15 +11,16 @@
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
 
 </head>
-<body> 
-      <!-- Шапка сайта -->
-    <header class="bg-dark text-white py-3 mb-4">
-      <div class="container d-flex justify-content-between align-items-center">
-          <a class="navbar-brand text-white" href="/">OpenVPN Dashboard</a>
-      </div>
-  </header>
 
-  <!-- Основной контент с сайдбаром 
+<body>
+    <!-- Шапка сайта -->
+    <header class="bg-dark text-white py-3 mb-4">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a class="navbar-brand text-white" href="/">OpenVPN Dashboard</a>
+        </div>
+    </header>
+
+    <!-- Основной контент с сайдбаром 
   <div class="container-fluid">
       <div class="row">
            Сайдбар 
@@ -53,30 +55,32 @@
               </div>
           </nav>-->
 
-          <!-- Основная секция -->
-          <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
-              
-              <div class="content">
-                  <!-- Здесь будет контент -->
-                  {% block content %}
-                  {% endblock %}
-              </div>
-          </main>
-      </div>
-  </div>
+    <div class="container">
+        <!-- Основная секция -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
 
-  <!-- Футер -->
-  <footer class="bg-dark text-white text-center py-3 mt-4">
-      <div class="container">
-          © 2024 Все права защищены.
-      </div>
-  </footer>
+            <div class="content">
+                <!-- Здесь будет контент -->
+                {% block content %}
+                {% endblock %}
+            </div>
+        </main>
+    </div>
 
-  <!-- Bootstrap JS Bundle with Popper -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://unpkg.com/feather-icons"></script>
-  <script>
-      feather.replace();
-  </script>
+
+    <!-- Футер -->
+    <footer class="bg-dark text-white text-center py-3 mt-4">
+        <div class="container">
+            © 2024 Все права защищены.
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script>
+        feather.replace();
+    </script>
 </body>
+
 </html>

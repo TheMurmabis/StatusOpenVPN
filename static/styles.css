@@ -10,7 +10,8 @@ header {
 
 /* Стили для контента под header, чтобы не перекрывал шапку */
 body {
-    padding-top: 70px; /* Высота header */
+    padding-top: 70px;
+    /* Высота header */
 }
 
 header a.navbar-brand {
@@ -47,7 +48,8 @@ footer {
 
 /* Стили для контента над футером, чтобы не перекрывал его */
 body {
-    padding-bottom: 60px; /* Высота footer */
+    padding-bottom: 60px;
+    /* Высота footer */
 }
 
 footer a {
