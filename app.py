@@ -16,6 +16,7 @@ def format_bytes(size):
     return f"{size:.2f} TB"
 
 
+
 # Функция для склонения слова "клиент"
 def pluralize_clients(count):
 
@@ -52,10 +53,15 @@ def clean_client_name(name, prefix="antizapret-"):
     return name[len(prefix) :] if name.startswith(prefix) else name
 
 
-# Маскировка IP-адреса
 def mask_ip(ip_address):
-    parts = ip_address.split(".")
-    return f"{parts[0]}.***.***.***" if len(parts) == 4 else ip_address
+    ip = ip_address.split(":")[0]
+    parts = ip.split(".")
+    if len(parts) == 4:
+        # Добавляем ведущие нули, чтобы каждая часть занимала 3 символа
+        parts = [f"{int(part):03}" for part in parts]
+        # Маскируем IP-адрес
+        return f"{parts[0]}.***.***.{parts[3]}"
+    return ip_address
 
 
 # Отсет времени

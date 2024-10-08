@@ -100,7 +100,6 @@ sudo systemctl start StatusOpenVPN
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
 
-clear
 
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
