@@ -104,7 +104,7 @@ EXTERNAL_IP=$(curl -s ifconfig.me)
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
 echo -e "\e[32mSetup completed successfully\e[0m"
-echo -e "\e[32Server is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo -e "\e[32mServer is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
 echo "--------------------------------------------"
 
 
