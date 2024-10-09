@@ -18,7 +18,7 @@ check_port_free() {
 }
 
 # Запрос на изменение порта
-read -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): N" CHANGE_PORT
+read -e -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): " -i N CHANGE_PORT
 
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
     while true; do
