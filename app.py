@@ -163,11 +163,5 @@ def index():
         server_ip=server_ip,
     )
 
-
-@app.route("/test")
-def test():
-    return render_template("test.html")
-
-
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=1234)
