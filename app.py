@@ -16,7 +16,6 @@ def format_bytes(size):
     return f"{size:.2f} TB"
 
 
-
 # Функция для склонения слова "клиент"
 def pluralize_clients(count):
 
@@ -53,13 +52,14 @@ def clean_client_name(name, prefix="antizapret-"):
     return name[len(prefix) :] if name.startswith(prefix) else name
 
 
+# Маскируем IP-адрес
 def mask_ip(ip_address):
     ip = ip_address.split(":")[0]
     parts = ip.split(".")
     if len(parts) == 4:
         # Добавляем ведущие нули, чтобы каждая часть занимала 3 символа
         parts = [f"{int(part):03}" for part in parts]
-        # Маскируем IP-адрес
+
         return f"{parts[0]}.***.***.{parts[3]}"
     return ip_address
 
@@ -122,8 +122,8 @@ def read_csv(file_path, protocol):
         file_name = os.path.basename(file_path)
         file_directory = os.path.dirname(file_path)
 
-        error_message = f'Файл "{file_name}" не найден. Пожалуйста, проверьте наличие файла по указанному пути: {file_directory}.'
-        return None, 0, 0, error_message  # Возвращаем сообщение об ошибке
+        error_message = f'Файл "{file_name}" не найден. Пожалуйста, проверьте наличие файла по указанному пути: /{file_directory}'
+        return [], 0, 0, error_message  # Возвращаем сообщение об ошибке
 
 
 @app.route("/")
@@ -135,18 +135,23 @@ def index():
         "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
     )
 
-    # Для локальной проверки
-    # udp_clients, udp_received, udp_sent, udp_error = read_csv('antizapret-udp-status.log', 'UDP')
-    # tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv('antizapret-tcp-status.log', 'TCP')
+    vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
+        "/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"
+    )
+    vpn_tcp_clients, vpn_tcp_received, vpn_tcp_sent, vpn_tcp_error = read_csv(
+        "/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"
+    )
 
     if udp_error or tcp_error:
         error_message = udp_error or tcp_error
         return render_template("index.html", error_message=error_message)
 
-    clients = udp_clients + tcp_clients
+    clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
     total_clients = len(clients)
-    total_received = format_bytes(udp_received + tcp_received)
-    total_sent = format_bytes(udp_sent + tcp_sent)
+    total_received = format_bytes(
+        udp_received + tcp_received + vpn_udp_received + vpn_tcp_received
+    )
+    total_sent = format_bytes(udp_sent + tcp_sent + vpn_udp_sent + vpn_tcp_sent)
     server_ip = get_external_ip()
 
     return render_template(
