@@ -28,7 +28,7 @@
 2. Клонирование репозитория:
 
     ```bash
-    git clone https://github.com/TheMurmabis/StatusOpenVPN.git web 
+    git clone https://github.com/TheMurmabis/StatusOpenVPN.git /root/web 
     ```
 
 3. Запустите скрипт установки ``setup.sh``:
