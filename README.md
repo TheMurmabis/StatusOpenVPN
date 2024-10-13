@@ -60,7 +60,11 @@ chmod +x web/uninstall.sh && web/uninstall.sh
 
 1. Убедитесь, что ваш сервер имеет открытый порт, на котором будет работать ваше приложение.
 2. Если вы используете облачный сервер, убедитесь, что правила брандмауэра (firewall) позволяют входящие подключения на указанный порт.
-3. Данные считываются из следующих файлов: `antizapret-udp-status.log`, `antizapret-tcp-status.log`, `vpn-udp-status.log`, `vpn-tcp-status.log`
+3. Данные считываются из следующих файлов:
++ `antizapret-udp-status.log`
++ `antizapret-tcp-status.log`
++ `vpn-udp-status.log`
++ `vpn-tcp-status.log`
 
 ## Об авторе
 
