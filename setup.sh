@@ -46,8 +46,6 @@ fi
 # Клонирование репозитория в папку web
 echo "Cloning repository into $TARGET_DIR..."
 
-mkdir -p $TARGET_DIR # Эта строка создаёт папку, если её нет
-
 # Переход в директорию проекта
 cd $TARGET_DIR
 
