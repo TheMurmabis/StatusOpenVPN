@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Line Chart Example</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* Основная стилизация графика */
+    #lineChart {
+      width: 100%;
+      max-width: 1500px;
+      height: 1000px;
+      margin: 50px auto;
+    }
+    canvas {
+      display: block;
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 class="text-center mt-5">Line Chart Example</h2>
+    <div class="row justify-content-center">
+      <div class="col">
+        <canvas id="lineChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const ctx = document.getElementById('lineChart').getContext('2d');
+    const lineChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'],
+        datasets: [{
+          label: 'Гбайт',
+          data: [65, 59, 80, 81, 56, 55, 40],
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'transparent',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: 'rgba(95, 192, 192, 1)',
+          pointBorderColor: 'rgba(0, 0, 0, 1)',
+          pointRadius: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            beginAtZero: true
+          },
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

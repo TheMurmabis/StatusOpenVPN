@@ -45,6 +45,7 @@ fi
 
 # Клонирование репозитория в папку web
 echo "Cloning repository into $TARGET_DIR..."
+git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
 
 # Переход в директорию проекта
 cd $TARGET_DIR
@@ -84,7 +85,7 @@ User=root
 Group=www-data
 WorkingDirectory=$TARGET_DIR
 Environment="PATH=$TARGET_DIR/venv/bin"
-ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 app:app -b 0.0.0.0:$PORT
+ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 main:app -b 0.0.0.0:$PORT
 
 [Install]
 WantedBy=multi-user.target
@@ -100,11 +101,14 @@ sudo systemctl start StatusOpenVPN
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
 
+echo "Running initial admin setup..."
+ADMIN_PASS=$(python3 -c "from app import add_admin; print(add_admin())")
 
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
 echo -e "\e[32mSetup completed successfully\e[0m"
 echo -e "\e[32mServer is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo -e "Admin password generated: \e[32m$ADMIN_PASS\e[0m"
 echo "--------------------------------------------"
 
 

@@ -18,6 +18,15 @@ header a.navbar-brand {
     font-size: 1.5rem;
     font-weight: bold;
 }
+/* Кнопка Выйти */
+header a.navbar-logout{
+    font-size: 1rem;
+    text-decoration: none;
+    color: white;
+}
+header a.navbar-logout:hover{
+    color: wheat;
+}
 
 header form input {
     border: 2px solid #fff;
@@ -59,4 +68,50 @@ footer a {
 
 footer a:hover {
     color: #fff;
+}
+
+/* Стили формы входа */
+.input_title{
+    margin-top: 20px;
+}
+.input_form {
+    transform: translateX(50%); /* Центрирует форму по горизонтали */
+    transform: translateY(50%); 
+    height: auto; /* Автоматическая высота для адаптации под содержимое */
+    width: 350px;
+    border-radius: 10px;
+    border: 1px outset #EEEFF1; /* Упрощенное указание стиля рамки */
+    position: relative; /* Позиционирует форму относительно родителя */
+}
+.input_username, .input_password {
+    width: 100%;
+    height: 50px;
+    font-size: 17;
+    background-color: #EEEFF1;
+    border-color: #EEEFF1;
+    margin-bottom: 5px;
+}
+.input_username:focus, .input_password:focus{
+    border-bottom: blue;
+    border-radius: 0;
+}
+
+#submit {
+    margin-left: 0; /* Убрать левый отступ */
+    margin-top: 15px; /* Отступ сверху для кнопки */
+    display: block; /* Отображение кнопки как блочного элемента */
+    width: 50%; /* Ширина кнопки 100% от родителя */
+    transform: translateX(50%);
+}
+.input_icons{
+    width: 40px;
+    height: 40px;
+    
+}
+.forgot_link{
+    margin-left: 15px;
+    margin-top: 20px;
+}
+.main_table{
+    margin-left: -130px;
 }
