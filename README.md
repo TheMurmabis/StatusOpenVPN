@@ -24,7 +24,7 @@
 1. Обновите пакеты и установите Git:
 
     ```
-    bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/scripts/install.sh)"
+    bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/main/scripts/setup.sh)"
     ```
 
 2. В процессе установки будет предложено изменить порт по умолчанию (1234). Вы можете ввести новый порт, если хотите, или оставить его без изменений.
