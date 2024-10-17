@@ -304,10 +304,10 @@ def stats():
 def home():
 
     udp_clients, udp_received, udp_sent, udp_error = read_csv(
-        "etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
+        "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
     )
     tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
-        "etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
+        "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
     )
 
     vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
