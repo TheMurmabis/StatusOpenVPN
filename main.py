@@ -317,8 +317,8 @@ def home():
         "/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"
     )
 
-    if udp_error or tcp_error or vpn_udp_clients or vpn_tcp_clients:
-        error_message = udp_error or tcp_error or vpn_udp_error or vpn_tcp_error
+    if udp_error or tcp_error:
+        error_message = udp_error or tcp_error
         return render_template("index.html", error_message=error_message)
 
     clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
