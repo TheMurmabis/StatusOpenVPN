@@ -6,3 +6,4 @@
 /.pylintrc
 __pycache__
 db.db
+test.py

@@ -4,6 +4,7 @@ import requests
 import os
 import random
 import string
+import subprocess
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -139,6 +140,26 @@ def add_user(username, role, password):
     conn.close()
 
 
+# Функция для получения данных WireGuard
+def get_wireguard_stats():
+    try:
+        result = subprocess.run(
+            ["/usr/bin/wg", "show"], capture_output=True, text=True, check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Команда wg show завершилась с ошибкой: {e.stderr}")
+        return f"Ошибка выполнения команды: {e.stderr}"
+    except FileNotFoundError:
+        print(
+            "Команда wg не найдена. Убедитесь, что WireGuard установлен и доступен в системе."
+        )
+        return "Команда wg не найдена."
+    except Exception as e:
+        print(f"Непредвиденная ошибка: {e}")
+        return f"Непредвиденная ошибка: {e}"
+
+
 # Функция для генерации случайного пароля
 def get_random_pass(lenght=10):
     characters = string.ascii_letters + string.digits  # Буквы и цифры
@@ -156,9 +177,9 @@ def add_admin():
 
     if count < 1:
         add_user("admin", "admin", passw)
+        # print(f"Пароль администратора: {passw}")
 
     conn.close()
-
     return passw
 
 
@@ -299,6 +320,13 @@ def stats():
     return render_template("stats.html")
 
 
+# @app.route("/wg")
+# @login_required
+# def wg():
+#    wg_stats = get_wireguard_stats()
+#    return render_template("wg.html", wg_stats=wg_stats)
+
+
 @app.route("/")
 @login_required
 def home():
@@ -340,5 +368,4 @@ def home():
 
 
 if __name__ == "__main__":
-    add_admin()
-    app.run(host="0.0.0.0", port=1234)
+    app.run(debug=False, host="0.0.0.0", port=1234)

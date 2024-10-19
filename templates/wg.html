@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Список клиентов OpenVPN{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Клиенты WireGuard {{server_ip}}</h1>
+</div>
+
+{% if error_message %}
+    <div class="alert alert-danger" role="alert">
+        {{ error_message }}
+    </div>
+{% else %}
+    <pre>
+        {{wg_stats}}
+    </pre>
+<div class="table-responsive main_table">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th class="text-center">Клиент</th>
+                <th class="text-center">Реальный IP</th>
+                <th class="text-center">Локальный IP</th>
+                <th class="text-center">Передано</th>
+                <th class="text-center">Получено</th>
+                <th class="text-center">Последнее рукопожатие</th>
+                <th class="text-center">Протокол</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr class="text-center">
+                {% for field in client %}
+                <td class="text-center">{{ field }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            <tr class="table-dark text-left">
+                <td colspan="3">Онлайн: {{ total_clients_str }}</td>
+                <td class="text-center">{{ total_received }}</td>
+                <td class="text-center">{{ total_sent }}</td>
+                <td colspan="3"></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

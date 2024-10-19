@@ -23,19 +23,26 @@
             {% endif %}
         </div>
     </header>
-
-    <div class="container">
-
-        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
-
-            <div class="content">
-
-                {% block content %}
-                {% endblock %}
+     <div class="d-flex" id="wrapper">
+        <!--<div class="bg-light border-right " id="sidebar-wrapper">
+            
+            <div class="list-group list-group-flush mt-5">
+                <a href="/ovpn" class="list-group-item list-group-item-action bg-light">OpenVPN</a>
+                <a href="/wg" class="list-group-item list-group-item-action bg-light">WireGuard</a>
             </div>
-        </main>
-    </div>
+        </div>-->
+        <div id="page-content-wrapper" class="container">
 
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+
+                <div class="content">
+
+                    {% block content %}
+                    {% endblock %}
+                </div>
+            </main>
+        </div>
+    </div> 
     <footer class="bg-dark text-white text-center py-3 mt-4">
         <div class="container">
             © 2024 Все права защищены.
@@ -45,8 +52,12 @@
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
         feather.replace();
+        
+    
     </script>
 </body>
 
