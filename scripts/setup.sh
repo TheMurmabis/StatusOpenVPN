@@ -107,9 +107,8 @@ ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
 echo -e "\e[32mSetup completed successfully\e[0m"
-echo "--------------------------------------------"
-echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
-echo -e "Admin password generated: \e[32m$ADMIN_PASS\e[0m"
+echo -e "\e[32mServer is available at:\e[0m \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+#echo -e "Admin password generated: \e[32m$ADMIN_PASS\e[0m"
 echo "--------------------------------------------"
 
 
