@@ -2,6 +2,7 @@
 
 # Путь к файлу db.db
 DB_FILE="/root/web/src/db.db"
+ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 
 # Предупреждение о смене пароля
 echo "Внимание: вы собираетесь сменить пароль администратора."
@@ -17,7 +18,7 @@ if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
 
     # Перезапуск сервиса StatusOpenVPN
     sudo systemctl restart StatusOpenVPN
-    echo "Сервис StatusOpenVPN был перезапущен."
+    echo -e "Admin password generated: \e[32m$ADMIN_PASS\e[0m"
 else
     echo "Операция отменена."
 fi
