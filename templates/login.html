@@ -1,46 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenVPN Dashboard</title>
+    <title>OpenVPN Dashboard - Вход</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
 </head>
+<body class="text-center">
 
-
-<div class="container input_form">
-    <h2 class="text-center input_title">Antizapret VPN</h2>
-    <div class="col-md-12 col-sm-12">
-        <form method="post" action="">
+<div class="container d-flex justify-content-center align-items-center vh-10">
+    <div class="col-md-3">
+        <h2 class="mb-3">Antizapret VPN</h2>
+        <form method="post" action="" class="form-signin">
             {{ form.hidden_tag() }}
-            <div class="row align-items-center">
-                <div class="col-2 input_icons align-self-center">
-                    <div>
-                        <img class="input_icons" draggable="false" src="static/user_ico.png">
-                    </div>
-                </div>
-                <div class="col-10 form-group align-self-center">
-                    <!--<label for="username">Пользователь</label>-->
-                    <input value="admin" id="username" class="input_username form-control" placeholder="Введите имя пользователя" maxlength="20" minlength="2" name="username" required type="text">
-                </div>
+            
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="username" placeholder="Введите имя пользователя" maxlength="20" minlength="2" name="username" required value="admin">
+                <label for="username">Имя пользователя</label>
             </div>
-            <div class="row align-items-center">
-                <div class="col-2 input_icons align-self-center">
-                    <div>
-                        <img class="input_icons" draggable="false" src="static/pass_ico.png">
-                    </div>
-                </div>
-                <div class="col-10 form-group">
-                    <!--<label for="password">Пароль :</label>-->
-                    <input id="password" class="form-control input_password" placeholder="Введите пароль" name="password" required type="password">
-                </div>
+            
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control" id="password" placeholder="Введите пароль" name="password" required>
+                <label for="password">Пароль</label>
             </div>
-            <button id="submit" name="submit" type="submit" class="btn btn-primary btn-block">Вход</button>
-            <div class="row">
-                <a class="forgot_link " draggable="false" href="/">Забыли пароль?</a>
-            </div>
+
+            <button class="w-100 btn btn-lg btn-primary mb-3" type="submit" id="submit">Вход</button>
+            Как добавить <a href="/" class="text-muted">Забыли пароль?</a> всплывающее поле с текстом
         </form>
     </div>
 </div>
+
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

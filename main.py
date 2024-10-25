@@ -2,8 +2,10 @@ import csv
 import sqlite3
 import requests
 import os
+import re
 import random
 import string
+import psutil
 import subprocess
 from flask_login import (
     LoginManager,
@@ -13,9 +15,7 @@ from flask_login import (
     login_required,
     current_user,
 )
-from flask import Flask, render_template, url_for, flash, redirect, request
-
-# from src import create_app
+from flask import Flask, render_template, url_for, flash, redirect, request, jsonify
 from src.forms import LoginForm
 from src.config import Config
 from flask_bcrypt import Bcrypt
@@ -24,17 +24,9 @@ from datetime import datetime
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# app = create_app('DevelopmentConfig')
-
-
 bcrypt = Bcrypt(app)
 loginManager = LoginManager(app)
 loginManager.login_view = "login"
-
-# @loginManager.user_loader
-# def load_user(user_id):
-#     return User.query.get(int(user_id))
-
 
 # Функция для подлючения к базе данных SQLite
 def get_db_connection():
@@ -62,7 +54,6 @@ def create_users_table():
 # Создание таблицы при запуске приложения
 create_users_table()
 
-
 # Flask-Login: Загрузка пользователей по его ID
 @loginManager.user_loader
 def load_user(user_id):
@@ -88,46 +79,6 @@ class User(UserMixin):
         self.password = password
 
 
-# Маршрут для логина
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for("home"))
-
-    form = LoginForm()
-    if form.validate_on_submit():
-        conn = get_db_connection()
-        user = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (form.username.data,)
-        ).fetchone()
-        conn.close()
-
-        if user and bcrypt.check_password_hash(user["password"], form.password.data):
-            user_obj = User(
-                user_id=user["id"],
-                username=user["username"],
-                role=user["role"],
-                password=user["password"],
-            )
-            login_user(user_obj)
-            next_page = request.args.get("next")
-            if not next_page == "/logout":
-                return redirect(next_page or url_for("home"))
-            else:
-                return redirect(url_for("home"))
-        else:
-            flash("Неправильный логин или пароль!", "danger")
-    return render_template("login.html", form=form)
-
-
-# Маршрут для выхода из системы
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for("login"))
-
-
 # Функция для добавления нового пользователя с зашифрованным паролем
 def add_user(username, role, password):
     hashed_password = bcrypt.generate_password_hash(password).decode("utf-8")
@@ -140,7 +91,7 @@ def add_user(username, role, password):
     conn.close()
 
 
-# Функция для получения данных WireGuard
+#Функция для получения данных WireGuard
 def get_wireguard_stats():
     try:
         result = subprocess.run(
@@ -160,6 +111,55 @@ def get_wireguard_stats():
         return f"Непредвиденная ошибка: {e}"
 
 
+def parse_wireguard_output(output):
+    stats = []
+    lines = output.strip().splitlines()
+    interface_data = {}
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith("interface:"):
+            if interface_data:
+                stats.append(interface_data)
+                interface_data = {}
+            interface_data["interface"] = line.split(": ")[1]
+        elif line.startswith("public key:"):
+            interface_data["public_key"] = line.split(": ")[1]
+        elif line.startswith("listening port:"):
+            interface_data["listening_port"] = line.split(": ")[1]
+        elif line.startswith("peer:"):
+            if "peers" not in interface_data:
+                interface_data["peers"] = []
+            peer_data = {"peer": line.split(": ")[1].strip()}
+            masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:] #Маскируем peer: первые 4 и последние 4 символа
+            peer_data["masked_peer"] = masked_peer
+            interface_data["peers"].append(peer_data)
+        elif line.startswith("preshared key:"):
+            interface_data["peers"][-1]["preshared_key"] = line.split(": ")[1]
+        elif line.startswith("endpoint:"):
+            endpoint = line.split(": ")[1].strip()
+            masked_endpoint = mask_ip(endpoint)
+            interface_data["peers"][-1]["endpoint"] = masked_endpoint
+        elif line.startswith("allowed ips:"):
+            interface_data["peers"][-1]["allowed_ips"] = line.split(": ")[1]
+        elif line.startswith("latest handshake:"):
+            handshake_time = line.split(": ")[1].strip()
+            formatted_handshake_time = format_handshake_time(handshake_time)
+            interface_data["peers"][-1]["latest_handshake"] = formatted_handshake_time
+
+        elif line.startswith("transfer:"):
+            transfer_data = line.split(":")[1].strip().split(", ")
+            received = transfer_data[0].replace(" received", "").strip()
+            sent = transfer_data[1].replace(" sent", "").strip()
+            interface_data["peers"][-1]["received"] = received
+            interface_data["peers"][-1]["sent"] = sent
+
+    if interface_data:
+        stats.append(interface_data)
+
+    return stats
+
+
 # Функция для генерации случайного пароля
 def get_random_pass(lenght=10):
     characters = string.ascii_letters + string.digits  # Буквы и цифры
@@ -177,7 +177,7 @@ def add_admin():
 
     if count < 1:
         add_user("admin", "admin", passw)
-        # print(f"Пароль администратора: {passw}")
+        print(f"Пароль администратора: {passw}")
 
     conn.close()
     return passw
@@ -227,6 +227,35 @@ def format_date(date_string):
     return date_obj.strftime("%d.%m.%Y [%H:%M]")
 
 
+def format_handshake_time(handshake_string):
+    time_units = re.findall(r"(\d+)\s+(\w+)", handshake_string)
+
+    # Словарь для перевода единиц времени в сокращения
+    abbreviations = {
+        "year": "г.",
+        "years": "г.",
+        "month": "мес.",
+        "months": "мес.",
+        "week": "нед.",
+        "weeks": "нед.",
+        "day": "дн.",
+        "days": "дн.",
+        "hour": "ч.",
+        "hours": "ч.",
+        "minute": "мин.",
+        "minutes": "мин.",
+        "second": "сек.",
+        "seconds": "сек.",
+    }
+
+    # Формируем сокращенную строку
+    formatted_time = " ".join(
+        f"{value} {abbreviations[unit]}" for value, unit in time_units
+    )
+
+    return formatted_time
+
+
 # Удаление префикса из имени клиента
 def clean_client_name(name, prefix="antizapret-"):
     return name[len(prefix) :] if name.startswith(prefix) else name
@@ -243,6 +272,14 @@ def mask_ip(ip_address):
         return f"{parts[0]}.***.***.{parts[3]}"
     return ip_address
 
+def get_system_info():
+    return {
+        "cpu_load": psutil.cpu_percent(interval=1),              # Нагрузка на ЦП (%)
+        "memory_used": psutil.virtual_memory().used // (1024**2),  # Использование ОЗУ (в МБ)
+        "memory_total": psutil.virtual_memory().total // (1024**2),  # Всего ОЗУ (в МБ)
+        "disk_used": psutil.disk_usage('/').used // (1024**3),     # Использование диска (в ГБ)
+        "disk_total": psutil.disk_usage('/').total // (1024**3)    # Всего места на диске (в ГБ)
+    }
 
 # Отсет времени
 def format_duration(start_time):
@@ -313,29 +350,74 @@ def read_csv(file_path, protocol):
 def page_not_found(_):
     return redirect(url_for("home"))
 
-
-@app.route("/stats")
+# Маршрут для выхода из системы
+@app.route("/logout")
 @login_required
-def stats():
-    return render_template("stats.html")
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
 
+# Маршрут для логина
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("home"))
 
-# @app.route("/wg")
-# @login_required
-# def wg():
-#    wg_stats = get_wireguard_stats()
-#    return render_template("wg.html", wg_stats=wg_stats)
+    form = LoginForm()
+    if form.validate_on_submit():
+        conn = get_db_connection()
+        user = conn.execute(
+            "SELECT * FROM users WHERE username = ?", (form.username.data,)
+        ).fetchone()
+        conn.close()
 
+        if user and bcrypt.check_password_hash(user["password"], form.password.data):
+            user_obj = User(
+                user_id=user["id"],
+                username=user["username"],
+                role=user["role"],
+                password=user["password"],
+            )
+            login_user(user_obj)
+            next_page = request.args.get("next")
+            if not next_page == "/logout":
+                return redirect(next_page or url_for("home"))
+            else:
+                return redirect(url_for("home"))
+        else:
+            flash("Неправильный логин или пароль!", "danger")
+    return render_template("login.html", form=form)
 
 @app.route("/")
 @login_required
 def home():
+    server_ip = get_external_ip()
+    system_info = get_system_info()
+    return render_template("index.html", server_ip=server_ip, system_info=system_info)
+
+@app.route('/api/system_info')
+@login_required
+def api_system_info():
+    system_info = get_system_info()
+    return jsonify(system_info)
+
+@app.route("/wg")
+@login_required
+def wg():
+    stats = parse_wireguard_output(get_wireguard_stats())
+    return render_template(
+        "wg.html", stats=stats, active_page="wg")
+
+
+@app.route("/ovpn")
+@login_required
+def ovpn():
 
     udp_clients, udp_received, udp_sent, udp_error = read_csv(
-        "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
+        "antizapret-udp-status.log", "UDP"
     )
     tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
-        "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
+        "antizapret-tcp-status.log", "TCP"
     )
 
     vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
@@ -347,7 +429,7 @@ def home():
 
     if udp_error or tcp_error:
         error_message = udp_error or tcp_error
-        return render_template("index.html", error_message=error_message)
+        return render_template("ovpn.html", error_message=error_message)
 
     clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
     total_clients = len(clients)
@@ -355,17 +437,16 @@ def home():
         udp_received + tcp_received + vpn_udp_received + vpn_tcp_received
     )
     total_sent = format_bytes(udp_sent + tcp_sent + vpn_udp_sent + vpn_tcp_sent)
-    server_ip = get_external_ip()
-
     return render_template(
-        "index.html",
+        "ovpn.html",
         clients=clients,
         total_clients_str=pluralize_clients(total_clients),
         total_received=total_received,
         total_sent=total_sent,
-        server_ip=server_ip,
+        active_page="ovpn",
     )
 
 
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=1234)
+    add_admin()
+    app.run(debug=True, host="0.0.0.0", port=1234)

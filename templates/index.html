@@ -1,47 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}Список клиентов OpenVPN{% endblock %}
+{% block title %}Главная страница{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Клиенты OpenVPN {{server_ip}}</h1>
+<div class="container mt-5">
+    <h1 class="text-center">Добро пожаловать в панель мониторинга OpenVPN и WireGuard</h1>
+    <p class="text-center">Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и WireGuard.</p>
+
+    <div class="row text-center mt-5">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title">OpenVPN</h3>
+                    <p class="card-text">Просмотр статистики подключений OpenVPN, включая IP-адреса и объем трафика.</p>
+                    <a href="/ovpn" class="btn btn-primary">Перейти к статистике OpenVPN</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title">WireGuard</h3>
+                    <p class="card-text">Просмотр статистики подключений WireGuard с подробной информацией о пользователях.</p>
+                    <a href="/wg" class="btn btn-primary">Перейти к статистике WireGuard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Информация о сервере -->
+    <div class="mt-5 p-3 bg-light text-center border rounded">
+        <h4>Информация о сервере</h4>
+        <p><strong>Внешний IP-адрес сервера:</strong> {{ server_ip }}</p>
+        <h4 class="mt-4">Системные метрики</h4>
+        <p><strong>Загрузка ЦП:</strong> <span id="cpu_load">Загрузка...</span>%</p>
+        <p><strong>Использование ОЗУ:</strong> <span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{ system_info.memory_total }}</span> MB</p>
+        <p><strong>Использование диска:</strong> <span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{ system_info.disk_total }}</span> GB</p>
+    </div>
 </div>
 
-{% if error_message %}
-    <div class="alert alert-danger" role="alert">
-        {{ error_message }}
-    </div>
-{% else %}
-<div class="table-responsive main_table">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th class="text-center">Клиент</th>
-                <th class="text-center">Реальный IP</th>
-                <th class="text-center">Локальный IP</th>
-                <th class="text-center">Передано</th>
-                <th class="text-center">Получено</th>
-                <th class="text-center">Подключен с</th>
-                <th class="text-center">Длительность</th>
-                <th class="text-center">Протокол</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for client in clients %}
-            <tr class="text-center">
-                {% for field in client %}
-                <td class="text-center">{{ field }}</td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-            <tr class="table-dark text-left">
-                <td colspan="3">Онлайн: {{ total_clients_str }}</td>
-                <td class="text-center">{{ total_received }}</td>
-                <td class="text-center">{{ total_sent }}</td>
-                <td colspan="3"></td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-{% endif %}
+<script>
+    // Функция для обновления данных
+    function updateSystemInfo() {
+        fetch('/api/system_info')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('cpu_load').textContent = data.cpu_load;
+                document.getElementById('memory_used').textContent = data.memory_used;
+                document.getElementById('disk_used').textContent = data.disk_used;
+            })
+            .catch(error => console.error('Ошибка при загрузке данных:', error));
+    }
+
+    // Автообновление каждые 5 секунд
+    setInterval(updateSystemInfo, 5000);
+
+    // Первоначальный вызов функции
+    updateSystemInfo();
+</script>
 {% endblock %}

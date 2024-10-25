@@ -1,49 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}Список клиентов OpenVPN{% endblock %}
+{% block title %}Список клиентов WireGuard{% endblock %}
 
 {% block content %}
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Клиенты WireGuard {{server_ip}}</h1>
+    <h1 class="h2">Клиенты WireGuard</h1>
 </div>
 
-{% if error_message %}
-    <div class="alert alert-danger" role="alert">
-        {{ error_message }}
-    </div>
-{% else %}
-    <pre>
-        {{wg_stats}}
-    </pre>
+{% for interface in stats %}
+
 <div class="table-responsive main_table">
-    <table class="table table-striped">
+    
+    <h2>Interface: {{ interface.interface }}</h2>
+    <table class="table table-striped ">
         <thead>
             <tr>
-                <th class="text-center">Клиент</th>
-                <th class="text-center">Реальный IP</th>
-                <th class="text-center">Локальный IP</th>
-                <th class="text-center">Передано</th>
-                <th class="text-center">Получено</th>
-                <th class="text-center">Последнее рукопожатие</th>
-                <th class="text-center">Протокол</th>
+                <th class="text-center">Peer (masked)</th>
+                <th class="text-center">Endpoint</th>
+                <th class="text-center">Allowed IPs</th>
+                <th class="text-center">Latest Handshake</th>
+                <th class="text-center">Received</th>
+                <th class="text-center">Sent</th>
             </tr>
         </thead>
         <tbody>
-            {% for client in clients %}
-            <tr class="text-center">
-                {% for field in client %}
-                <td class="text-center">{{ field }}</td>
-                {% endfor %}
+            {% for peer in interface.peers %}
+            <tr>
+                <td class="text-center">{{ peer.masked_peer }}</td>
+                <td class="text-center">{{ peer.endpoint or 'N/A' }}</td>
+                <td class="text-center">{{ peer.allowed_ips }}</td>
+                <td class="text-center">{{ peer.latest_handshake or 'N/A' }}</td>
+                <td class="text-center">{{ peer.received or 'N/A' }}</td>
+                <td class="text-center">{{ peer.sent or 'N/A' }}</td>
             </tr>
             {% endfor %}
-            <tr class="table-dark text-left">
-                <td colspan="3">Онлайн: {{ total_clients_str }}</td>
-                <td class="text-center">{{ total_received }}</td>
-                <td class="text-center">{{ total_sent }}</td>
-                <td colspan="3"></td>
-            </tr>
         </tbody>
     </table>
 </div>
-{% endif %}
+{% endfor %}
 {% endblock %}
