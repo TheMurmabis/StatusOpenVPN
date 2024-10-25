@@ -177,7 +177,7 @@ def add_admin():
 
     if count < 1:
         add_user("admin", "admin", passw)
-        print(f"Пароль администратора: {passw}")
+        #print(f"Пароль администратора: {passw}")
 
     conn.close()
     return passw
