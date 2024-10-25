@@ -42,7 +42,7 @@
 ## Смена пароля
 Для смены пароля администратора запустите скрипт смены пароля ``resetpass.sh``
 ```bash
-chmod +x /web/src/resetpass.sh && /web/src/resetpass.sh
+chmod +x web/scripts/resetpass.sh && web/scripts/resetpass.sh
 ```
 
 ## Удаление
