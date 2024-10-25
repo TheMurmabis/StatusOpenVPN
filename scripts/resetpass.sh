@@ -2,7 +2,8 @@
 
 # Путь к файлу db.db
 DB_FILE="/root/web/src/db.db"
-ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
+ADMIN_PASS=$(python3 -c "import sys; sys.path.append('/root/web'); from main import add_admin; print(add_admin())")
+
 
 # Предупреждение о смене пароля
 echo "Внимание: вы собираетесь сменить пароль администратора."
