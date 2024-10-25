@@ -414,10 +414,10 @@ def wg():
 def ovpn():
 
     udp_clients, udp_received, udp_sent, udp_error = read_csv(
-        "antizapret-udp-status.log", "UDP"
+        "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
     )
     tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
-        "antizapret-tcp-status.log", "TCP"
+        "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
     )
 
     vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
@@ -449,4 +449,4 @@ def ovpn():
 
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=True, host="0.0.0.0", port=1234)
+    app.run(debug=False, host="0.0.0.0", port=1234)
