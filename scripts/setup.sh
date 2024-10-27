@@ -114,4 +114,4 @@ echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
 echo "--------------------------------------------"
 
 
-rm -f $TARGET_DIR/setup.sh $TARGET_DIR/README.md
+rm -f $TARGET_DIR/scripts/setup.sh $TARGET_DIR/README.md
