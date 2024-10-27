@@ -97,6 +97,7 @@ sudo systemctl daemon-reload
 
 echo "Starting StatusOpenVPN service..."
 sudo systemctl start StatusOpenVPN
+sudo systemctl enable StatusOpenVPN
 
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
