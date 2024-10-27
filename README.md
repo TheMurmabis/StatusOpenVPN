@@ -61,9 +61,8 @@ bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/
 + `vpn-tcp-status.log` *(необязательно)*
 
 > **Примечание:** Файлы `antizapret-*` являются обязательными для корректной работы приложения, а файлы `vpn-*` используются при наличии.
-
-Обязательным 
-4. Данные для WireGuard считываются из команды ```wg show```
+ 
+4. Данные для WireGuard считываются из команды: ```wg show```
 
 ## Об авторе
 
