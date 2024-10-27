@@ -28,6 +28,7 @@ bcrypt = Bcrypt(app)
 loginManager = LoginManager(app)
 loginManager.login_view = "login"
 
+
 # Функция для подлючения к базе данных SQLite
 def get_db_connection():
     conn = sqlite3.connect(app.config["DATABASE_PATH"])
@@ -53,6 +54,7 @@ def create_users_table():
 
 # Создание таблицы при запуске приложения
 create_users_table()
+
 
 # Flask-Login: Загрузка пользователей по его ID
 @loginManager.user_loader
@@ -91,7 +93,59 @@ def add_user(username, role, password):
     conn.close()
 
 
-#Функция для получения данных WireGuard
+# Функция для генерации случайного пароля
+def get_random_pass(lenght=10):
+    characters = string.ascii_letters + string.digits  # Буквы и цифры
+    random_pass = "".join(random.choice(characters) for _ in range(lenght))
+    return random_pass
+
+
+# Добавление администратора при первом запуске
+def add_admin():
+    conn = get_db_connection()
+    passw = get_random_pass()
+    count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()[
+        0
+    ]
+
+    if count < 1:
+        add_user("admin", "admin", passw)
+        # print(f"Пароль администратора: {passw}")
+
+    conn.close()
+    return passw
+
+
+def change_admin_password():
+    # Подключаемся к базе данных
+    conn = get_db_connection()
+
+    # Проверяем, есть ли администратор
+    admin_user = conn.execute("SELECT * FROM users WHERE role = 'admin'").fetchone()
+
+    if not admin_user:
+        print("Администратор не найден.")
+        conn.close()
+        return
+    # Генерируем новый пароль
+    passw = get_random_pass()
+
+    # Хешируем новый пароль
+    hashed_password = bcrypt.generate_password_hash(passw).decode("utf-8")
+
+    # Обновляем пароль в базе данных
+    conn.execute(
+        "UPDATE users SET password = ? WHERE username = ? AND role = 'admin'",
+        (hashed_password, "admin"),
+    )
+    conn.commit()
+    conn.close()
+
+    print(f"Пароль администратора успешно изменен. Новый пароль: {passw}")
+
+
+# -------WireGuard--------
+# Функция для получения данных WireGuard
 def get_wireguard_stats():
     try:
         result = subprocess.run(
@@ -106,9 +160,6 @@ def get_wireguard_stats():
             "Команда wg не найдена. Убедитесь, что WireGuard установлен и доступен в системе."
         )
         return "Команда wg не найдена."
-    except Exception as e:
-        print(f"Непредвиденная ошибка: {e}")
-        return f"Непредвиденная ошибка: {e}"
 
 
 def parse_wireguard_output(output):
@@ -131,7 +182,10 @@ def parse_wireguard_output(output):
             if "peers" not in interface_data:
                 interface_data["peers"] = []
             peer_data = {"peer": line.split(": ")[1].strip()}
-            masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:] #Маскируем peer: первые 4 и последние 4 символа
+            masked_peer = (
+                peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
+            )  # Маскируем peer: первые 4 и последние 4 символа
+
             peer_data["masked_peer"] = masked_peer
             interface_data["peers"].append(peer_data)
         elif line.startswith("preshared key:"):
@@ -158,29 +212,6 @@ def parse_wireguard_output(output):
         stats.append(interface_data)
 
     return stats
-
-
-# Функция для генерации случайного пароля
-def get_random_pass(lenght=10):
-    characters = string.ascii_letters + string.digits  # Буквы и цифры
-    random_pass = "".join(random.choice(characters) for _ in range(lenght))
-    return random_pass
-
-
-# Добавление администратора при первом запуске
-def add_admin():
-    conn = get_db_connection()
-    passw = get_random_pass()
-    count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()[
-        0
-    ]
-
-    if count < 1:
-        add_user("admin", "admin", passw)
-        print(f"Пароль администратора: {passw}")
-
-    conn.close()
-    return passw
 
 
 # Функция для преобразования байт в удобный формат
@@ -272,14 +303,19 @@ def mask_ip(ip_address):
         return f"{parts[0]}.***.***.{parts[3]}"
     return ip_address
 
+
 def get_system_info():
     return {
-        "cpu_load": psutil.cpu_percent(interval=1),              # Нагрузка на ЦП (%)
-        "memory_used": psutil.virtual_memory().used // (1024**2),  # Использование ОЗУ (в МБ)
+        "cpu_load": psutil.cpu_percent(interval=1),  # Нагрузка на ЦП (%)
+        "memory_used": psutil.virtual_memory().used
+        // (1024**2),  # Использование ОЗУ (в МБ)
         "memory_total": psutil.virtual_memory().total // (1024**2),  # Всего ОЗУ (в МБ)
-        "disk_used": psutil.disk_usage('/').used // (1024**3),     # Использование диска (в ГБ)
-        "disk_total": psutil.disk_usage('/').total // (1024**3)    # Всего места на диске (в ГБ)
+        "disk_used": psutil.disk_usage("/").used
+        // (1024**3),  # Использование диска (в ГБ)
+        "disk_total": psutil.disk_usage("/").total
+        // (1024**3),  # Всего места на диске (в ГБ)
     }
+
 
 # Отсет времени
 def format_duration(start_time):
@@ -350,12 +386,14 @@ def read_csv(file_path, protocol):
 def page_not_found(_):
     return redirect(url_for("home"))
 
+
 # Маршрут для выхода из системы
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
 
 # Маршрут для логина
 @app.route("/login", methods=["GET", "POST"])
@@ -388,6 +426,7 @@ def login():
             flash("Неправильный логин или пароль!", "danger")
     return render_template("login.html", form=form)
 
+
 @app.route("/")
 @login_required
 def home():
@@ -395,18 +434,19 @@ def home():
     system_info = get_system_info()
     return render_template("index.html", server_ip=server_ip, system_info=system_info)
 
-@app.route('/api/system_info')
+
+@app.route("/api/system_info")
 @login_required
 def api_system_info():
     system_info = get_system_info()
     return jsonify(system_info)
 
+
 @app.route("/wg")
 @login_required
 def wg():
     stats = parse_wireguard_output(get_wireguard_stats())
-    return render_template(
-        "wg.html", stats=stats, active_page="wg")
+    return render_template("wg.html", stats=stats, active_page="wg")
 
 
 @app.route("/ovpn")
@@ -449,4 +489,4 @@ def ovpn():
 
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=False, host="0.0.0.0", port=1234)
+    app.run(debug=True, host="0.0.0.0", port=1234)
