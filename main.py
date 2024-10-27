@@ -141,7 +141,7 @@ def change_admin_password():
     conn.commit()
     conn.close()
 
-    print(f"Пароль администратора успешно изменен. Новый пароль: {passw}")
+    print(f"{passw}")
 
 
 # -------WireGuard--------
