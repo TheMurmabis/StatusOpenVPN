@@ -102,7 +102,7 @@ sudo systemctl start StatusOpenVPN
 EXTERNAL_IP=$(curl -s ifconfig.me)
 
 echo "Running initial admin setup..."
-ADMIN_PASS=$(python3 -c "import sys; sys.path.append('/root/web'); from main import add_admin; print(add_admin())")
+ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 
 
 # Вывод информации о доступности сервера
