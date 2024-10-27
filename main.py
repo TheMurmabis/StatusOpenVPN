@@ -6,6 +6,7 @@ import re
 import random
 import string
 import psutil
+import socket
 import subprocess
 from flask_login import (
     LoginManager,
@@ -432,7 +433,10 @@ def login():
 def home():
     server_ip = get_external_ip()
     system_info = get_system_info()
-    return render_template("index.html", server_ip=server_ip, system_info=system_info)
+    hostname = socket.gethostname()
+    return render_template(
+        "index.html", server_ip=server_ip, system_info=system_info, hostname=hostname
+    )
 
 
 @app.route("/api/system_info")
