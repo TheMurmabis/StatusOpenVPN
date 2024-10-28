@@ -80,7 +80,6 @@ ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 main:app -b 0.0.0.0:$PORT
 [Install]
 WantedBy=multi-user.target
 EOF
-    sudo systemctl daemon-reload
 fi
 
 # Перезагрузка systemd и перезапуск сервиса
