@@ -41,15 +41,15 @@
     ```
 
 ## Смена пароля
-Для смены пароля администратора необходимо запустить скрипт ``change_passwd.sh``. Будет сгенерирован новый пароль.
+Для смены пароля администратора необходимо запустить скрипт ``change_passwd.sh``. <br>Будет сгенерирован новый пароль.
 ````bash
 (cd web && chmod +x ./scripts/change_passwd.sh && ./scripts/change_passwd.sh)
 
 ````
 ## Обновление
-Для обновления приложения необходимо запустить скрипт ```update.sh```
+Для обновления сервиса необходимо запустить скрипт ```update.sh```
 ````bash
- chmod +x web/scripts/update.sh && ./web/scripts/update.sh
+bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/main/scripts/update.sh)"
  ````
 
 ## Удаление
