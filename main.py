@@ -146,7 +146,6 @@ def change_admin_password():
     print(f"{passw}")
 
 
-# -------WireGuard--------
 # Функция для получения данных WireGuard
 def get_wireguard_stats():
     try:
