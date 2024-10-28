@@ -4,6 +4,7 @@ import requests
 import os
 import re
 import random
+import time
 import string
 import psutil
 import socket
@@ -305,6 +306,34 @@ def mask_ip(ip_address):
     return ip_address
 
 
+def get_network_load():
+    net_io_start = psutil.net_io_counters(pernic=True)
+    time.sleep(1)
+    net_io_end = psutil.net_io_counters(pernic=True)
+
+    network_data = {}
+    for interface in net_io_start:
+        sent_start, recv_start = (
+            net_io_start[interface].bytes_sent,
+            net_io_start[interface].bytes_recv,
+        )
+        sent_end, recv_end = (
+            net_io_end[interface].bytes_sent,
+            net_io_end[interface].bytes_recv,
+        )
+
+        sent_speed = (sent_end - sent_start) * 8 / 1e6  # Мбит/с
+        recv_speed = (recv_end - recv_start) * 8 / 1e6  # Мбит/с
+
+        # Сохраняем только интерфейсы с ненулевой загрузкой
+        if sent_speed > 0 or recv_speed > 0:
+            network_data[interface] = {
+                "sent_speed": round(sent_speed, 2),
+                "recv_speed": round(recv_speed, 2),
+            }
+    return network_data
+
+
 def get_system_info():
     return {
         "cpu_load": psutil.cpu_percent(interval=1),  # Нагрузка на ЦП (%)
@@ -315,6 +344,7 @@ def get_system_info():
         // (1024**3),  # Использование диска (в ГБ)
         "disk_total": psutil.disk_usage("/").total
         // (1024**3),  # Всего места на диске (в ГБ)
+        "network_load": get_network_load(),
     }
 
 
