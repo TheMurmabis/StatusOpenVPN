@@ -70,4 +70,4 @@ bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/
 
 ## Об авторе
 
-Этот проект был создан и поддерживается пользователем **TheMurmabis**. Для любых вопросов или предложений, пожалуйста, обращайтесь через Issues на GitHub.
+Этот проект был создан и поддерживается пользователем **TheMurmabis**. Для любых вопросов или предложений, пожалуйста, обращайтесь через Issues на GitHub или через личные сообщения на [форуме](https://ntc.party/u/themurmabis/activity) .
