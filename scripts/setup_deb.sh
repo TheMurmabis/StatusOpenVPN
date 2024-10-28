@@ -51,8 +51,8 @@ git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
 cd $TARGET_DIR
 
 # Установка необходимого пакета для создания виртуальных окружений Python
-echo "Installing python3.12-venv..."
-apt update && apt install -y python3.12-venv
+echo "Installing python3.11-venv..."
+apt update && apt install -y python3.11-venv
 
 # Создание виртуального окружения
 echo "Creating virtual environment..."
