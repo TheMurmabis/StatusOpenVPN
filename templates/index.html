@@ -83,7 +83,7 @@
                 const networkLoad = data.network_load;
                 let networkHtml = '';
                 for (const [interface, stats] of Object.entries(networkLoad)) {
-                    networkHtml += `<p class="left">${interface}: Передача: ${stats.sent_speed} Мбит/с, Прием: ${stats.recv_speed} Мбит/с</p>`;
+                    networkHtml += `<p><b>${interface}</b>: Передача: ${stats.sent_speed} Мбит/с, Прием: ${stats.recv_speed} Мбит/с</p>`;
                 }
                 document.getElementById('network_load').innerHTML = networkHtml;
             })
