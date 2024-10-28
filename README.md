@@ -46,6 +46,12 @@
 (cd web && chmod +x ./scripts/change_passwd.sh && ./scripts/change_passwd.sh)
 
 ````
+## Обновление
+Для обновления приложения необходимо запустить скрипт ```update.sh```
+````bash
+ chmod +x web/scripts/update.sh && ./web/scripts/update.sh
+ ````
+
 ## Удаление
 
 Для удаления сервиса и всех его компонентов запустите скрипт удаления ``uninstall.sh``:
