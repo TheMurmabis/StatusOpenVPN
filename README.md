@@ -15,7 +15,7 @@
 
 Для успешной установки необходимо, чтобы на сервере были установлены следующие компоненты:
 
-- [OpenVPN AntiZapret](https://github.com/GubernievS/AntiZapret-VPN)  *(обязательно)*.
+- [AntiZapret-VPN](https://github.com/GubernievS/AntiZapret-VPN)  *(обязательно)*.
 - Python 3.12 или выше (Для Debian 12: Python 3.11)
 - Права суперпользователя (root)
 
