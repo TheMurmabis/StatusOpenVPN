@@ -7,6 +7,25 @@ set -e
 TARGET_DIR="/root/web"  # Папка, куда будет клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
 
+# Проверка версии Python и установка venv
+install_python_venv() {
+    # Получаем основную версию Python 3 (например, 3.8, 3.10 и т.д.)
+    PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    
+    echo "Detected Python version: $PYTHON_VERSION"
+    
+    # Устанавливаем python3-venv для текущей версии Python
+    if ! dpkg -s "python${PYTHON_VERSION}-venv" >/dev/null 2>&1; then
+        echo "Installing python${PYTHON_VERSION}-venv..."
+        apt update && apt install -y "python${PYTHON_VERSION}-venv" || { echo "Failed to install python${PYTHON_VERSION}-venv"; exit 1; }
+    else
+        echo "python${PYTHON_VERSION}-venv is already installed."
+    fi
+}
+
+# Проверка и установка python3-venv
+install_python_venv
+
 # Функция для проверки, свободен ли порт
 check_port_free() {
     local PORT=$1
@@ -49,10 +68,6 @@ git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
 
 # Переход в директорию проекта
 cd $TARGET_DIR
-
-# Установка необходимого пакета для создания виртуальных окружений Python
-echo "Installing python3.12-venv..."
-apt update && apt install -y python3.12-venv
 
 # Создание виртуального окружения
 echo "Creating virtual environment..."
