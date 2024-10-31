@@ -34,7 +34,7 @@
                 <td class="text-center">{{ client[2] }}</td>
                 <td class="text-center">{{ client[3] }}</td>
                 <td class="text-center">{{ client[4] }}</td>
-                <td class="text-center connection-time">{{ client[5] }}</td>
+                <<td class="text-center connection-time" data-utc="{{ client[5] }}">{{ client[5] }}</td>
                 <td class="text-center">{{ client[6] }}</td>
                 <td class="text-center">{{ client[7] }}</td>
             </tr>
@@ -51,19 +51,21 @@
 {% endif %}
 
 <script>
-    // Функция для преобразования времени в локальное
+    // Функция для преобразования времени в локальное, используя data-атрибуты
     function convertToUserTimezone() {
         const timeCells = document.querySelectorAll('.connection-time');
         
         timeCells.forEach(cell => {
-            const utcDate = new Date(cell.textContent); // Преобразуем текст в дату UTC
-            const localDateString = utcDate.toLocaleString(); // Локальное время пользователя
-            cell.textContent = localDateString;
+            const utcDateStr = cell.getAttribute('data-utc'); // Извлекаем значение data-utc
+            if (utcDateStr) {
+                const utcDate = new Date(utcDateStr); // Преобразуем строку в дату UTC
+                const localDateString = utcDate.toLocaleString(); // Преобразуем в локальное время
+                cell.textContent = localDateString; // Заменяем текст ячейки на локальное время
+            }
         });
     }
-    
+
     // Вызов функции после загрузки страницы
     document.addEventListener('DOMContentLoaded', convertToUserTimezone);
-    </script>
-
+</script>
 {% endblock %}
