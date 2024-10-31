@@ -23,9 +23,6 @@ install_python_venv() {
     fi
 }
 
-# Проверка и установка python3-venv
-install_python_venv
-
 # Функция для проверки, свободен ли порт
 check_port_free() {
     local PORT=$1
@@ -68,6 +65,9 @@ git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
 
 # Переход в директорию проекта
 cd $TARGET_DIR
+
+# Проверка и установка python3-venv
+install_python_venv
 
 # Создание виртуального окружения
 echo "Creating virtual environment..."

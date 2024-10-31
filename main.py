@@ -9,6 +9,7 @@ import string
 import psutil
 import socket
 import subprocess
+from tzlocal import get_localzone
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -17,11 +18,20 @@ from flask_login import (
     login_required,
     current_user,
 )
-from flask import Flask, render_template, url_for, flash, redirect, request, jsonify
+from flask import (
+    Flask,
+    render_template,
+    url_for,
+    flash,
+    redirect,
+    request,
+    jsonify,
+    session,
+)
 from src.forms import LoginForm
 from src.config import Config
 from flask_bcrypt import Bcrypt
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -256,7 +266,12 @@ def get_external_ip():
 # Преобразование даты
 def format_date(date_string):
     date_obj = datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
-    return date_obj.strftime("%d.%m.%Y [%H:%M]")
+    server_timezone = get_localzone()  # Получаем локальную временную зону сервера
+    localized_date = date_obj.replace(
+        tzinfo=server_timezone)  # Устанавливаем локальную временную зону
+    utc_date = localized_date.astimezone(timezone.utc)  # Преобразуем в UTC
+
+    return utc_date.isoformat()  # Возвращаем ISO формат
 
 
 def format_handshake_time(handshake_string):
@@ -447,6 +462,8 @@ def login():
                 password=user["password"],
             )
             login_user(user_obj)
+            session.permanent = True
+            app.permanent_session_lifetime = timedelta(minutes=10)
             next_page = request.args.get("next")
             if not next_page == "/logout":
                 return redirect(next_page or url_for("home"))

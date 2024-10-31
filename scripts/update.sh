@@ -21,6 +21,9 @@ check_port_free() {
 read -e -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): " -i N CHANGE_PORT
 
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
+    # Остановка сервиса
+    echo "Stop StatusOpenVPN service..."
+    sudo systemctl stop StatusOpenVPN
     while true; do
         read -p "Please enter a new port number: " NEW_PORT
 
