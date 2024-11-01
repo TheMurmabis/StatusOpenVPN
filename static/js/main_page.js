@@ -8,6 +8,7 @@ async function updateSystemInfo() {
         const memoryElement = document.getElementById('memory_used');
         const diskElement = document.getElementById('disk_used');
         const networkElement = document.getElementById('network_load');
+        const uptimeElement = document.getElementById('server_uptime');  
 
         // Обновляем только если данные изменились
         if (cpuElement.textContent !== data.cpu_load) {
@@ -30,6 +31,11 @@ async function updateSystemInfo() {
         // Обновляем сетевую нагрузку только если HTML изменился
         if (networkElement.innerHTML !== networkHtml) {
             networkElement.innerHTML = networkHtml;
+        }
+
+        // Обновляем uptime
+        if (uptimeElement.textContent !== data.uptime) {
+            uptimeElement.textContent = data.uptime;  // Обновляем текст
         }
     } catch (error) {
         console.error('Ошибка при загрузке данных:', error);
