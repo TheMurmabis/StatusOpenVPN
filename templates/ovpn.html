@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Список клиентов OpenVPN{% endblock %}
+{% block title %}StatusOpenVPN - OpenVPN{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -18,7 +18,7 @@
             <tr>
                 <th class="text-center">Клиент</th>
                 <th class="text-center">Реальный IP</th>
-                <th class="text-center">Локальный IP</th>
+                <th class="text-center">Локальный IP<br></th>
                 <th class="text-center">Передано</th>
                 <th class="text-center">Получено</th>
                 <th class="text-center">Подключен с</th>
@@ -50,22 +50,6 @@
 </div>
 {% endif %}
 
-<script>
-    // Функция для преобразования времени в локальное, используя data-атрибуты
-    function convertToUserTimezone() {
-        const timeCells = document.querySelectorAll('.connection-time');
-        
-        timeCells.forEach(cell => {
-            const utcDateStr = cell.getAttribute('data-utc'); // Извлекаем значение data-utc
-            if (utcDateStr) {
-                const utcDate = new Date(utcDateStr); // Преобразуем строку в дату UTC
-                const localDateString = utcDate.toLocaleString(); // Преобразуем в локальное время
-                cell.textContent = localDateString; // Заменяем текст ячейки на локальное время
-            }
-        });
-    }
+<script src="{{ url_for('static', filename='js/ovpn_page.js') }}"></script>
 
-    // Вызов функции после загрузки страницы
-    document.addEventListener('DOMContentLoaded', convertToUserTimezone);
-</script>
 {% endblock %}

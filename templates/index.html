@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Главная страница{% endblock %}
+{% block title %}StatusOpenVPN{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
@@ -13,7 +13,7 @@
                 <div class="card-body">
                     <h3 class="card-title">OpenVPN</h3>
                     <p class="card-text">Просмотр статистики подключений OpenVPN, включая IP-адреса и объем трафика.</p>
-                    <a href="/ovpn" class="btn btn-primary">Перейти к статистике OpenVPN</a>
+                    <a href="/ovpn" class="btn btn-primary mb-3">Перейти к статистике OpenVPN</a>
                 </div>
             </div>
         </div>
@@ -22,78 +22,80 @@
                 <div class="card-body">
                     <h3 class="card-title">WireGuard</h3>
                     <p class="card-text">Просмотр статистики подключений WireGuard с подробной информацией о пользователях.</p>
-                    <a href="/wg" class="btn btn-primary">Перейти к статистике WireGuard</a>
+                    <a href="/wg" class="btn btn-primary mb-3">Перейти к статистике WireGuard</a>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Информация о сервере -->
-<div class="mt-5 p-3 bg-light border rounded" style="margin: auto;">
-    <h4 class="text-center">Информация о сервере</h4>
-    <table class="table table-bordered mt-3" style="width: 100%; table-layout: fixed;">
-        <tbody>
-            <tr>
-                <th scope="row" style="width: 200px;">Имя сервера:</th>
-                <td style="max-width: 300px; word-wrap: break-word;">{{ hostname }}</td>
-            </tr>
-            <tr>
-                <th scope="row">IP-адрес сервера:</th>
-                <td style="max-width: 300px; word-wrap: break-word;">{{ server_ip }}</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h4 class="text-center mt-4">Системные метрики</h4>
-    <table class="table table-bordered mt-3" style="width: 100%; table-layout: fixed;">
-        <tbody>
-            <tr>
-                <th scope="row" style="width: 200px;">Загрузка ЦП:</th>
-                <td style="max-width: 300px; word-wrap: break-word;"><span id="cpu_load">Загрузка...</span>%</td>
-            </tr>
-            <tr>
-                <th scope="row">Использование ОЗУ:</th>
-                <td style="max-width: 300px; word-wrap: break-word;"><span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{ system_info.memory_total }}</span> MB</td>
-            </tr>
-            <tr>
-                <th scope="row">Использование диска:</th>
-                <td style="max-width: 300px; word-wrap: break-word;"><span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{ system_info.disk_total }}</span> GB</td>
-            </tr>
-            <tr>
-                <th scope="row">Сетевая загрузка:</th>
-                <td style="max-width: 300px; word-wrap: break-word;"><div id="network_load">Загрузка...</div></td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="mt-3 p-3 bg-light border rounded" style="margin: auto;">
+        <h4 class="text-center mb-4">Информация о сервере</h4>
+        <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Имя сервера:</h5>
+                        <p class="card-text">{{ hostname }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">IP-адрес сервера:</h5>
+                        <p class="card-text">{{ server_ip }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <h4 class="text-center mt-3 mb-4">Системные метрики</h4>
+        <div class="row">        
+        <div class="col-12 col-md-6 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Время работы сервера:</h5>
+                    <p class="card-text">{{ uptime }}</p> 
+                </div>
+            </div>
+        </div>
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Загрузка ЦП:</h5>
+                        <p class="card-text"><span id="cpu_load">Загрузка...</span>%</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Использование ОЗУ:</h5>
+                        <p class="card-text"><span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{ system_info.memory_total }}</span> MB</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Использование диска:</h5>
+                        <p class="card-text"><span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{ system_info.disk_total }}</span> GB</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Сетевая загрузка:</h5>
+                        <div id="network_load">Загрузка...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/main_page.js') }}"></script>
 
-</div>
-
-<script>
-    // Функция для обновления данных
-    function updateSystemInfo() {
-        fetch('/api/system_info')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('cpu_load').textContent = data.cpu_load;
-                document.getElementById('memory_used').textContent = data.memory_used;
-                document.getElementById('disk_used').textContent = data.disk_used;
-                // Отображение данных о загрузке сети
-                const networkLoad = data.network_load;
-                let networkHtml = '';
-                for (const [interface, stats] of Object.entries(networkLoad)) {
-                    networkHtml += `<p><b>${interface}</b>: Передача: ${stats.sent_speed} Мбит/с, Прием: ${stats.recv_speed} Мбит/с</p>`;
-                }
-                document.getElementById('network_load').innerHTML = networkHtml;
-            })
-            .catch(error => console.error('Ошибка при загрузке данных:', error));
-    }
-
-    // Автообновление каждые 5 секунд
-    setInterval(updateSystemInfo, 5000);
-
-    // Первоначальный вызов функции
-    updateSystemInfo();
-</script>
 {% endblock %}

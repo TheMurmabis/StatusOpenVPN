@@ -22,7 +22,6 @@ from flask import (
     Flask,
     render_template,
     url_for,
-    flash,
     redirect,
     request,
     jsonify,
@@ -122,30 +121,25 @@ def add_admin():
 
     if count < 1:
         add_user("admin", "admin", passw)
-        # print(f"Пароль администратора: {passw}")
+        #print(f"Пароль администратора: {passw}")
 
     conn.close()
     return passw
 
 
 def change_admin_password():
-    # Подключаемся к базе данных
-    conn = get_db_connection()
 
-    # Проверяем, есть ли администратор
+    conn = get_db_connection()
     admin_user = conn.execute("SELECT * FROM users WHERE role = 'admin'").fetchone()
 
     if not admin_user:
         print("Администратор не найден.")
         conn.close()
         return
-    # Генерируем новый пароль
-    passw = get_random_pass()
-
-    # Хешируем новый пароль
+    
+    passw = get_random_pass() # Генерация нового пароля
     hashed_password = bcrypt.generate_password_hash(passw).decode("utf-8")
 
-    # Обновляем пароль в базе данных
     conn.execute(
         "UPDATE users SET password = ? WHERE username = ? AND role = 'admin'",
         (hashed_password, "admin"),
@@ -250,10 +244,9 @@ def pluralize_clients(count):
 # Функция для получения внешнего IP-адреса
 def get_external_ip():
     try:
-        # Отправляем запрос к сервису ipify, чтобы получить внешний IP
         response = requests.get("https://api.ipify.org", timeout=10)
         if response.status_code == 200:
-            return response.text  # Возвращаем IP-адрес
+            return response.text  
         return "IP не найден"
     except requests.Timeout:
         return "Ошибка: запрос превысил время ожидания."
@@ -336,8 +329,8 @@ def get_network_load():
             net_io_end[interface].bytes_recv,
         )
 
-        sent_speed = (sent_end - sent_start) * 8 / 1e6  # Мбит/с
-        recv_speed = (recv_end - recv_start) * 8 / 1e6  # Мбит/с
+        sent_speed = (sent_end - sent_start) * 8 / 1e6  
+        recv_speed = (recv_end - recv_start) * 8 / 1e6  
 
         # Сохраняем только интерфейсы с ненулевой загрузкой
         if sent_speed > 0 or recv_speed > 0:
@@ -348,18 +341,72 @@ def get_network_load():
     return network_data
 
 
+def get_uptime():
+    try:
+        uptime = (
+            subprocess.check_output("/usr/bin/uptime -p", shell=True).decode().strip()
+        )
+    except subprocess.CalledProcessError:
+        uptime = "Не удалось получить время работы"
+    return uptime
+
+
+def format_uptime(uptime_string):
+
+    pattern = r"(?:(\d+)\s*days?|(\d+)\s*hours?|(\d+)\s*minutes?)"
+
+    days = 0
+    hours = 0
+    minutes = 0
+
+    matches = re.findall(pattern, uptime_string)
+
+    for match in matches:
+        if match[0]:  # Дни
+            days = int(match[0])
+        elif match[1]:  # Часы
+            hours = int(match[1])
+        elif match[2]:  # Минуты
+            minutes = int(match[2])
+
+    # Итоговая строка
+    result = []
+    if days > 0:
+        result.append(f"{days} дн.")
+    if hours > 0:
+        result.append(f"{hours} ч.")
+    if minutes > 0:
+        result.append(f"{minutes} мин.")
+
+    return " ".join(result)
+
+
+# Переменная для хранения кэшированных данных
+cached_system_info = None
+last_fetch_time = 0
+CACHE_DURATION = 10  # Время кэширования в секундах
+
+
 def get_system_info():
-    return {
-        "cpu_load": psutil.cpu_percent(interval=1),  # Нагрузка на ЦП (%)
-        "memory_used": psutil.virtual_memory().used
-        // (1024**2),  # Использование ОЗУ (в МБ)
-        "memory_total": psutil.virtual_memory().total // (1024**2),  # Всего ОЗУ (в МБ)
-        "disk_used": psutil.disk_usage("/").used
-        // (1024**3),  # Использование диска (в ГБ)
-        "disk_total": psutil.disk_usage("/").total
-        // (1024**3),  # Всего места на диске (в ГБ)
+    global last_fetch_time, cached_system_info
+
+    current_time = time.time()
+    if cached_system_info and (current_time - last_fetch_time < CACHE_DURATION):
+        return cached_system_info
+
+    system_info = {
+        "cpu_load": psutil.cpu_percent(interval=1),
+        "memory_used": psutil.virtual_memory().used // (1024**2),
+        "memory_total": psutil.virtual_memory().total // (1024**2),
+        "disk_used": psutil.disk_usage("/").used // (1024**3),
+        "disk_total": psutil.disk_usage("/").total // (1024**3),
         "network_load": get_network_load(),
+	    "uptime": format_uptime (get_uptime()),
     }
+
+    cached_system_info = system_info
+    last_fetch_time = current_time
+    return system_info
 
 
 # Отсет времени
@@ -447,6 +494,8 @@ def login():
         return redirect(url_for("home"))
 
     form = LoginForm()
+    error_message = None
+
     if form.validate_on_submit():
         conn = get_db_connection()
         user = conn.execute(
@@ -465,13 +514,12 @@ def login():
             session.permanent = True
             app.permanent_session_lifetime = timedelta(minutes=10)
             next_page = request.args.get("next")
-            if not next_page == "/logout":
-                return redirect(next_page or url_for("home"))
-            else:
-                return redirect(url_for("home"))
+            return redirect(next_page or url_for("home"))
         else:
-            flash("Неправильный логин или пароль!", "danger")
-    return render_template("login.html", form=form)
+            error_message = (
+                "Неправильный логин или пароль!"  # Устанавливаем сообщение об ошибке
+            )
+    return render_template("login.html", form=form, error_message=error_message)
 
 
 @app.route("/")
@@ -481,8 +529,10 @@ def home():
     system_info = get_system_info()
     hostname = socket.gethostname()
     return render_template(
-        "index.html", server_ip=server_ip, system_info=system_info, hostname=hostname
-    )
+        "index.html",
+        server_ip=server_ip,
+        system_info=system_info,
+        hostname=hostname)
 
 
 @app.route("/api/system_info")

@@ -12,9 +12,27 @@ h2 {
     text-align: left;
 }
 
+.table td,
+.table th {
+    vertical-align: middle;
+}
+
+.table th {
+    text-wrap: nowrap;
+
+}
+
+
+.table {
+    table-layout: auto;
+    width: auto;
+    max-width: 100%;
+}
+
 /* Стили для отступов контента под header и над footer */
 body {
     padding: 70px 0 60px;
+
 }
 
 /* Header ссылки */
@@ -69,3 +87,24 @@ footer a {
 footer a:hover {
     color: #fff;
 }
+
+
+.form-container {
+    max-width: 100%;
+    width: 320px;
+}
+
+#passwordHint {
+    display: none;
+    font-size: 1.0em;
+}
+
+#passwordHint.show {
+    display: block;
+    transition: opacity 0.3s ease-in-out;
+    opacity: 1;
+}
+.forgot-password-link {
+    font-size: 1.1em;
+}
+
