@@ -7,7 +7,7 @@ set -e
 TARGET_DIR="/root/web"  # Папка, где уже клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
 
-git reset --hard  # Отмена всех локальных изменений
+
 
 # Функция для проверки, свободен ли порт
 check_port_free() {
@@ -49,6 +49,7 @@ fi
 # Обновление репозитория
 echo "Updating repository in $TARGET_DIR..."
 cd $TARGET_DIR
+git reset --hard  # Отмена всех локальных изменений
 git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 
 # Активация виртуального окружения
