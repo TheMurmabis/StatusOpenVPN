@@ -7,6 +7,8 @@ set -e
 TARGET_DIR="/root/web"  # Папка, где уже клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
 
+git reset --hard  # Отмена всех локальных изменений
+
 # Функция для проверки, свободен ли порт
 check_port_free() {
     local PORT=$1
