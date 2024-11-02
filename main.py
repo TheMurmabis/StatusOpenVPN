@@ -329,7 +329,7 @@ def get_network_load():
             net_io_end[interface].bytes_recv,
         )
 
-        sent_speed = (sent_end - sent_start) * 8 / 1e6  
+        sent_speed = (sent_end - sent_start) * 8 / 1e6
         recv_speed = (recv_end - recv_start) * 8 / 1e6  
 
         # Сохраняем только интерфейсы с ненулевой загрузкой
