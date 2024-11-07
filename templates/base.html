@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard{% endblock %}</title>
+    <title>StatusOpenVPN - {% block title %}Dashboard{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -14,7 +14,7 @@
 
 <body>
 
-    <header class="p-3 bg-dark text-white">
+    <header class="bg-dark text-white">
         <div class="container">
             <!-- Горизонтальное меню для больших экранов -->
             <nav class="navbar navbar-expand-lg navbar-dark d-none d-lg-block">
