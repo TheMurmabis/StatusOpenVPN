@@ -110,3 +110,5 @@ echo -e "\e[32mUpdate completed successfully\e[0m"
 echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
 echo "--------------------------------------------"
+
+rm -f $TARGET_DIR/scripts/setup.sh $TARGET_DIR/README.md
