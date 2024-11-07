@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 # Обработка ошибок
 set -e
@@ -6,6 +6,14 @@ set -e
 # Переменные
 TARGET_DIR="/root/web"  # Папка, где уже клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
+
+# Получение текущего порта из файла сервиса, если он уже установлен
+SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
+if [ -f "$SERVICE_FILE" ]; then
+    CURRENT_PORT=$(grep -oP '(?<=-b 0.0.0.0:)[0-9]+' "$SERVICE_FILE" || echo "$DEFAULT_PORT")
+else
+    CURRENT_PORT=$DEFAULT_PORT
+fi
 
 # Функция для проверки, свободен ли порт
 check_port_free() {
@@ -17,12 +25,12 @@ check_port_free() {
     fi
 }
 
-# Запрос на изменение порта
-read -e -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): " -i N CHANGE_PORT
+# Запрос на изменение текущего порта
+read -e -p "Would you like to change the current port $CURRENT_PORT? (Y/N): " -i N CHANGE_PORT
 
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
     # Остановка сервиса
-    echo "Stop StatusOpenVPN service..."
+    echo "Stopping StatusOpenVPN service..."
     sudo systemctl stop StatusOpenVPN
     while true; do
         read -p "Please enter a new port number: " NEW_PORT
@@ -40,8 +48,8 @@ if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
         fi
     done
 else
-    PORT=$DEFAULT_PORT
-    echo "Using default port $PORT."
+    PORT=$CURRENT_PORT
+    echo "Using current port $PORT."
 fi
 
 # Обновление репозитория
@@ -62,10 +70,9 @@ else
     echo "requirements.txt not found, skipping this step."
 fi
 
-# Пересоздание systemd-сервиса при необходимости
-SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
+# Обновление конфигурации порта в systemd-сервисе
 if [ -f "$SERVICE_FILE" ]; then
-    echo "Systemd service file already exists. Updating port configuration if changed."
+    echo "Updating port configuration in systemd service file."
     sudo sed -i "s/-b 0.0.0.0:[0-9]*/-b 0.0.0.0:$PORT/" $SERVICE_FILE
 else
     echo "Creating systemd service file at $SERVICE_FILE..."
