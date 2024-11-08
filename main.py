@@ -593,9 +593,9 @@ def ovpn():
 
     except ZoneInfoNotFoundError:
         error_message = (
-            "Найдено несколько конфликтующих конфигураций часовых поясов "
+            "Обнаружены конфликтующие настройки часового пояса "   
             "в файлах /etc/timezone и /etc/localtime. "
-            "Попробуйте установить часовой пояс с помощью команды: sudo dpkg-reconfigure tzdata"
+            "Попробуйте установить правильный часовой пояс с помощью команды: sudo dpkg-reconfigure tzdata"
         )
         return render_template("ovpn.html", error_message=error_message), 500
 
