@@ -31,6 +31,7 @@ from src.forms import LoginForm
 from src.config import Config
 from flask_bcrypt import Bcrypt
 from datetime import datetime, timezone, timedelta
+from zoneinfo._common import ZoneInfoNotFoundError
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -121,7 +122,7 @@ def add_admin():
 
     if count < 1:
         add_user("admin", "admin", passw)
-        #print(f"Пароль администратора: {passw}")
+        # print(f"Пароль администратора: {passw}")
 
     conn.close()
     return passw
@@ -136,8 +137,8 @@ def change_admin_password():
         print("Администратор не найден.")
         conn.close()
         return
-    
-    passw = get_random_pass() # Генерация нового пароля
+
+    passw = get_random_pass()  # Генерация нового пароля
     hashed_password = bcrypt.generate_password_hash(passw).decode("utf-8")
 
     conn.execute(
@@ -246,7 +247,7 @@ def get_external_ip():
     try:
         response = requests.get("https://api.ipify.org", timeout=10)
         if response.status_code == 200:
-            return response.text  
+            return response.text
         return "IP не найден"
     except requests.Timeout:
         return "Ошибка: запрос превысил время ожидания."
@@ -261,7 +262,8 @@ def format_date(date_string):
     date_obj = datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
     server_timezone = get_localzone()  # Получаем локальную временную зону сервера
     localized_date = date_obj.replace(
-        tzinfo=server_timezone)  # Устанавливаем локальную временную зону
+        tzinfo=server_timezone
+    )  # Устанавливаем локальную временную зону
     utc_date = localized_date.astimezone(timezone.utc)  # Преобразуем в UTC
 
     return utc_date.isoformat()  # Возвращаем ISO формат
@@ -330,7 +332,7 @@ def get_network_load():
         )
 
         sent_speed = (sent_end - sent_start) * 8 / 1e6
-        recv_speed = (recv_end - recv_start) * 8 / 1e6  
+        recv_speed = (recv_end - recv_start) * 8 / 1e6
 
         # Сохраняем только интерфейсы с ненулевой загрузкой
         if sent_speed > 0 or recv_speed > 0:
@@ -401,7 +403,7 @@ def get_system_info():
         "disk_used": psutil.disk_usage("/").used // (1024**3),
         "disk_total": psutil.disk_usage("/").total // (1024**3),
         "network_load": get_network_load(),
-	    "uptime": format_uptime (get_uptime()),
+        "uptime": format_uptime(get_uptime()),
     }
 
     cached_system_info = system_info
@@ -530,10 +532,8 @@ def home():
     system_info = get_system_info()
     hostname = socket.gethostname()
     return render_template(
-        "index.html",
-        server_ip=server_ip,
-        system_info=system_info,
-        hostname=hostname)
+        "index.html", server_ip=server_ip, system_info=system_info, hostname=hostname
+    )
 
 
 @app.route("/api/system_info")
@@ -553,39 +553,55 @@ def wg():
 @app.route("/ovpn")
 @login_required
 def ovpn():
+    try:
+        udp_clients, udp_received, udp_sent, udp_error = read_csv(
+            "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
+        )
 
-    udp_clients, udp_received, udp_sent, udp_error = read_csv(
-        "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
-    )
-    tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
-        "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
-    )
+        tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
+            "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
+        )
 
-    vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
-        "/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"
-    )
-    vpn_tcp_clients, vpn_tcp_received, vpn_tcp_sent, vpn_tcp_error = read_csv(
-        "/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"
-    )
+        vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
+            "/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"
+        )
 
-    if udp_error or tcp_error:
-        error_message = udp_error or tcp_error
-        return render_template("ovpn.html", error_message=error_message)
+        vpn_tcp_clients, vpn_tcp_received, vpn_tcp_sent, vpn_tcp_error = read_csv(
+            "/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"
+        )
 
-    clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
-    total_clients = len(clients)
-    total_received = format_bytes(
-        udp_received + tcp_received + vpn_udp_received + vpn_tcp_received
-    )
-    total_sent = format_bytes(udp_sent + tcp_sent + vpn_udp_sent + vpn_tcp_sent)
-    return render_template(
-        "ovpn.html",
-        clients=clients,
-        total_clients_str=pluralize_clients(total_clients),
-        total_received=total_received,
-        total_sent=total_sent,
-        active_page="ovpn",
-    )
+        # Проверка на ошибки чтения
+        if udp_error or tcp_error:
+            error_message = udp_error or tcp_error
+            return render_template("ovpn.html", error_message=error_message)
+
+        clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
+        total_clients = len(clients)
+        total_received = format_bytes(
+            udp_received + tcp_received + vpn_udp_received + vpn_tcp_received
+        )
+        total_sent = format_bytes(udp_sent + tcp_sent + vpn_udp_sent + vpn_tcp_sent)
+
+        return render_template(
+            "ovpn.html",
+            clients=clients,
+            total_clients_str=pluralize_clients(total_clients),
+            total_received=total_received,
+            total_sent=total_sent,
+            active_page="ovpn",
+        )
+
+    except ZoneInfoNotFoundError:
+        error_message = (
+            "Найдено несколько конфликтующих конфигураций часовых поясов "
+            "в файлах /etc/timezone и /etc/localtime. "
+            "Попробуйте установить часовой пояс с помощью команды: sudo dpkg-reconfigure tzdata"
+        )
+        return render_template("ovpn.html", error_message=error_message), 500
+
+    except Exception as e:
+        error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+        return render_template("ovpn.html", error_message=error_message), 500
 
 
 if __name__ == "__main__":
