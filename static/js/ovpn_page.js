@@ -14,3 +14,18 @@ function convertToUserTimezone() {
 
 // Вызов функции после загрузки страницы
 document.addEventListener('DOMContentLoaded', convertToUserTimezone);
+
+function toggleRealIP() {
+    const showRealIP = document.getElementById("toggleRealIP").checked;
+    const ipCells = document.querySelectorAll(".real-ip-cell");
+    
+    ipCells.forEach(cell => {
+        if (showRealIP) {
+            // Показать реальные IP
+            cell.textContent = cell.getAttribute("data-real-ip");
+        } else {
+            // Показать замаскированные IP
+            cell.textContent = cell.getAttribute("data-masked-ip");
+        }
+    });
+}

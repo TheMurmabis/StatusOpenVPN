@@ -311,7 +311,7 @@ def mask_ip(ip_address):
         # Добавляем ведущие нули, чтобы каждая часть занимала 3 символа
         parts = [f"{int(part):03}" for part in parts]
 
-        return f"{parts[0]}.***.***.{parts[3]}"
+        return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
     return ip_address
 
 
@@ -593,9 +593,10 @@ def ovpn():
 
     except ZoneInfoNotFoundError:
         error_message = (
-            "Обнаружены конфликтующие настройки часового пояса "   
+            "Обнаружены конфликтующие настройки часового пояса "
             "в файлах /etc/timezone и /etc/localtime. "
-            "Попробуйте установить правильный часовой пояс с помощью команды: sudo dpkg-reconfigure tzdata"
+            "Попробуйте установить правильный часовой пояс"
+            "с помощью команды: sudo dpkg-reconfigure tzdata"
         )
         return render_template("ovpn.html", error_message=error_message), 500
 

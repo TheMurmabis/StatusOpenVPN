@@ -8,10 +8,16 @@
 </div>
 
 {% if error_message %}
-    <div class="alert alert-danger" role="alert">
-        {{ error_message }}
-    </div>
+<div class="alert alert-danger" role="alert">
+    {{ error_message }}
+</div>
 {% else %}
+<div class="form-check">
+    <input class="form-check-input" type="checkbox" id="toggleRealIP" onchange="toggleRealIP()">
+    <label class="form-check-label" for="toggleRealIP">
+        Показать реальные IP
+    </label>
+</div>
 <div class="table-responsive main_table">
     <table class="table table-striped">
         <thead>
@@ -30,13 +36,20 @@
             {% for client in clients %}
             <tr class="text-center">
                 <td class="text-center">{{ client[0] }}</td>
-                <td class="text-center">{{ client[1] }}</td>
+                {% set ip_segments = client[1].split(':')[0].split('.') %}
+                <td class="text-center real-ip-cell" data-real-ip="{{ client[1] }}"
+                    data-masked-ip="{{ '{:03}'.format(ip_segments[0]|int) }}.***.***.{{ '{:03}'.format(ip_segments[-1]|int) }}">
+                    {{ '{:03}'.format(ip_segments[0]|int) }}.***.***.{{ '{:03}'.format(ip_segments[-1]|int) }}
+                </td>
                 <td class="text-center">{{ client[2] }}</td>
                 <td class="text-center">{{ client[3] }}</td>
                 <td class="text-center">{{ client[4] }}</td>
                 <td class="text-center connection-time" data-utc="{{ client[5] }}">{{ client[5] }}</td>
                 <td class="text-center">{{ client[6] }}</td>
                 <td class="text-center">{{ client[7] }}</td>
+
+
+
             </tr>
             {% endfor %}
             <tr class="table-dark text-left">
