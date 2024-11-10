@@ -38,8 +38,8 @@
                 <td class="text-center">{{ client[0] }}</td>
                 {% set ip_segments = client[1].split(':')[0].split('.') %}
                 <td class="text-center real-ip-cell" data-real-ip="{{ client[1] }}"
-                    data-masked-ip="{{ '{:03}'.format(ip_segments[0]|int) }}.***.***.{{ '{:03}'.format(ip_segments[-1]|int) }}">
-                    {{ '{:03}'.format(ip_segments[0]|int) }}.***.***.{{ '{:03}'.format(ip_segments[-1]|int) }}
+                    data-masked-ip="{{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}">
+                    {{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}
                 </td>
                 <td class="text-center">{{ client[2] }}</td>
                 <td class="text-center">{{ client[3] }}</td>
@@ -47,9 +47,6 @@
                 <td class="text-center connection-time" data-utc="{{ client[5] }}">{{ client[5] }}</td>
                 <td class="text-center">{{ client[6] }}</td>
                 <td class="text-center">{{ client[7] }}</td>
-
-
-
             </tr>
             {% endfor %}
             <tr class="table-dark text-left">

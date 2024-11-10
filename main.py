@@ -308,8 +308,8 @@ def mask_ip(ip_address):
     ip = ip_address.split(":")[0]
     parts = ip.split(".")
     if len(parts) == 4:
-        # Добавляем ведущие нули, чтобы каждая часть занимала 3 символа
-        parts = [f"{int(part):03}" for part in parts]
+        #parts = [f"{int(part):03}" for part in parts] # Добавляем ведущие нули, если нужно
+        parts = [str(int(part)) for part in parts]
 
         return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
     return ip_address
