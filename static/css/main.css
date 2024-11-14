@@ -78,10 +78,6 @@ body {
         color: #d3d3d3;
     }
 
-    .table-striped tbody tr:nth-of-type(odd) {
-        background-color: #333; 
-    }
-
     .btn-list {
         background-color: rgb(0, 0, 0) !important;
         transition: 0.3s;
