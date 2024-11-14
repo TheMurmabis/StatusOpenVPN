@@ -47,3 +47,5 @@ setInterval(updateSystemInfo, 5000);
 
 // Первоначальный вызов функции
 updateSystemInfo();
+
+

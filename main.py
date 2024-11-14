@@ -64,7 +64,7 @@ def create_users_table():
     conn.close()
 
 
-# Создание таблицы при запуске приложения
+# Вызываем функцию для создания таблицы при запуске приложения
 create_users_table()
 
 
@@ -128,6 +128,7 @@ def add_admin():
     return passw
 
 
+# Функция для изменения пароля администратора
 def change_admin_password():
 
     conn = get_db_connection()
@@ -151,6 +152,7 @@ def change_admin_password():
     print(f"{passw}")
 
 
+# ---------WireGuard----------
 # Функция для получения данных WireGuard
 def get_wireguard_stats():
     try:
@@ -168,6 +170,36 @@ def get_wireguard_stats():
         return "Команда wg не найдена."
 
 
+def format_handshake_time(handshake_string):
+    time_units = re.findall(r"(\d+)\s+(\w+)", handshake_string)
+
+    # Словарь для перевода единиц времени в сокращения
+    abbreviations = {
+        "year": "г.",
+        "years": "г.",
+        "month": "мес.",
+        "months": "мес.",
+        "week": "нед.",
+        "weeks": "нед.",
+        "day": "дн.",
+        "days": "дн.",
+        "hour": "ч.",
+        "hours": "ч.",
+        "minute": "мин.",
+        "minutes": "мин.",
+        "second": "сек.",
+        "seconds": "сек.",
+    }
+
+    # Формируем сокращенную строку
+    formatted_time = " ".join(
+        f"{value} {abbreviations[unit]}" for value, unit in time_units
+    )
+
+    return formatted_time
+
+
+# Функция для получения данных WireGuard
 def parse_wireguard_output(output):
     stats = []
     lines = output.strip().splitlines()
@@ -220,6 +252,7 @@ def parse_wireguard_output(output):
     return stats
 
 
+# ---------OpenVPN----------
 # Функция для преобразования байт в удобный формат
 def format_bytes(size):
     for unit in ["B", "KB", "MB", "GB"]:
@@ -269,35 +302,6 @@ def format_date(date_string):
     return utc_date.isoformat()  # Возвращаем ISO формат
 
 
-def format_handshake_time(handshake_string):
-    time_units = re.findall(r"(\d+)\s+(\w+)", handshake_string)
-
-    # Словарь для перевода единиц времени в сокращения
-    abbreviations = {
-        "year": "г.",
-        "years": "г.",
-        "month": "мес.",
-        "months": "мес.",
-        "week": "нед.",
-        "weeks": "нед.",
-        "day": "дн.",
-        "days": "дн.",
-        "hour": "ч.",
-        "hours": "ч.",
-        "minute": "мин.",
-        "minutes": "мин.",
-        "second": "сек.",
-        "seconds": "сек.",
-    }
-
-    # Формируем сокращенную строку
-    formatted_time = " ".join(
-        f"{value} {abbreviations[unit]}" for value, unit in time_units
-    )
-
-    return formatted_time
-
-
 # Удаление префикса из имени клиента
 def clean_client_name(name, prefix="antizapret-"):
     return name[len(prefix) :] if name.startswith(prefix) else name
@@ -308,13 +312,79 @@ def mask_ip(ip_address):
     ip = ip_address.split(":")[0]
     parts = ip.split(".")
     if len(parts) == 4:
-        #parts = [f"{int(part):03}" for part in parts] # Добавляем ведущие нули, если нужно
+        # parts = [f"{int(part):03}" for part in parts] # Добавляем ведущие нули, если нужно
         parts = [str(int(part)) for part in parts]
 
         return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
     return ip_address
 
 
+# Отсет времени
+def format_duration(start_time):
+    now = datetime.now()  # Текущее время
+    delta = now - start_time  # Разница во времени
+
+    days = delta.days
+    seconds = delta.seconds
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if days >= 30:
+        months = days // 30
+        days %= 30
+        return f"{months} мес. {days} дн. {hours} ч. {minutes} мин."
+    elif days > 0:
+        return f"{days} дн. {hours} ч. {minutes} мин."
+    elif hours > 0:
+        return f"{hours} ч. {minutes} мин."
+    elif minutes > 0:
+        return f"{minutes} мин."
+    else:
+        return f"{seconds} сек."
+
+
+# Чтение данных из CSV и обработка
+def read_csv(file_path, protocol):
+    data = []
+    total_received, total_sent = 0, 0
+    try:
+        with open(file_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.reader(csvfile)
+            next(reader)  # Пропускаем заголовок
+            for row in reader:
+                if row[0] == "CLIENT_LIST":
+                    received, sent = int(row[5]), int(row[6])
+                    total_received += received
+                    total_sent += sent
+
+                    start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
+                    duration = format_duration(start_date)
+
+                    data.append(
+                        [
+                            clean_client_name(row[1]),
+                            mask_ip(row[2]),
+                            row[3],
+                            format_bytes(received),
+                            format_bytes(sent),
+                            format_date(row[7]),
+                            duration,
+                            protocol,
+                        ]
+                    )
+        return data, total_received, total_sent, None
+    except FileNotFoundError:
+        file_name = os.path.basename(file_path)
+        file_directory = os.path.dirname(file_path)
+
+        error_message = (
+            f'Файл "{file_name}" не найден. '
+            f"Пожалуйста, проверьте наличие файла по указанному пути: {file_directory}"
+        )
+        return [], 0, 0, error_message  # Возвращаем сообщение об ошибке
+
+
+# ---------Метрики----------
 def get_network_load():
     net_io_start = psutil.net_io_counters(pernic=True)
     time.sleep(1)
@@ -411,71 +481,6 @@ def get_system_info():
     return system_info
 
 
-# Отсет времени
-def format_duration(start_time):
-    now = datetime.now()  # Текущее время
-    delta = now - start_time  # Разница во времени
-
-    days = delta.days
-    seconds = delta.seconds
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    if days >= 30:
-        months = days // 30
-        days %= 30
-        return f"{months} мес. {days} дн. {hours} ч. {minutes} мин."
-    elif days > 0:
-        return f"{days} дн. {hours} ч. {minutes} мин."
-    elif hours > 0:
-        return f"{hours} ч. {minutes} мин."
-    elif minutes > 0:
-        return f"{minutes} мин."
-    else:
-        return f"{seconds} сек."
-
-
-# Чтение данных из CSV и обработка
-def read_csv(file_path, protocol):
-    data = []
-    total_received, total_sent = 0, 0
-    try:
-        with open(file_path, newline="", encoding="utf-8") as csvfile:
-            reader = csv.reader(csvfile)
-            next(reader)  # Пропускаем заголовок
-            for row in reader:
-                if row[0] == "CLIENT_LIST":
-                    received, sent = int(row[5]), int(row[6])
-                    total_received += received
-                    total_sent += sent
-
-                    start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
-                    duration = format_duration(start_date)
-
-                    data.append(
-                        [
-                            clean_client_name(row[1]),
-                            mask_ip(row[2]),
-                            row[3],
-                            format_bytes(received),
-                            format_bytes(sent),
-                            format_date(row[7]),
-                            duration,
-                            protocol,
-                        ]
-                    )
-        return data, total_received, total_sent, None
-    except FileNotFoundError:
-        file_name = os.path.basename(file_path)
-        file_directory = os.path.dirname(file_path)
-
-        error_message = (
-            f'Файл "{file_name}" не найден. '
-            f"Пожалуйста, проверьте наличие файла по указанному пути: {file_directory}"
-        )
-        return [], 0, 0, error_message  # Возвращаем сообщение об ошибке
-
-
 @app.errorhandler(404)
 def page_not_found(_):
     return redirect(url_for("home"))
@@ -515,7 +520,7 @@ def login():
             )
             login_user(user_obj)
             session.permanent = True
-            app.permanent_session_lifetime = timedelta(minutes=10)
+            app.permanent_session_lifetime = timedelta(minutes=5)
             next_page = request.args.get("next")
             return redirect(next_page or url_for("home"))
         else:
@@ -531,8 +536,13 @@ def home():
     server_ip = get_external_ip()
     system_info = get_system_info()
     hostname = socket.gethostname()
+
     return render_template(
-        "index.html", server_ip=server_ip, system_info=system_info, hostname=hostname
+        "index.html",
+        server_ip=server_ip,
+        system_info=system_info,
+        hostname=hostname,
+        active_page="home",
     )
 
 

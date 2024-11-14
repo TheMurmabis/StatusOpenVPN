@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 
@@ -7,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StatusOpenVPN - Вход</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" >
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" >
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
 
@@ -16,10 +15,9 @@
 </head>
 
 <body class="text-center">
-
-    <div class="container d-flex justify-content-center align-items-center vh-10">
+    <div class="container d-flex justify-content-center align-items-center">
         <div class="form-container">
-            <h2 class="mb-3 text-center">Antizapret VPN</h2>
+            <h1 class="mb-3 text-center">Antizapret VPN</h1>
             <form method="post" action="" class="form-signin">
                 {{ form.hidden_tag() }}
 
@@ -33,32 +31,41 @@
                     <input type="password" class="form-control" id="password" placeholder="Введите пароль"
                         name="password" required>
                     <label for="password">Пароль</label>
-                    <span class="position-absolute top-50 end-0 translate-middle-y me-3"
-                    onmousedown="showPassword()" onmouseup="hidePassword()"
-                    ontouchstart="showPassword()" ontouchend="hidePassword()"
-                    style="cursor: pointer; color: gray;">
-                    <i class="fas fa-eye" id="togglePasswordIcon"></i>
-                </span>
+                    <span class="position-absolute top-50 end-0 translate-middle-y me-3" onmousedown="showPassword()"
+                        onmouseup="hidePassword()" ontouchstart="showPassword()" ontouchend="hidePassword()"
+                        style="cursor: pointer; color: gray;">
+                        <i class="fas fa-eye" id="togglePasswordIcon"></i>
+                    </span>
 
-            </div>
+                </div>
 
-            {% if error_message %}
-            <div class="alert alert-danger" role="alert">
-                            {{ error_message }}
-            </div>
-            {% endif %}
-            
-            <button class="w-100 btn btn-lg btn-primary mb-3" type="submit" id="submit">Вход</button>
-            <a href="#" class="text-muted" onclick="showPasswordHint(event)">Забыли пароль?</a>
-            <p id="passwordHint" class="text-muted forgot-password-link">
-                Для смены пароля обратитесь к администратору системы или воспользуйтесь <a href="https://github.com/TheMurmabis/StatusOpenVPN/tree/main?tab=readme-ov-file#%D1%81%D0%BC%D0%B5%D0%BD%D0%B0-%D0%BF%D0%B0%D1%80%D0%BE%D0%BB%D1%8F" target="_blank">командой</a> в терминале.
+                {% if error_message %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error_message }}
+                </div>
+                {% endif %}
+
+                <button class="w-100 btn btn-lg btn-primary mb-3" type="submit" id="submit">Вход</button>
+                <a href="#" class="text-muted text-decoration-none" onclick="showPasswordHint(event)">Забыли пароль?</a>
+                <p id="passwordHint" class="text-muted forgot-password-link">
+                    Для смены пароля обратитесь к администратору системы или воспользуйтесь
+                    <a href="https://github.com/TheMurmabis/StatusOpenVPN/tree/main?tab=readme-ov-file#%D1%81%D0%BC%D0%B5%D0%BD%D0%B0-%D0%BF%D0%B0%D1%80%D0%BE%D0%BB%D1%8F"
+                        target="_blank" class="text-decoration-none">командой
+                    </a> в терминале.
                 </p>
             </form>
         </div>
     </div>
+    <footer class="text-center py-3 mt-4">
+        <div>
+            <a href="https://github.com/TheMurmabis/StatusOpenVPN" class="ms-3" target="_blank"
+                rel="noopener noreferrer">
+                <i class="fab fa-github"></i> TheMurmabis
+            </a>© 2024 Все права защищены.
+        </div>
+    </footer>
 
     <script src="{{ url_for('static', filename='js/login_page.js') }}"></script>
-    
 </body>
 
 </html>

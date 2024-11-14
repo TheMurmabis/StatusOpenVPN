@@ -1,6 +1,153 @@
-/* Закрепленный header */
+body {
+    padding: 70px 0 60px;
+    background-color: white;
+    color: black;
+}
+
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #0f0f0f;
+        color: #d3d3d3;
+    }
+
+    header {
+        background-color: #000000 !important;
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 1000;
+    }
+
+    header a:hover {
+        color: #ffffff !important;
+    }
+
+    .nav-link.nav-link {
+        color: #fff !important;
+
+    }
+
+    .nav-link.nav-link.active {
+        color: #fff !important;
+        background-color: #3d3d3d !important;
+    }
+
+    .nav-link.active:hover {
+
+        background-color: #3d3d3d !important;
+    }
+
+    .nav-link:hover {
+        background-color: #161718 !important;
+
+    }
+
+    .form-container {
+        color: #000;
+    }
+
+    .form-control {
+        color: #d3d3d3;
+        background-color: #272727;
+        border: none;
+    }
+
+    .form-control:focus {
+        color: #d3d3d3;
+        background-color: #272727;
+        border: none;
+    }
+    .form-control label{
+        color: #d3d3d3 ;
+        background-color: #272727 !important;
+    }
+    .form-container h1 {
+        color: #d3d3d3;
+    }
+
+    label{
+        color: #d3d3d3
+    }
+
+    .table td,
+    .table th,
+    .form-check-label,
+    h2 {
+        color: #d3d3d3;
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+        background-color: #333; 
+    }
+
+    .btn-list {
+        background-color: rgb(0, 0, 0) !important;
+        transition: 0.3s;
+        color: #d3d3d3;
+    }
+
+    .btn-list:hover {
+        border-color: #d3d3d3;
+        color: #d3d3d3 !important;
+    }
+
+    .btn-list:focus {
+        border-color: #d3d3d3;
+        color: #d3d3d3;
+        outline: none;
+        box-shadow: none;
+    }
+
+    .btn-warning {
+        background-color: #f8cb42; 
+        color: #000; 
+        border-color: #e0b63b;
+    }
+
+    .btn-warning:hover {
+        background-color: #ffda75;
+        color: #000 !important; 
+        border-color: #e6c45a; 
+    }
+
+    .card {
+        border-color: #272727;
+    }
+
+    .card-body {
+        background-color: #272727 !important;
+    }
+
+    .card-body .card-title,
+    .card-body .card-text {
+        color: #d3d3d3 !important;
+    }
+
+    .border {
+        border-color:#272727 !important;
+    }
+
+    footer {
+        color: #d3d3d3 !important;
+        background-color: #000000 !important;
+    }
+
+    footer a{
+        color: #d3d3d3 !important;
+        text-decoration: none;
+    }
+
+    footer a:hover {
+        color: #0a58ca !important;
+        text-decoration: none;
+    }
+    
+}
+
 header {
-    background-color: #343a40;
+    background-color: #ffffff;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     position: fixed;
     top: 0;
@@ -8,8 +155,33 @@ header {
     z-index: 1000;
 }
 
-h2 {
-    text-align: left;
+header a {
+    color: #000000;
+}
+
+.nav-link.nav-link.active {
+    color: #fff !important;
+    background-color: #2c3034;
+}
+
+.nav-link:hover {
+    background-color: #f2f2f2;
+}
+
+.card-title,
+.card-text {
+    color: rgb(0, 0, 0) !important;
+}
+
+.btn-list {
+    background-color: rgb(255, 255, 255);
+    transition: 0.3s;
+}
+
+.table {
+    table-layout: auto;
+    width: auto;
+    max-width: 100%;
 }
 
 .table td,
@@ -21,73 +193,6 @@ h2 {
     text-wrap: nowrap;
 
 }
-
-
-.table {
-    table-layout: auto;
-    width: auto;
-    max-width: 100%;
-}
-
-/* Стили для отступов контента под header и над footer */
-body {
-    padding: 70px 0 60px;
-
-}
-
-/* Header ссылки */
-header a.navbar-brand {
-    font-size: 1.5rem;
-    font-weight: bold;
-}
-
-header a.navbar-logout {
-    font-size: 1rem;
-    text-decoration: none;
-    color: white;
-}
-
-header a.navbar-logout:hover {
-    color: wheat;
-}
-
-/* Стили для формы в header */
-header form input {
-    border: 2px solid #fff;
-    background-color: #495057;
-    color: #fff;
-}
-
-header form input::placeholder {
-    color: #adb5bd;
-}
-
-header form button {
-    border: 2px solid #fff;
-    background-color: #343a40;
-    color: #fff;
-}
-
-/* Закрепленный footer */
-footer {
-    background-color: #343a40;
-    color: #adb5bd;
-    font-size: 0.9rem;
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    z-index: 1000;
-}
-
-footer a {
-    color: #adb5bd;
-    text-decoration: none;
-}
-
-footer a:hover {
-    color: #fff;
-}
-
 
 .form-container {
     max-width: 100%;
@@ -104,7 +209,36 @@ footer a:hover {
     transition: opacity 0.3s ease-in-out;
     opacity: 1;
 }
+
+#themeMenu {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    padding: 10px;
+    display: none;
+}
+
+#themeMenu button {
+    display: block;
+    margin: 5px 0;
+}
+
 .forgot-password-link {
     font-size: 1.1em;
 }
 
+footer {
+    background-color: #ffffff;
+    box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
+    color: #000000;
+    font-size: 0.9rem;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+footer a {
+    color: #000000;
+    text-decoration: none;
+}

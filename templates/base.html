@@ -13,23 +13,23 @@
 </head>
 
 <body>
-
-    <header class="p-1 bg-dark text-white">
+    <header class="p-1">
         <div class="container">
             <!-- Горизонтальное меню для больших экранов -->
-            <nav class="navbar navbar-expand-lg navbar-dark d-none d-lg-block">
+            <nav class="navbar navbar-expand-lg d-none d-lg-block">
                 <div class="container-fluid">
-                    <ul class="nav me-auto mb-2 mb-lg-0">
+                    <ul class="nav nav-pills me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a href="/" class="nav-link text-white">Главная</a>
+                            <a href="/"
+                                class="link-dark nav-link {{ 'active' if active_page == 'home' else '' }}">Главная</a>
                         </li>
                         <li class="nav-item">
                             <a href="/ovpn"
-                                class="nav-link {{ 'text-secondary' if active_page == 'ovpn' else 'text-white' }}">OpenVPN</a>
+                                class="link-dark nav-link {{ 'active' if active_page == 'ovpn' else '' }}">OpenVPN</a>
                         </li>
                         <li class="nav-item">
                             <a href="/wg"
-                                class="nav-link {{ 'text-secondary' if active_page == 'wg' else 'text-white' }}">WireGuard</a>
+                                class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
                         </li>
                     </ul>
                     <div class="ms-auto">
@@ -40,7 +40,7 @@
                 </div>
             </nav>
             <div class="d-lg-none d-flex justify-content-between align-items-center">
-                <button class="btn btn-dark" type="button" data-bs-toggle="collapse" data-bs-target="#verticalMenu"
+                <button class="btn btn-list" type="button" data-bs-toggle="collapse" data-bs-target="#verticalMenu"
                     aria-expanded="false" aria-controls="verticalMenu">
                     <i class="bi bi-list fs-4"></i>
                 </button>
@@ -48,20 +48,20 @@
                 <a class="btn btn-warning ms-2" href="/logout">Выйти</a>
                 {% endif %}
             </div>
-
             <!-- Вертикальное меню для мобильных устройств -->
             <div class="collapse d-lg-none" id="verticalMenu">
-                <ul class="nav flex-column bg-dark p-2">
+                <ul class="nav flex-column p-2">
                     <li class="nav-item">
-                        <a href="/" class="nav-link text-white">Главная</a>
+                        <a href="/"
+                            class="link-dark nav-link {{ 'active' if active_page == 'home' else '' }}">Главная</a>
                     </li>
                     <li class="nav-item">
                         <a href="/ovpn"
-                            class="nav-link text-white {{ 'text-secondary' if active_page == 'ovpn' else '' }}">OpenVPN</a>
+                            class="link-dark nav-link {{ 'active' if active_page == 'ovpn' else '' }}">OpenVPN</a>
                     </li>
                     <li class="nav-item">
                         <a href="/wg"
-                            class="nav-link text-white {{ 'text-secondary' if active_page == 'wg' else '' }}">WireGuard</a>
+                            class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
                     </li>
                 </ul>
             </div>
@@ -77,12 +77,13 @@
             </main>
         </div>
     </div>
-    <footer class="bg-dark text-white text-center py-3 mt-4">
-        <div class="container">
-            <a href="https://github.com/TheMurmabis/StatusOpenVPN" class="text-white ms-3" target="_blank"
+    <footer class="text-center py-3 mt-4">
+        <div>
+            <a href="https://github.com/TheMurmabis/StatusOpenVPN" class="ms-3" target="_blank"
                 rel="noopener noreferrer">
                 <i class="fab fa-github"></i> TheMurmabis
             </a>© 2024 Все права защищены.
+
 
         </div>
     </footer>
@@ -92,6 +93,7 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>feather.replace();</script>
+
 </body>
 
 </html>

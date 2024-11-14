@@ -5,34 +5,34 @@
 <div class="container">
     <h1 class="text-center">Добро пожаловать в панель мониторинга<br> OpenVPN и WireGuard</h1>
     <p class="text-center">Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и WireGuard.</p>
-
     <div class="row text-center">
         <div class="col-md-6 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body">
+            <a href="/ovpn" class="card shadow-sm text-decoration-none">
+                <div class="card-body card-main">
                     <h3 class="card-title">OpenVPN</h3>
                     <p class="card-text">Просмотр статистики подключений OpenVPN, включая IP-адреса и объем трафика.</p>
-                    <a href="/ovpn" class="btn btn-primary mb-3">Перейти к статистике OpenVPN</a>
+                    <button class="btn btn-primary mb-3">Перейти к статистике OpenVPN</button>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-6 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body">
+            <a href="/wg" class="card shadow-sm text-decoration-none">
+                <div class="card-body  card-main">
                     <h3 class="card-title">WireGuard</h3>
-                    <p class="card-text">Просмотр статистики подключений WireGuard с подробной информацией о пользователях.</p>
-                    <a href="/wg" class="btn btn-primary mb-3">Перейти к статистике WireGuard</a>
+                    <p class="card-text">Просмотр статистики подключений WireGuard с подробной информацией о
+                        пользователях.</p>
+                    <button class="btn btn-primary mb-3">Перейти к статистике WireGuard</button>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
     <!-- Информация о сервере -->
-    <div class="mt-3 p-3 bg-light border rounded" style="margin: auto;">
+    <div class="mt-3 p-3 border rounded" style="margin: auto;">
         <h4 class="text-center mb-4">Информация о сервере</h4>
         <div class="row">
             <div class="col-12 col-md-6 mb-3">
-                <div class="card">
+                <div class="card ">
                     <div class="card-body">
                         <h5 class="card-title">Имя сервера:</h5>
                         <p class="card-text">{{ hostname }}</p>
@@ -48,17 +48,17 @@
                 </div>
             </div>
         </div>
-    
+
         <h4 class="text-center mt-3 mb-4">Системные метрики</h4>
-        <div class="row">        
-        <div class="col-12 col-md-6 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Время работы сервера:</h5>
-                    <p class="card-text"><span id="server_uptime">Загрузка...</span></p> 
+        <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Время работы сервера:</h5>
+                        <p class="card-text"><span id="server_uptime">Загрузка...</span></p>
+                    </div>
                 </div>
             </div>
-        </div>
             <div class="col-12 col-md-6 mb-3">
                 <div class="card">
                     <div class="card-body">
@@ -71,7 +71,8 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Использование ОЗУ:</h5>
-                        <p class="card-text"><span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{ system_info.memory_total }}</span> MB</p>
+                        <p class="card-text"><span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{
+                                system_info.memory_total }}</span> MB</p>
                     </div>
                 </div>
             </div>
@@ -79,7 +80,8 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Использование диска:</h5>
-                        <p class="card-text"><span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{ system_info.disk_total }}</span> GB</p>
+                        <p class="card-text"><span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{
+                                system_info.disk_total }}</span> GB</p>
                     </div>
                 </div>
             </div>
