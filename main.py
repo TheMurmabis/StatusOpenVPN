@@ -424,9 +424,12 @@ def get_uptime():
 
 
 def format_uptime(uptime_string):
+    # Регулярное выражение с учетом лет, месяцев, недель, дней, часов и минут
+    pattern = r"(?:(\d+)\s*years?|(\d+)\s*months?|(\d+)\s*weeks?|(\d+)\s*days?|(\d+)\s*hours?|(\d+)\s*minutes?)"
 
-    pattern = r"(?:(\d+)\s*days?|(\d+)\s*hours?|(\d+)\s*minutes?)"
-
+    years = 0
+    months = 0
+    weeks = 0
     days = 0
     hours = 0
     minutes = 0
@@ -434,15 +437,27 @@ def format_uptime(uptime_string):
     matches = re.findall(pattern, uptime_string)
 
     for match in matches:
-        if match[0]:  # Дни
-            days = int(match[0])
-        elif match[1]:  # Часы
-            hours = int(match[1])
-        elif match[2]:  # Минуты
-            minutes = int(match[2])
+        if match[0]:  # Годы
+            years = int(match[0])
+        elif match[1]:  # Месяцы
+            months = int(match[1])
+        elif match[2]:  # Недели
+            weeks = int(match[2])
+        elif match[3]:  # Дни
+            days = int(match[3])
+        elif match[4]:  # Часы
+            hours = int(match[4])
+        elif match[5]:  # Минуты
+            minutes = int(match[5])
 
     # Итоговая строка
     result = []
+    if years > 0:
+        result.append(f"{years} г.")
+    if months > 0:
+        result.append(f"{months} мес.")
+    if weeks > 0:
+        result.append(f"{weeks} нед.")
     if days > 0:
         result.append(f"{days} дн.")
     if hours > 0:
