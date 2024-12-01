@@ -1,8 +1,5 @@
 /.venv
-/antizapret-tcp-status.log
-/antizapret-udp-status.log
-/vpn-tcp-status.log
-/vpn-udp-status.log
+/logs
 /.pylintrc
 __pycache__
 db.db
