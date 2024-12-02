@@ -502,12 +502,33 @@ def page_not_found(_):
 
 
 # Маршрут для выхода из системы
-@app.route("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
     logout_user()
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.before_request
+def track_last_activity():
+    if current_user.is_authenticated:
+        now = datetime.now(timezone.utc)
+        last_activity = session.get("last_activity")
+
+        if request.endpoint in ["login", "change_password", "update_profile"]:
+            session["last_activity"] = now.isoformat()
+
+        if last_activity:
+            last_activity_time = datetime.fromisoformat(last_activity)
+            if last_activity_time.tzinfo is None:
+                last_activity_time = last_activity_time.replace(tzinfo=timezone.utc)
+            elapsed_time = (now - last_activity_time).total_seconds()
+
+            if elapsed_time > 300:  # 5 минут
+                logout_user()
+                session.clear()
+                return redirect(url_for("login"))
 
 
 # Маршрут для логина
