@@ -15,22 +15,10 @@
 Этот проект представляет собой приложение на языке Python, разработанное с использованием фреймворка Flask. Оно предназначено для отображения статистики подключений клиентов к OpenVPN и WireGuard. 
 Основная цель приложения — визуализировать информацию о подключенных клиентах и их трафике в удобном формате.
 
-<details>
-  <summary>Светлая тема</summary>
-  
-   ![image](https://github.com/user-attachments/assets/26f7af0b-affd-45bc-b6c7-fded0c07687c)
-   
-</details>
-<details>
-  <summary>Темная тема</summary>
-  
-   ![image](https://github.com/user-attachments/assets/ff028b25-3aeb-475f-9b2d-f3052b44f4d2)
-
-</details>
-
-
-
-
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ff028b25-3aeb-475f-9b2d-f3052b44f4d2">
+  <img src="https://github.com/user-attachments/assets/26f7af0b-affd-45bc-b6c7-fded0c07687c">
+</picture>
 
 ### Основные функции
 - Отображение статистики подключений для OpenVPN и WireGuard.
