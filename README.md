@@ -2,15 +2,15 @@
 
 <p align="center">
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/stargazers">
-    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat"/></a>
+    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
-    <img src="https://img.shields.io/github/v/release/TheMurmabis/StatusOpenVPN"/></a>
+    <img src="https://img.shields.io/github/v/release/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
-    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN"/></a>
+    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
   <a href="#">
-    <img src="https://img.shields.io/github/languages/top/TheMurmabis/StatusOpenVPN"/></a>
+    <img src="https://img.shields.io/github/languages/top/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
   <a href="#">
-    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN"/></a>
+    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
 </p>
 
 
