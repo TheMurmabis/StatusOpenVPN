@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
   <a href="#">
     <img src="https://img.shields.io/github/languages/top/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
-  <a href="#">
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/commits/main/">
     <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
 </p>
 
