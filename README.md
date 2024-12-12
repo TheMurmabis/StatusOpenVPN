@@ -1,3 +1,19 @@
+<h1 align="center" >StatusOpenVPN</h1>
+
+<p align="center">
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/stargazers">
+    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat"/></a>
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
+    <img src="https://img.shields.io/github/v/release/TheMurmabis/StatusOpenVPN"/></a>
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
+    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN"/></a>
+  <a href="#">
+    <img src="https://img.shields.io/github/languages/top/TheMurmabis/StatusOpenVPN"/></a>
+  <a href="#">
+    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN"/></a>
+</p>
+
+
 # Установка и настройка 
 
 <details>
