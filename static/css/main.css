@@ -59,15 +59,17 @@ body {
         background-color: #272727;
         border: none;
     }
-    .form-control label{
-        color: #d3d3d3 ;
+
+    .form-control label {
+        color: #d3d3d3;
         background-color: #272727 !important;
     }
+
     .form-container h1 {
         color: #d3d3d3;
     }
 
-    label{
+    label {
         color: #d3d3d3
     }
 
@@ -97,15 +99,15 @@ body {
     }
 
     .btn-warning {
-        background-color: #f8cb42; 
-        color: #000; 
+        background-color: #f8cb42;
+        color: #000;
         border-color: #e0b63b;
     }
 
     .btn-warning:hover {
         background-color: #ffda75;
-        color: #000 !important; 
-        border-color: #e6c45a; 
+        color: #000 !important;
+        border-color: #e6c45a;
     }
 
     .card {
@@ -122,7 +124,7 @@ body {
     }
 
     .border {
-        border-color:#272727 !important;
+        border-color: #272727 !important;
     }
 
     footer {
@@ -130,7 +132,7 @@ body {
         background-color: #000000 !important;
     }
 
-    footer a{
+    footer a {
         color: #d3d3d3 !important;
         text-decoration: none;
     }
@@ -149,9 +151,8 @@ body {
         -webkit-box-shadow: 0 0 0px 1000px #222 inset !important;
         -webkit-text-fill-color: #d3d3d3 !important;
         transition: background-color 5000s ease-in-out 0s;
-
     }
-    
+
 }
 
 header {
@@ -200,6 +201,15 @@ header a {
 .table th {
     text-wrap: nowrap;
 
+}
+
+.speed-column {
+    display: table-cell;
+    transition: all 0.3s ease;
+}
+
+.speed-column.hidden {
+    display: none !important;
 }
 
 .form-container {

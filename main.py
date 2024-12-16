@@ -32,6 +32,7 @@ from src.config import Config
 from flask_bcrypt import Bcrypt
 from datetime import datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
+from collections import defaultdict
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -343,45 +344,82 @@ def format_duration(start_time):
         return f"{seconds} сек."
 
 
+client_cache = defaultdict(lambda: {"received": 0, "sent": 0, "timestamp": None})
+
+
 # Чтение данных из CSV и обработка
 def read_csv(file_path, protocol):
     data = []
     total_received, total_sent = 0, 0
-    try:
-        with open(file_path, newline="", encoding="utf-8") as csvfile:
-            reader = csv.reader(csvfile)
-            next(reader)  # Пропускаем заголовок
-            for row in reader:
-                if row[0] == "CLIENT_LIST":
-                    received, sent = int(row[5]), int(row[6])
-                    total_received += received
-                    total_sent += sent
+    current_time = datetime.now()
 
-                    start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
-                    duration = format_duration(start_date)
+    if not os.path.exists(file_path):
+        return [], 0, 0, None
 
-                    data.append(
-                        [
-                            clean_client_name(row[1]),
-                            mask_ip(row[2]),
-                            row[3],
-                            format_bytes(received),
-                            format_bytes(sent),
-                            format_date(row[7]),
-                            duration,
-                            protocol,
-                        ]
-                    )
-        return data, total_received, total_sent, None
-    except FileNotFoundError:
-        file_name = os.path.basename(file_path)
-        file_directory = os.path.dirname(file_path)
+    with open(file_path, newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)
 
-        error_message = (
-            f'Файл "{file_name}" не найден. '
-            f"Пожалуйста, проверьте наличие файла по указанному пути: {file_directory}"
-        )
-        return [], 0, 0, error_message  # Возвращаем сообщение об ошибке
+        for row in reader:
+            if row[0] == "CLIENT_LIST":
+                client_name = row[1]
+                received = int(row[5])
+                sent = int(row[6])
+                total_received += received
+                total_sent += sent
+
+                start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
+                duration = format_duration(start_date)
+
+                # Получение предыдущих данных из кеша
+                previous_data = client_cache.get(
+                    client_name, {"received": 0, "sent": 0, "timestamp": None}
+                )
+                previous_received = previous_data["received"]
+                previous_sent = previous_data["sent"]
+                previous_time = previous_data["timestamp"]
+
+                # Рассчитываем скорость
+                if (
+                    previous_time
+                    and received >= previous_received
+                    and sent >= previous_sent
+                ):
+                    time_diff = (current_time - previous_time).total_seconds()
+                    if time_diff > 0:
+                        download_speed = (received - previous_received) / time_diff
+                        upload_speed = (sent - previous_sent) / time_diff
+                    else:
+                        download_speed = 0
+                        upload_speed = 0
+                else:
+                    download_speed = 0
+                    upload_speed = 0
+
+                # Обновляем кеш
+                client_cache[client_name] = {
+                    "received": received,
+                    "sent": sent,
+                    "timestamp": current_time,
+                }
+
+                # Добавляем данные клиента
+                data.append(
+                    [
+                        clean_client_name(client_name),
+                        mask_ip(row[2]),
+                        row[3],
+                        format_bytes(received),
+                        format_bytes(sent),
+                        format_bytes(download_speed) + "/s",
+                        format_bytes(upload_speed) + "/s",
+                        format_date(row[7]),
+                        duration,
+                        protocol,
+                    ]
+                )
+
+    return data, total_received, total_sent, None
 
 
 # ---------Метрики----------
@@ -600,48 +638,54 @@ def wg():
 @login_required
 def ovpn():
     try:
-        udp_clients, udp_received, udp_sent, udp_error = read_csv(
-            "/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"
-        )
+        # Пути к файлам и протоколы
+        file_paths = [
+            ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
+            ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
+            ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
+            ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
+            ("/etc/openvpn/server/logs/antizapret-no-cipher-status.log", "NoCipher"),
+        ]
 
-        tcp_clients, tcp_received, tcp_sent, tcp_error = read_csv(
-            "/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"
-        )
+        clients = []
+        total_received, total_sent = 0, 0
+        errors = []
 
-        vpn_udp_clients, vpn_udp_received, vpn_udp_sent, vpn_udp_error = read_csv(
-            "/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"
-        )
+        # Проходим по всем файлам и обрабатываем их
+        for file_path, protocol in file_paths:
+            file_data, received, sent, error = read_csv(file_path, protocol)
+            if error:
+                errors.append(f"Ошибка в файле {file_path}: {error}")
+            else:
+                clients.extend(file_data)
+                total_received += received
+                total_sent += sent
 
-        vpn_tcp_clients, vpn_tcp_received, vpn_tcp_sent, vpn_tcp_error = read_csv(
-            "/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"
-        )
+        # # Проверка наличия файлов
+        # if not clients:
+        #     return render_template(
+        #         "ovpn.html",
+        #         error_message="Нет данных для отображения. Проверьте наличие файлов в /etc/openvpn/server/logs/",
+        #         errors=errors,
+        #         active_page="ovpn",
+        #     )
 
-        # Проверка на ошибки чтения
-        if udp_error or tcp_error:
-            error_message = udp_error or tcp_error
-            return render_template("ovpn.html", error_message=error_message)
-
-        clients = udp_clients + tcp_clients + vpn_udp_clients + vpn_tcp_clients
         total_clients = len(clients)
-        total_received = format_bytes(
-            udp_received + tcp_received + vpn_udp_received + vpn_tcp_received
-        )
-        total_sent = format_bytes(udp_sent + tcp_sent + vpn_udp_sent + vpn_tcp_sent)
-
         return render_template(
             "ovpn.html",
             clients=clients,
             total_clients_str=pluralize_clients(total_clients),
-            total_received=total_received,
-            total_sent=total_sent,
+            total_received=format_bytes(total_received),
+            total_sent=format_bytes(total_sent),
             active_page="ovpn",
+            errors=errors,
         )
 
     except ZoneInfoNotFoundError:
         error_message = (
             "Обнаружены конфликтующие настройки часового пояса "
             "в файлах /etc/timezone и /etc/localtime. "
-            "Попробуйте установить правильный часовой пояс"
+            "Попробуйте установить правильный часовой пояс "
             "с помощью команды: sudo dpkg-reconfigure tzdata"
         )
         return render_template("ovpn.html", error_message=error_message), 500

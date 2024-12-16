@@ -12,14 +12,22 @@
     {{ error_message }}
 </div>
 {% else %}
-<div class="form-check">
-    <input class="form-check-input" type="checkbox" id="toggleRealIP" onchange="toggleRealIP()">
-    <label class="form-check-label" for="toggleRealIP">
-        Показать реальные IP
-    </label>
-    
+
+<div class="control-panel">
+    <div class="control-item" title="Показать реальные IP">
+        <label class="form-check-label" for="show-ip-checkbox">
+            <input type="checkbox" id="show-ip-checkbox" class="form-check-input">
+            Показать IP
+        </label>
+    </div>
+    <div class="control-item" title="Показать скорость">
+        <label class="form-check-label" for="show-columns-checkbox">
+            <input type="checkbox" id="show-columns-checkbox" class="form-check-input">
+            Показать скорость
+        </label>
+    </div>
 </div>
-<div class="table-responsive main_table">
+<div class="table-responsive main_table w-100">
     <table class="table table-striped">
         <thead>
             <tr>
@@ -28,7 +36,9 @@
                 <th class="text-center">Локальный IP<br></th>
                 <th class="text-center">Передано</th>
                 <th class="text-center">Получено</th>
-                <th class="text-center">Подключен с</th>
+                <th class="text-center speed-column hidden">Скорость загрузки</th>
+                <th class="text-center speed-column hidden">Скорость отдачи</th>
+                <th class="text-center">Подключен</th>
                 <th class="text-center">Длительность</th>
                 <th class="text-center">Протокол</th>
             </tr>
@@ -45,16 +55,18 @@
                 <td class="text-center">{{ client[2] }}</td>
                 <td class="text-center">{{ client[3] }}</td>
                 <td class="text-center">{{ client[4] }}</td>
-                <td class="text-center connection-time" data-utc="{{ client[5] }}">{{ client[5] }}</td>
-                <td class="text-center">{{ client[6] }}</td>
-                <td class="text-center">{{ client[7] }}</td>
+                <td class="text-center speed-column hidden">{{ client[5] }}</td>
+                <td class="text-center speed-column hidden">{{ client[6] }}</td>
+                <td class="text-center connection-time" data-utc="{{ client[7] }}">{{ client[7] }}</td>
+                <td class="text-center">{{ client[8] }}</td>
+                <td class="text-center">{{ client[9] }}</td>
             </tr>
             {% endfor %}
             <tr class="table-dark text-left">
                 <td colspan="3">Онлайн: {{ total_clients_str }}</td>
                 <td class="text-center">{{ total_received }}</td>
                 <td class="text-center">{{ total_sent }}</td>
-                <td colspan="3"></td>
+                <td colspan="5"></td>
             </tr>
         </tbody>
     </table>
