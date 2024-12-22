@@ -744,7 +744,7 @@ def ovpn():
         elif sort_by == "connection-time":
             clients.sort(key=lambda x: x[7], reverse=reverse_order)
         elif sort_by == "duration":
-            clients.sort(key=lambda x: x[8], reverse=reverse_order)
+            clients.sort(key=lambda x: x[7], reverse=reverse_order)
         elif sort_by == "protocol":
             clients.sort(key=lambda x: x[9], reverse=reverse_order)
 
