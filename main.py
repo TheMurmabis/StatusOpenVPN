@@ -200,11 +200,76 @@ def format_handshake_time(handshake_string):
     return formatted_time
 
 
-# Функция для получения данных WireGuard
+def is_peer_online(last_handshake):
+    if not last_handshake:
+        return False
+    return datetime.now() - last_handshake < timedelta(minutes=3)
+
+
+def parse_relative_time(relative_time):
+    """Преобразует строку с часами, минутами и секундами в абсолютное время."""
+    now = datetime.now()
+    time_deltas = {"hours": 0, "minutes": 0, "seconds": 0}
+
+    # Разбиваем строку на части
+    parts = relative_time.split()
+    i = 0
+    while i < len(parts):
+        try:
+            value = int(parts[i])  # Извлекаем число
+            unit = parts[i + 1]  # Следующее слово — это единица времени
+            if "ч" in unit:
+                time_deltas["hours"] += value
+            elif "мин" in unit or "minute" in unit:
+                time_deltas["minutes"] += value
+            elif "сек" in unit or "second" in unit:
+                time_deltas["seconds"] += value
+            i += 2  # Пропускаем число и единицу времени
+        except (ValueError, IndexError):
+            break  # Если данные некорректны, прерываем
+
+    # Вычисляем итоговую разницу времени, игнорируя дни, месяцы и годы
+    delta = timedelta(
+        hours=time_deltas["hours"],
+        minutes=time_deltas["minutes"],
+        seconds=time_deltas["seconds"],
+    )
+
+    return now - delta
+
+def read_wg_config(file_path):
+    """Считывает клиентские данные из конфигурационного файла WireGuard."""
+    client_mapping = {}
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            current_peer = None
+
+            for line in file:
+                line = line.strip()
+                if line.startswith("[Peer]"):
+                    current_peer = None 
+                elif line.startswith("PublicKey =") and current_peer is None:
+                    current_peer = line.split("=", 1)[1].strip()
+                    client_mapping[current_peer] = "N/A"
+                elif line.startswith("# Client =") and current_peer:
+                    client_name = line.split("=", 1)[1].strip()
+                    client_mapping[current_peer] = client_name
+
+    except FileNotFoundError:
+        print(f"Конфигурационный файл {file_path} не найден.")
+    return client_mapping
+
+
 def parse_wireguard_output(output):
+    """Парсинг вывода команды wg show."""
     stats = []
     lines = output.strip().splitlines()
     interface_data = {}
+
+    vpn_mapping = read_wg_config("/etc/wireguard/vpn.conf")
+    antizapret_mapping = read_wg_config("/etc/wireguard/antizapret.conf")
+    client_mapping = {**vpn_mapping, **antizapret_mapping}
 
     for line in lines:
         line = line.strip()
@@ -214,38 +279,42 @@ def parse_wireguard_output(output):
                 interface_data = {}
             interface_data["interface"] = line.split(": ")[1]
         elif line.startswith("public key:"):
-            interface_data["public_key"] = line.split(": ")[1]
+            public_key = line.split(": ")[1]
+            interface_data["public_key"] = public_key
         elif line.startswith("listening port:"):
             interface_data["listening_port"] = line.split(": ")[1]
         elif line.startswith("peer:"):
             if "peers" not in interface_data:
                 interface_data["peers"] = []
             peer_data = {"peer": line.split(": ")[1].strip()}
-            masked_peer = (
-                peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
-            )  # Маскируем peer: первые 4 и последние 4 символа
-
+            masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
             peer_data["masked_peer"] = masked_peer
+            peer_data["client"] = clean_client_name(client_mapping.get(peer_data["peer"], "N/A"))
             interface_data["peers"].append(peer_data)
-        elif line.startswith("preshared key:"):
-            interface_data["peers"][-1]["preshared_key"] = line.split(": ")[1]
-        elif line.startswith("endpoint:"):
-            endpoint = line.split(": ")[1].strip()
-            masked_endpoint = mask_ip(endpoint)
-            interface_data["peers"][-1]["endpoint"] = masked_endpoint
         elif line.startswith("allowed ips:"):
-            interface_data["peers"][-1]["allowed_ips"] = line.split(": ")[1]
+            allowed_ips = line.split(": ")[1].split(", ")
+            peer_data["allowed_ips"] = allowed_ips
+            peer_data["visible_ips"] = allowed_ips[:1]
+            peer_data["hidden_ips"] = allowed_ips[1:]
         elif line.startswith("latest handshake:"):
             handshake_time = line.split(": ")[1].strip()
-            formatted_handshake_time = format_handshake_time(handshake_time)
-            interface_data["peers"][-1]["latest_handshake"] = formatted_handshake_time
-
+            if any(
+                unit in handshake_time
+                for unit in ["мин", "час", "сек", "minute", "hour", "second"]
+            ):
+                formatted_handshake_time = parse_relative_time(handshake_time)
+            else:
+                formatted_handshake_time = datetime.strptime(
+                    handshake_time, "%Y-%m-%d %H:%M:%S"
+                )
+            peer_data["latest_handshake"] = format_handshake_time(handshake_time)
+            peer_data["online"] = is_peer_online(formatted_handshake_time)
         elif line.startswith("transfer:"):
             transfer_data = line.split(":")[1].strip().split(", ")
             received = transfer_data[0].replace(" received", "").strip()
             sent = transfer_data[1].replace(" sent", "").strip()
-            interface_data["peers"][-1]["received"] = received
-            interface_data["peers"][-1]["sent"] = sent
+            peer_data["received"] = received
+            peer_data["sent"] = sent
 
     if interface_data:
         stats.append(interface_data)
@@ -294,13 +363,10 @@ def get_external_ip():
 # Преобразование даты
 def format_date(date_string):
     date_obj = datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
-    server_timezone = get_localzone()  # Получаем локальную временную зону сервера
-    localized_date = date_obj.replace(
-        tzinfo=server_timezone
-    )  # Устанавливаем локальную временную зону
-    utc_date = localized_date.astimezone(timezone.utc)  # Преобразуем в UTC
-
-    return utc_date.isoformat()  # Возвращаем ISO формат
+    server_timezone = get_localzone()
+    localized_date = date_obj.replace(tzinfo=server_timezone)
+    utc_date = localized_date.astimezone(timezone.utc)
+    return utc_date.isoformat()
 
 
 # Удаление префикса из имени клиента
@@ -371,32 +437,32 @@ def read_csv(file_path, protocol):
                 start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
                 duration = format_duration(start_date)
 
-                # Получение предыдущих данных из кеша
+                # Получение предыдущих данных из кэша
                 previous_data = client_cache.get(
-                    client_name, {"received": 0, "sent": 0, "timestamp": None}
+                    client_name, {"received": 0, "sent": 0, "timestamp": current_time}
                 )
                 previous_received = previous_data["received"]
                 previous_sent = previous_data["sent"]
                 previous_time = previous_data["timestamp"]
 
-                # Рассчитываем скорость
-                if (
-                    previous_time
-                    and received >= previous_received
-                    and sent >= previous_sent
-                ):
-                    time_diff = (current_time - previous_time).total_seconds()
-                    if time_diff > 0:
-                        download_speed = (received - previous_received) / time_diff
-                        upload_speed = (sent - previous_sent) / time_diff
-                    else:
-                        download_speed = 0
-                        upload_speed = 0
+                # Рассчитываем скорость только при валидной разнице времени
+                time_diff = (current_time - previous_time).total_seconds()
+                if time_diff >= 30:  # Учитываем фиксированный интервал обновления логов
+                    download_speed = (
+                        (received - previous_received) / time_diff
+                        if received >= previous_received
+                        else 0
+                    )
+                    upload_speed = (
+                        (sent - previous_sent) / time_diff
+                        if sent >= previous_sent
+                        else 0
+                    )
                 else:
                     download_speed = 0
                     upload_speed = 0
 
-                # Обновляем кеш
+                # Обновляем кэш
                 client_cache[client_name] = {
                     "received": received,
                     "sent": sent,
@@ -411,8 +477,8 @@ def read_csv(file_path, protocol):
                         row[3],
                         format_bytes(received),
                         format_bytes(sent),
-                        format_bytes(download_speed) + "/s",
-                        format_bytes(upload_speed) + "/s",
+                        f"{format_bytes(max(download_speed, 0))}/s",
+                        f"{format_bytes(max(upload_speed, 0))}/s",
                         format_date(row[7]),
                         duration,
                         protocol,
@@ -651,7 +717,6 @@ def ovpn():
         total_received, total_sent = 0, 0
         errors = []
 
-        # Проходим по всем файлам и обрабатываем их
         for file_path, protocol in file_paths:
             file_data, received, sent, error = read_csv(file_path, protocol)
             if error:
@@ -661,7 +726,29 @@ def ovpn():
                 total_received += received
                 total_sent += sent
 
-        # # Проверка наличия файлов
+        # Сортировка данных
+        sort_by = request.args.get("sort", "client")
+        order = request.args.get("order", "asc")
+        reverse_order = order == "desc"
+
+        if sort_by == "client":
+            clients.sort(key=lambda x: x[0], reverse=reverse_order)
+        elif sort_by == "realIp":
+            clients.sort(key=lambda x: x[1], reverse=reverse_order)
+        elif sort_by == "localIp":
+            clients.sort(key=lambda x: x[2], reverse=reverse_order)
+        elif sort_by == "sent":
+            clients.sort(key=lambda x: x[3], reverse=reverse_order)
+        elif sort_by == "received":
+            clients.sort(key=lambda x: x[4], reverse=reverse_order)
+        elif sort_by == "connection-time":
+            clients.sort(key=lambda x: x[7], reverse=reverse_order)
+        elif sort_by == "duration":
+            clients.sort(key=lambda x: x[8], reverse=reverse_order)
+        elif sort_by == "protocol":
+            clients.sort(key=lambda x: x[9], reverse=reverse_order)
+
+        # Проверка на пустую таблицу
         # if not clients:
         #     return render_template(
         #         "ovpn.html",
@@ -679,6 +766,8 @@ def ovpn():
             total_sent=format_bytes(total_sent),
             active_page="ovpn",
             errors=errors,
+            sort_by=sort_by,
+            order=order,
         )
 
     except ZoneInfoNotFoundError:

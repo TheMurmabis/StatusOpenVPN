@@ -11,12 +11,15 @@
 {% for interface in stats %}
 
 <div class="table-responsive main_table">
-    
-    <h2>Interface: {{ interface.interface }}</h2>
     <table class="table table-striped">
         <thead>
             <tr>
-                <th class="text-center">Пир (замаскирован)</th>
+                <th colspan="8"><h3>Интерфейс: {{ interface.interface }}</h3></th>
+            </tr>
+            <tr>
+                <th class="text-center">Статус</th>
+                <th class="text-center">Клиент</th>
+                <th class="text-center">Пир (скрыт)</th>
                 <th class="text-center">Конечная точка</th>
                 <th class="text-center">Разрешенные IP</th>
                 <th class="text-center">Последнее рукопожатие</th>
@@ -27,9 +30,31 @@
         <tbody>
             {% for peer in interface.peers %}
             <tr>
+                <td>
+                    <div class="text-center status-indicator {{ 'online' if peer.online else 'offline' }}"></div>
+                    <span class="{{ 'online-text' if peer.online else 'offline-text' }}">
+                        {{ 'В сети' if peer.online else 'Не в сети' }}
+                    </span>
+                </td>
+                <td class="text-center">{{ peer.client }}</td>
                 <td class="text-center">{{ peer.masked_peer }}</td>
                 <td class="text-center">{{ peer.endpoint or 'N/A' }}</td>
-                <td class="text-center">{{ peer.allowed_ips }}</td>
+                <td class="text-center">
+                    {% for ip in peer.visible_ips %}
+                    <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                    {% if peer.hidden_ips %}
+                    <span class="hidden-ips" style="display:none;">
+                        {% for ip in peer.hidden_ips %}
+                        <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </span>
+                    <p><a href="#" class="btn btn-link" id="toggle-btn-{{ loop.index }}"
+                            onclick="toggleIps({{ loop.index }})">
+                            Показать все
+                        </a></p>
+                    {% endif %}
+                </td>
                 <td class="text-center">{{ peer.latest_handshake or 'N/A' }}</td>
                 <td class="text-center">{{ peer.received or 'N/A' }}</td>
                 <td class="text-center">{{ peer.sent or 'N/A' }}</td>
@@ -38,5 +63,9 @@
         </tbody>
     </table>
 </div>
+
 {% endfor %}
+
+<script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
+
 {% endblock %}

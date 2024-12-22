@@ -29,20 +29,77 @@
 </div>
 <div class="table-responsive main_table w-100">
     <table class="table table-striped">
-        <thead>
-            <tr>
-                <th class="text-center">Клиент</th>
-                <th class="text-center">Реальный IP</th>
-                <th class="text-center">Локальный IP<br></th>
-                <th class="text-center">Передано</th>
-                <th class="text-center">Получено</th>
-                <th class="text-center speed-column hidden">Скорость загрузки</th>
-                <th class="text-center speed-column hidden">Скорость отдачи</th>
-                <th class="text-center">Подключен</th>
-                <th class="text-center">Длительность</th>
-                <th class="text-center">Протокол</th>
-            </tr>
-        </thead>
+<thead>
+    <tr>
+        <th class="text-center sortable">
+            <a href="{{ url_for('ovpn', sort='client', order='asc' if sort_by != 'client' or order == 'desc' else 'desc') }}">
+                Клиент
+                {% if sort_by == 'client' %}
+                <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>        
+        <th class="text-center sortable">
+            <a href="{{ url_for('ovpn', sort='realIp', order='asc' if sort_by != 'realIp' or order == 'desc' else 'desc') }}">
+                Реальный IP
+                {% if sort_by == 'realIp' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center sortable">
+            <a href="{{ url_for('ovpn', sort='localIp', order='asc' if sort_by != 'localIp' or order == 'desc' else 'desc') }}">
+                Локальный IP
+                {% if sort_by == 'localIp' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center sortable">
+            <a href="{{ url_for('ovpn', sort='sent', order='asc' if sort_by != 'sent' or order == 'desc' else 'desc') }}">
+                Передано
+                {% if sort_by == 'sent' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center sortable">
+            <a href="{{ url_for('ovpn', sort='received', order='asc' if sort_by != 'received' or order == 'desc' else 'desc') }}">
+                Получено
+                {% if sort_by == 'received' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center speed-column hidden">Скорость<br>загрузки</th>
+        <th class="text-center speed-column hidden">Скорость<br>отдачи</th>
+        <th class="text-center">
+            <a href="{{ url_for('ovpn', sort='connection-time', order='asc' if sort_by != 'connection-time' or order == 'desc' else 'desc') }}">
+                Подключен
+                {% if sort_by == 'connection-time' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center">
+            <a href="{{ url_for('ovpn', sort='duration', order='asc' if sort_by != 'duration' or order == 'desc' else 'desc') }}">
+                Длительность
+                {% if sort_by == 'duration' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        <th class="text-center">
+            <a href="{{ url_for('ovpn', sort='protocol', order='asc' if sort_by != 'protocol' or order == 'desc' else 'desc') }}">
+                Протокол
+                {% if sort_by == 'protocol' %}
+                    <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+            </a>
+        </th>
+        
+    </tr>
+</thead>
         <tbody>
             {% for client in clients %}
             <tr class="text-center">

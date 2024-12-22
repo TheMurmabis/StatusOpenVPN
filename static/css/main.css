@@ -76,8 +76,29 @@ body {
     .table td,
     .table th,
     .form-check-label,
-    h2 {
+    h2, a {
         color: #d3d3d3;
+    }
+
+    .table th a{
+        text-decoration: none;
+    }
+
+    .table th td a:hover{
+        color: #d3d3d3 ;
+    }
+
+    .table th a{
+        text-decoration: none;
+        color: #d3d3d3 !important;
+    }
+
+    .table td a{
+        color: #d3d3d3 !important;
+    }
+
+    .table td a:hover{
+        color: #0a58ca !important;
     }
 
     .btn-list {
@@ -203,6 +224,20 @@ header a {
 
 }
 
+.table td a{
+    color: #000000;
+    text-decoration: none;
+}
+
+.table th a{
+    color: #000000;
+    text-decoration: none;
+}
+
+.table th a:hover{
+    color: #000000;
+}
+
 .speed-column {
     display: table-cell;
     transition: all 0.3s ease;
@@ -210,6 +245,14 @@ header a {
 
 .speed-column.hidden {
     display: none !important;
+}
+
+.online-text {
+    color: #437700;
+}
+
+.offline-text {
+    color: #a12312;
 }
 
 .form-container {
