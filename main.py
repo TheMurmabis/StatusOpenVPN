@@ -243,21 +243,29 @@ def read_wg_config(file_path):
 
     try:
         with open(file_path, "r", encoding="utf-8") as file:
-            current_peer = None
+            current_client_name = None
 
             for line in file:
                 line = line.strip()
-                if line.startswith("[Peer]"):
-                    current_peer = None 
-                elif line.startswith("PublicKey =") and current_peer is None:
-                    current_peer = line.split("=", 1)[1].strip()
-                    client_mapping[current_peer] = "N/A"
-                elif line.startswith("# Client =") and current_peer:
-                    client_name = line.split("=", 1)[1].strip()
-                    client_mapping[current_peer] = client_name
+
+                # Если строка начинается с # Client =, то сохраняем имя клиента
+                if line.startswith("# Client ="):
+                    current_client_name = line.split("=", 1)[1].strip()
+
+                # Если строка начинается с [Peer], сбрасываем имя клиента
+                elif line.startswith("[Peer]"):
+                    # Проверяем, есть ли имя клиента, если нет, то оставляем 'N/A'
+                    current_client_name = current_client_name or "N/A"
+                
+                # Если строка начинается с PublicKey =, сохраняем публичный ключ с именем клиента
+                elif line.startswith("PublicKey =") and current_client_name:
+                    public_key = line.split("=", 1)[1].strip()
+                    client_mapping[public_key] = current_client_name
 
     except FileNotFoundError:
         print(f"Конфигурационный файл {file_path} не найден.")
+
+    #print(client_mapping)
     return client_mapping
 
 
