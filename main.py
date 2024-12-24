@@ -331,6 +331,20 @@ def format_bytes(size):
         size /= 1024
     return f"{size:.2f} TB"
 
+def parse_bytes(value):
+    """Преобразует строку с размером данных в байты."""
+    size, unit = value.split(" ")
+    size = float(size)
+    unit = unit.lower()
+    if unit == "kb":
+        return size * 1024
+    elif unit == "mb":
+        return size * 1024**2
+    elif unit == "gb":
+        return size * 1024**3
+    elif unit == "tb":
+        return size * 1024**4
+    return size
 
 # Функция для склонения слова "клиент"
 def pluralize_clients(count):
@@ -738,9 +752,9 @@ def ovpn():
         elif sort_by == "localIp":
             clients.sort(key=lambda x: x[2], reverse=reverse_order)
         elif sort_by == "sent":
-            clients.sort(key=lambda x: x[3], reverse=reverse_order)
+            clients.sort(key=lambda x: parse_bytes(x[3]), reverse=reverse_order)
         elif sort_by == "received":
-            clients.sort(key=lambda x: x[4], reverse=reverse_order)
+            clients.sort(key=lambda x: parse_bytes(x[4]), reverse=reverse_order)
         elif sort_by == "connection-time":
             clients.sort(key=lambda x: x[7], reverse=reverse_order)
         elif sort_by == "duration":
