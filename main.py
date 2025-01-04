@@ -211,24 +211,23 @@ def parse_relative_time(relative_time):
     now = datetime.now()
     time_deltas = {"hours": 0, "minutes": 0, "seconds": 0}
 
-    # Разбиваем строку на части
-    parts = relative_time.split()
+    parts = relative_time.lower().replace("назад", "").replace("ago", "").split()
     i = 0
     while i < len(parts):
         try:
-            value = int(parts[i])  # Извлекаем число
-            unit = parts[i + 1]  # Следующее слово — это единица времени
-            if "ч" in unit:
+            value = int(parts[i])
+            unit = parts[i + 1]
+            if "ч" in unit or "hour" in unit:
                 time_deltas["hours"] += value
             elif "мин" in unit or "minute" in unit:
                 time_deltas["minutes"] += value
             elif "сек" in unit or "second" in unit:
                 time_deltas["seconds"] += value
-            i += 2  # Пропускаем число и единицу времени
+            i += 2  
         except (ValueError, IndexError):
-            break  # Если данные некорректны, прерываем
+            break
 
-    # Вычисляем итоговую разницу времени, игнорируя дни, месяцы и годы
+    # Вычисляем итоговую разницу времени
     delta = timedelta(
         hours=time_deltas["hours"],
         minutes=time_deltas["minutes"],
