@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h2>Статистика за {{ current_month }}</h2>
+</div>
+
+<div class="tabs">
+    <a href="{{ url_for('ovpn') }}" class="tab {% if active_page == 'ovpn' %}active{% endif %}">Клиенты</a>
+    <a href="{{ url_for('ovpn_history') }}" class="tab {% if active_page == 'history' %}active{% endif %}">История</a>
+    <a href="{{ url_for('ovpn_stats') }}" class="tab {% if active_page == 'stats' %}active{% endif %}">Статистика</a>
+</div>
+
+{% if error_message %}
+<div class="alert alert-danger" role="alert">
+    {{ error_message }}
+</div>
+{% else %}
+<div>
+    <div class="d-flex justify-content-start flex-wrap gap-3">
+        {% for stats in month_stats %}
+            {% if stats['client_name'] != 'UNDEF' %}
+                <div class="card client-card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center">{{ stats['client_name'] }}</h5>
+                        <p class="card-text">
+                            Передано: {{ stats['total_bytes_sent'] }}<br>
+                            Получено: {{ stats['total_bytes_received'] }}
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}История{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h2>История подключений OpenVPN</h2>
+</div>
+
+<div class="tabs">
+    <a href="{{ url_for('ovpn') }}" class="tab {% if active_page == 'ovpn' %}active{% endif %}">Клиенты</a>
+    <a href="{{ url_for('ovpn_history') }}" class="tab {% if active_page == 'history' %}active{% endif %}">История</a>
+    <a href="{{ url_for('ovpn_stats') }}" class="tab {% if active_page == 'stats' %}active{% endif %}">Статистика</a>
+</div>
+
+{% if error_message %}
+<div class="alert alert-danger" role="alert">
+    {{ error_message }}
+</div>
+{% else %}
+
+<div class="table-responsive log_table w-100">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th colspan="5" class="text-center">История подключений</th>
+            </tr>
+            <tr>
+                <th class="text-center">Клиент</th>
+                <th class="text-center">Реальный IP</th>
+                <th class="text-center">Локальный IP</th>
+                <th class="text-center">Подключен</th>
+                <th class="text-center">Протокол</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td class="text-center">{{ log['client_name'] }}</td>
+                <td class="text-center">{{ log['real_ip'] }}</td>
+                <td class="text-center">{{ log['local_ip'] }}</td>
+                <td class="text-center connection-time" data-utc="{{ log['connection_since'] }}">{{
+                    log['connection_since'] }}</td>
+                <td class="text-center">{{ log['protocol'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/ovpn_history_page.js') }}"></script>
+
+{% endblock %}
