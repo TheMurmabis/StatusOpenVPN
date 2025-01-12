@@ -222,9 +222,8 @@ def parse_relative_time(relative_time):
             value = int(parts[i])
             unit = parts[i + 1]
             if "ч" in unit or "hour" in unit:
-
-            value = int(parts[i])
-            unit = parts[i + 1]
+                value = int(parts[i])
+                unit = parts[i + 1]
             if "ч" in unit or "hour" in unit:
                 time_deltas["hours"] += value
             elif "мин" in unit or "minute" in unit:
