@@ -907,4 +907,4 @@ def ovpn_stats():
 
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=True, host="0.0.0.0", port=1134)
+    app.run(debug=True, host="0.0.0.0", port=1234)

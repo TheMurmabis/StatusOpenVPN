@@ -7,11 +7,11 @@ from tzlocal import get_localzone
 
 # Пути к файлам логов OpenVPN
 LOG_FILES = [
-    ("logs/antizapret-udp-status.log", "UDP"),
-    ("logs/antizapret-tcp-status.log", "TCP"),
-    ("logs/vpn-udp-status.log", "VPN-UDP"),
-    ("logs/vpn-tcp-status.log", "VPN-TCP"),
-    ("logs/antizapret-no-cipher-status.log", "NoCipher"),
+    ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
+    ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
+    ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
+    ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
+    ("/etc/openvpn/server/logs/antizapret-no-cipher-status.log", "NoCipher"),
 ]
 
 # Путь к базе данных
