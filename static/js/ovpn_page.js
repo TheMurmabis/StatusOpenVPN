@@ -12,13 +12,12 @@ document.addEventListener("DOMContentLoaded", () => {
         toggleRealIP(true);
     } else {
         showIPCheckbox.checked = false;
-        toggleRealIP(false); 
+        toggleRealIP(false);
     }
-
     // Восстановление состояния столбцов
     if (savedShowColumnsState === "true") {
         showColumnsCheckbox.checked = true;
-        toggleColumns(true); 
+        toggleColumns(true);
     } else {
         showColumnsCheckbox.checked = false;
         toggleColumns(false);
@@ -51,13 +50,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Функция для преобразования времени в локальное, используя data-атрибуты
     function convertToUserTimezone() {
         const timeCells = document.querySelectorAll('.connection-time');
-        
+
         timeCells.forEach(cell => {
-            const utcDateStr = cell.getAttribute('data-utc'); 
+            const utcDateStr = cell.getAttribute('data-utc');
             if (utcDateStr) {
-                const utcDate = new Date(utcDateStr); 
-                const localDateString = utcDate.toLocaleString(); 
-                cell.textContent = localDateString; 
+                const utcDate = new Date(utcDateStr);
+                const localDateString = utcDate.toLocaleString();
+                cell.textContent = localDateString;
             }
         });
     }

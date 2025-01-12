@@ -106,6 +106,32 @@ ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 main:app -b 0.0.0.0:$PORT
 WantedBy=multi-user.target
 EOF
 
+# Создание logs.service
+LOGS_SERVICE="/etc/systemd/system/logs.service"
+cat <<EOF | sudo tee $LOGS_SERVICE
+[Unit]
+Description=Run logs.py script
+
+[Service]
+Type=oneshot
+ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
+EOF
+
+# Создание logs.timer
+LOGS_TIMER="/etc/systemd/system/logs.timer"
+cat <<EOF | sudo tee $LOGS_TIMER
+[Unit]
+Description=Run logs.py every 30 seconds
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+Unit=logs.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # Перезагрузка systemd и запуск сервиса
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
@@ -113,6 +139,10 @@ sudo systemctl daemon-reload
 echo "Starting StatusOpenVPN service..."
 sudo systemctl start StatusOpenVPN
 sudo systemctl enable StatusOpenVPN
+
+# Запуск и включение таймера
+sudo systemctl start logs.timer
+sudo systemctl enable logs.timer
 
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
@@ -130,4 +160,4 @@ echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
 echo "--------------------------------------------"
 
 
-rm -f $TARGET_DIR/scripts/setup.sh $TARGET_DIR/README.md $TARGET_DIR/CHANGELOG.md
+rm -f $TARGET_DIR/scripts/setup.sh

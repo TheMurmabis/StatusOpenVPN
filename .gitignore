@@ -1,6 +1,6 @@
-/.venv
+*venv
 /logs
 /.pylintrc
 __pycache__
-db.db
+*.db
 test.py

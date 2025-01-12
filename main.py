@@ -3,6 +3,7 @@ import sqlite3
 import requests
 import os
 import re
+import threading
 import random
 import time
 import string
@@ -27,6 +28,7 @@ from flask import (
     jsonify,
     session,
 )
+
 from src.forms import LoginForm
 from src.config import Config
 from flask_bcrypt import Bcrypt
@@ -207,7 +209,9 @@ def is_peer_online(last_handshake):
 
 
 def parse_relative_time(relative_time):
-    """Преобразует строку с часами, минутами и секундами в абсолютное время."""
+    """
+    Преобразует строку с часами, минутами и секундами в абсолютное время.
+    """
     now = datetime.now()
     time_deltas = {"hours": 0, "minutes": 0, "seconds": 0}
 
@@ -216,19 +220,19 @@ def parse_relative_time(relative_time):
     i = 0
     while i < len(parts):
         try:
-            value = int(parts[i])  # Извлекаем число
-            unit = parts[i + 1]  # Следующее слово — это единица времени
-            if "ч" in unit:
+
+            value = int(parts[i])
+            unit = parts[i + 1]
+            if "ч" in unit or "hour" in unit:
                 time_deltas["hours"] += value
             elif "мин" in unit or "minute" in unit:
                 time_deltas["minutes"] += value
             elif "сек" in unit or "second" in unit:
                 time_deltas["seconds"] += value
-            i += 2  # Пропускаем число и единицу времени
+            i += 2
         except (ValueError, IndexError):
-            break  # Если данные некорректны, прерываем
-
-    # Вычисляем итоговую разницу времени, игнорируя дни, месяцы и годы
+            break
+    # Вычисляем итоговую разницу времени
     delta = timedelta(
         hours=time_deltas["hours"],
         minutes=time_deltas["minutes"],
@@ -236,6 +240,7 @@ def parse_relative_time(relative_time):
     )
 
     return now - delta
+
 
 def read_wg_config(file_path):
     """Считывает клиентские данные из конфигурационного файла WireGuard."""
@@ -247,17 +252,25 @@ def read_wg_config(file_path):
 
             for line in file:
                 line = line.strip()
-                if line.startswith("[Peer]"):
-                    current_peer = None 
-                elif line.startswith("PublicKey =") and current_peer is None:
-                    current_peer = line.split("=", 1)[1].strip()
-                    client_mapping[current_peer] = "N/A"
-                elif line.startswith("# Client =") and current_peer:
-                    client_name = line.split("=", 1)[1].strip()
-                    client_mapping[current_peer] = client_name
+
+                # Если строка начинается с # Client =, то сохраняем имя клиента
+                if line.startswith("# Client ="):
+                    current_client_name = line.split("=", 1)[1].strip()
+
+                # Если строка начинается с [Peer], сбрасываем имя клиента
+                elif line.startswith("[Peer]"):
+                    # Проверяем, есть ли имя клиента, если нет, то оставляем 'N/A'
+                    current_client_name = current_client_name or "N/A"
+
+                # Если строка начинается с PublicKey =, сохраняем публичный ключ с именем клиента
+                elif line.startswith("PublicKey =") and current_client_name:
+                    public_key = line.split("=", 1)[1].strip()
+                    client_mapping[public_key] = current_client_name
 
     except FileNotFoundError:
         print(f"Конфигурационный файл {file_path} не найден.")
+
+    # print(client_mapping)
     return client_mapping
 
 
@@ -289,7 +302,9 @@ def parse_wireguard_output(output):
             peer_data = {"peer": line.split(": ")[1].strip()}
             masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
             peer_data["masked_peer"] = masked_peer
-            peer_data["client"] = clean_client_name(client_mapping.get(peer_data["peer"], "N/A"))
+            peer_data["client"] = clean_client_name(
+                client_mapping.get(peer_data["peer"], "N/A")
+            )
             interface_data["peers"].append(peer_data)
         elif line.startswith("allowed ips:"):
             allowed_ips = line.split(": ")[1].split(", ")
@@ -330,6 +345,22 @@ def format_bytes(size):
             return f"{size:.2f} {unit}"
         size /= 1024
     return f"{size:.2f} TB"
+
+
+def parse_bytes(value):
+    """Преобразует строку с размером данных в байты."""
+    size, unit = value.split(" ")
+    size = float(size)
+    unit = unit.lower()
+    if unit == "kb":
+        return size * 1024
+    elif unit == "mb":
+        return size * 1024**2
+    elif unit == "gb":
+        return size * 1024**3
+    elif unit == "tb":
+        return size * 1024**4
+    return size
 
 
 # Функция для склонения слова "клиент"
@@ -579,25 +610,30 @@ CACHE_DURATION = 10  # Время кэширования в секундах
 
 
 def get_system_info():
-    global last_fetch_time, cached_system_info
+    global cached_system_info
+    return cached_system_info
 
-    current_time = time.time()
-    if cached_system_info and (current_time - last_fetch_time < CACHE_DURATION):
-        return cached_system_info
 
-    system_info = {
-        "cpu_load": psutil.cpu_percent(interval=1),
-        "memory_used": psutil.virtual_memory().used // (1024**2),
-        "memory_total": psutil.virtual_memory().total // (1024**2),
-        "disk_used": psutil.disk_usage("/").used // (1024**3),
-        "disk_total": psutil.disk_usage("/").total // (1024**3),
-        "network_load": get_network_load(),
-        "uptime": format_uptime(get_uptime()),
-    }
+def update_system_info():
+    global cached_system_info, last_fetch_time
+    while True:
+        current_time = time.time()
+        if not cached_system_info or (current_time - last_fetch_time >= CACHE_DURATION):
+            cached_system_info = {
+                "cpu_load": psutil.cpu_percent(interval=1),
+                "memory_used": psutil.virtual_memory().used // (1024**2),
+                "memory_total": psutil.virtual_memory().total // (1024**2),
+                "disk_used": psutil.disk_usage("/").used // (1024**3),
+                "disk_total": psutil.disk_usage("/").total // (1024**3),
+                "network_load": get_network_load(),
+                "uptime": format_uptime(get_uptime()),
+            }
+            last_fetch_time = current_time
+        time.sleep(CACHE_DURATION)
 
-    cached_system_info = system_info
-    last_fetch_time = current_time
-    return system_info
+
+# Запуск фоновой задачи
+threading.Thread(target=update_system_info, daemon=True).start()
 
 
 @app.errorhandler(404)
@@ -699,6 +735,15 @@ def wg():
     stats = parse_wireguard_output(get_wireguard_stats())
     return render_template("wg.html", stats=stats, active_page="wg")
 
+@app.route("/api/wg/stats")
+@login_required
+def api_wg_stats():
+    try:
+        stats = parse_wireguard_output(get_wireguard_stats())
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/ovpn")
 @login_required
@@ -764,7 +809,8 @@ def ovpn():
             total_clients_str=pluralize_clients(total_clients),
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
-            active_page="ovpn",
+            active_section="ovpn",
+            active_page="clients",
             errors=errors,
             sort_by=sort_by,
             order=order,
@@ -784,6 +830,81 @@ def ovpn():
         return render_template("ovpn.html", error_message=error_message), 500
 
 
+@app.route("/ovpn/history")
+@login_required
+def ovpn_history():
+    try:
+        logs = []
+        conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
+        logs_reader = conn_logs.execute("SELECT * from connection_logs").fetchall()
+        conn_logs.close()
+
+        logs = sorted(
+            [
+                {
+                    "client_name": row[1],
+                    "real_ip": mask_ip(row[2]),
+                    "local_ip": row[3],
+                    "connection_since": row[4],
+                    "protocol": row[7],
+                }
+                for row in logs_reader
+            ],
+            key=lambda x: x["connection_since"],
+            reverse=True,  # Сортировка по убыванию
+        )
+
+        return render_template(
+            "ovpn_history.html",
+            active_section="ovpn",
+            active_page="history",
+            logs=logs,
+        )
+
+    except Exception as e:
+        error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+        return render_template("ovpn_history.html", error_message=error_message), 500
+
+
+@app.route("/ovpn/stats")
+@login_required
+def ovpn_stats():
+    try:
+        total_received, total_sent = 0, 0
+        current_month = datetime.now().strftime("%m.%Y")
+        month_stats = []
+
+        conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
+        month_stats_reader = conn_logs.execute(
+            "SELECT * from monthly_stats WHERE month = ?", (current_month,)
+        ).fetchall()
+        conn_logs.close()
+
+        for stats in month_stats_reader:
+            month_stats.append(
+                {
+                    "client_name": stats[1],
+                    "total_bytes_sent": format_bytes(stats[4]),
+                    "total_bytes_received": format_bytes(stats[3]),
+                }
+            )
+
+
+        return render_template(
+            "ovpn_stats.html",
+            total_received=format_bytes(total_received),
+            total_sent=format_bytes(total_sent),
+            active_section = "ovpn",
+            active_page="stats",
+            month_stats=month_stats,
+            current_month=current_month,
+        )
+
+    except Exception as e:
+        error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+        return render_template("ovpn_stats.html", error_message=error_message), 500
+
+
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=False, host="0.0.0.0", port=1234)
+    app.run(debug=True, host="0.0.0.0", port=1134)
