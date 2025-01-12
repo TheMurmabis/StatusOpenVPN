@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h2>Статистика за {{ current_month }}</h2>
+    <h2>Статистика за текущий месяц [{{ current_month }}]</h2>
 </div>
 
 <div class="tabs">
@@ -25,7 +25,8 @@
                 <div class="card client-card">
                     <div class="card-body">
                         <h5 class="card-title text-center">{{ stats['client_name'] }}</h5>
-                        <p class="card-text">
+                        <hr class="my-1">
+                        <p class="card-text">                         
                             Передано: {{ stats['total_bytes_sent'] }}<br>
                             Получено: {{ stats['total_bytes_received'] }}
                         </p>

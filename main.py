@@ -871,7 +871,7 @@ def ovpn_history():
 def ovpn_stats():
     try:
         total_received, total_sent = 0, 0
-        current_month = datetime.now().strftime("%m.%Y")
+        current_month = datetime.now().strftime("%b. %Y")
         month_stats = []
 
         conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
@@ -884,8 +884,8 @@ def ovpn_stats():
             month_stats.append(
                 {
                     "client_name": stats[1],
-                    "total_bytes_sent": format_bytes(stats[4]),
-                    "total_bytes_received": format_bytes(stats[3]),
+                    "total_bytes_sent": format_bytes(stats[3]),
+                    "total_bytes_received": format_bytes(stats[4]),
                 }
             )
 
@@ -907,4 +907,4 @@ def ovpn_stats():
 
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=True, host="0.0.0.0", port=1234)
+    app.run(debug=False, host="0.0.0.0", port=1234)

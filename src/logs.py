@@ -34,8 +34,8 @@ def initialize_database():
             total_bytes_sent INTEGER,
             total_connections INTEGER,
             UNIQUE(client_name, month)
-        )
-    """
+            )
+        """
     )
 
     # Таблица для журналов подключений
@@ -139,40 +139,99 @@ def parse_log_file(log_file, protocol):
 
 
 def save_monthly_stats(logs):
-    """Сохраняет суммарные данные в таблицу monthly_stats."""
+    """Сохраняет суммарные данные в таблицу monthly_stats, суммируя данные по всем IP для каждого клиента."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    current_month = datetime.today().strftime('%m.%Y')
-    cursor.execute("DELETE FROM monthly_stats WHERE month != ?", (current_month,))     # Удаляем старые данные, не относящиеся к текущему месяцу
+    current_month = datetime.today().strftime("%b. %Y")
+    cursor.execute("DELETE FROM monthly_stats WHERE month != ?", (current_month,))  # Удаляем старые данные
+
+    # Словарь для агрегированных данных по каждому клиенту и месяцу
+    aggregated_data = {}
 
     for log in logs:
-        # Преобразуем строку в datetime перед использованием strftime
         connected_since = datetime.fromisoformat(log["connected_since"])
-        month = connected_since.strftime("%m.%Y")
+        month = connected_since.strftime("%b. %Y")
 
-        conn.execute(
+        client_name = log["client_name"]
+        new_bytes_received = log["bytes_received"]
+        new_bytes_sent = log["bytes_sent"]
+
+        # Если для этого клиента и месяца еще нет записи, создаем пустую запись в словаре
+        if (client_name, month) not in aggregated_data:
+            aggregated_data[(client_name, month)] = {
+                "total_bytes_received": 0,
+                "total_bytes_sent": 0,
+                "total_connections": 0,
+            }
+
+        # Добавляем новые данные к существующему записанному значению
+        aggregated_data[(client_name, month)]["total_bytes_received"] += new_bytes_received
+        aggregated_data[(client_name, month)]["total_bytes_sent"] += new_bytes_sent
+        aggregated_data[(client_name, month)]["total_connections"] += 1
+
+    # После того как мы собрали все данные, записываем их в БД
+    for (client_name, month), data in aggregated_data.items():
+        # Проверим, существует ли запись для данного клиента и месяца
+        cursor.execute(
             """
-            INSERT INTO monthly_stats (client_name, month, total_bytes_received, total_bytes_sent, total_connections)
-            VALUES (?, ?, ?, ?, 1)
-            ON CONFLICT(client_name, month) DO UPDATE SET
-                total_bytes_received = total_bytes_received + excluded.total_bytes_received,
-                total_bytes_sent = total_bytes_sent + excluded.total_bytes_sent,
-                total_connections = total_connections + 1
-        """,
-            (
-                log["client_name"],
-                month,
-                log["bytes_received"],
-                log["bytes_sent"],
-            ),
+            SELECT total_bytes_received, total_bytes_sent, total_connections 
+            FROM monthly_stats WHERE client_name = ? AND month = ?
+            """,
+            (client_name, month),
         )
+        existing_log = cursor.fetchone()
+
+        if existing_log:
+            # Если запись существует, обновляем только разницу
+            existing_bytes_received, existing_bytes_sent, existing_connections = existing_log
+            diff_received = data["total_bytes_received"] - existing_bytes_received
+            diff_sent = data["total_bytes_sent"] - existing_bytes_sent
+
+            # Если разница положительная, обновляем
+            if diff_received > 0 or diff_sent > 0:
+                cursor.execute(
+                    """
+                    UPDATE monthly_stats
+                    SET total_bytes_received = total_bytes_received + ?, 
+                        total_bytes_sent = total_bytes_sent + ?, 
+                        total_connections = total_connections + ?
+                    WHERE client_name = ? AND month = ?
+                    """,
+                    (
+                        diff_received,
+                        diff_sent,
+                        data["total_connections"],
+                        client_name,
+                        month,
+                    ),
+                )
+        else:
+            # Если записи нет, добавляем новую
+            cursor.execute(
+                """
+                INSERT INTO monthly_stats (client_name, month, total_bytes_received, total_bytes_sent, total_connections)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    client_name,
+                    month,
+                    data["total_bytes_received"],
+                    data["total_bytes_sent"],
+                    data["total_connections"],
+                ),
+            )
+
     conn.commit()
     conn.close()
 
 
+
+
+
+
 def save_connection_logs(logs):
-    """Сохраняет данные подключений в таблицу connection_logs, избегая повторных записей."""
+    """Сохраняет данные подключений в таблицу connection_logs, избегая повторных записей и добавляя только разницу в трафике."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -180,7 +239,7 @@ def save_connection_logs(logs):
         # Проверяем, существует ли уже запись с такими же client_name и connected_since
         cursor.execute(
             """
-            SELECT 1 FROM connection_logs 
+            SELECT id, bytes_received, bytes_sent FROM connection_logs 
             WHERE client_name = ? AND connected_since = ?
             LIMIT 1
             """,
@@ -205,19 +264,38 @@ def save_connection_logs(logs):
                     log["protocol"],
                 ),
             )
+        else:
+            # Если запись существует, вычисляем разницу в трафике
+            existing_id, existing_bytes_received, existing_bytes_sent = existing_log
 
-            # Удаляем старые записи, если их больше 100
-            cursor.execute(
-                """
-                DELETE FROM connection_logs
-                WHERE id NOT IN (
-                    SELECT id FROM connection_logs ORDER BY id DESC LIMIT 100
+            # Вычисляем разницу
+            diff_received = log["bytes_received"] - existing_bytes_received
+            diff_sent = log["bytes_sent"] - existing_bytes_sent
+
+            # Если разница больше нуля, обновляем данные
+            if diff_received > 0 or diff_sent > 0:
+                cursor.execute(
+                    """
+                    UPDATE connection_logs
+                    SET bytes_received = bytes_received + ?, bytes_sent = bytes_sent + ?
+                    WHERE id = ?
+                    """,
+                    (diff_received, diff_sent, existing_id),
                 )
-                """
+
+        # Удаляем старые записи, если их больше 100
+        cursor.execute(
+            """
+            DELETE FROM connection_logs
+            WHERE id NOT IN (
+                SELECT id FROM connection_logs ORDER BY id DESC LIMIT 100
             )
+            """
+        )
 
     conn.commit()
     conn.close()
+
 
 
 def process_logs():
