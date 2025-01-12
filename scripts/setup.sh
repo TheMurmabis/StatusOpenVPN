@@ -61,7 +61,7 @@ fi
 
 # Клонирование репозитория в папку web
 echo "Cloning repository into $TARGET_DIR..."
-git clone -b test https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
+git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
 
 # Переход в директорию проекта
 cd $TARGET_DIR
