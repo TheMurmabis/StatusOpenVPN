@@ -36,8 +36,8 @@
 Основная цель приложения — визуализировать информацию о подключенных клиентах и их трафике в удобном формате.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ff028b25-3aeb-475f-9b2d-f3052b44f4d2">
-  <img src="https://github.com/user-attachments/assets/26f7af0b-affd-45bc-b6c7-fded0c07687c">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3071b3cc-fdb5-4db8-9a77-273d2ed1ec73">
+  <img src="https://github.com/user-attachments/assets/98c1c36c-91ee-4e17-8922-bc0ca8ffde8a">
 </picture>
 
 ### Основные функции
