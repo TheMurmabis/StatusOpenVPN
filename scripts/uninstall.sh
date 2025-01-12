@@ -13,12 +13,33 @@ else
   echo "Failed to stop and disable the service"
 fi
 
-# Удаление systemd unit файла
-echo "Deleting the systemd unit file"
+# Остановка и отключение logs.service и logs.timer
+echo "Stopping and disabling logs.service and logs.timer"
+sudo systemctl stop logs.service logs.timer
+sudo systemctl disable logs.service logs.timer
+
+# Удаление systemd unit файла StatusOpenVPN
+echo "Deleting the systemd unit file StatusOpenVPN.service"
 if sudo rm /etc/systemd/system/StatusOpenVPN.service; then
   success_status "Systemd unit file deleted successfully"
 else
   echo "Failed to delete the systemd unit file"
+fi
+
+# Удаление systemd unit файла logs.service
+echo "Deleting the systemd unit file logs.service"
+if sudo rm /etc/systemd/system/logs.service; then
+  success_status "logs.service deleted successfully"
+else
+  echo "Failed to delete logs.service"
+fi
+
+# Удаление systemd unit файла logs.timer
+echo "Deleting the systemd unit file logs.timer"
+if sudo rm /etc/systemd/system/logs.timer; then
+  success_status "logs.timer deleted successfully"
+else
+  echo "Failed to delete logs.timer"
 fi
 
 # Перезапуск systemd

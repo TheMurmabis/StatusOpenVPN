@@ -7,64 +7,69 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h2>Клиенты WireGuard</h2>
 </div>
-
-{% for interface in stats %}
-
-<div class="table-responsive main_table">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th colspan="8"><h3>Интерфейс: {{ interface.interface }}</h3></th>
-            </tr>
-            <tr>
-                <th class="text-center">Статус</th>
-                <th class="text-center">Клиент</th>
-                <th class="text-center">Пир (скрыт)</th>
-                <th class="text-center">Конечная точка</th>
-                <th class="text-center">Разрешенные IP</th>
-                <th class="text-center">Последнее рукопожатие</th>
-                <th class="text-center">Получено</th>
-                <th class="text-center">Передано</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for peer in interface.peers %}
-            <tr>
-                <td>
-                    <div class="text-center status-indicator {{ 'online' if peer.online else 'offline' }}"></div>
-                    <span class="{{ 'online-text' if peer.online else 'offline-text' }}">
-                        {{ 'В сети' if peer.online else 'Не в сети' }}
-                    </span>
-                </td>
-                <td class="text-center">{{ peer.client }}</td>
-                <td class="text-center">{{ peer.masked_peer }}</td>
-                <td class="text-center">{{ peer.endpoint or 'N/A' }}</td>
-                <td class="text-center">
-                    {% for ip in peer.visible_ips %}
-                    <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
-                    {% endfor %}
-                    {% if peer.hidden_ips %}
-                    <span class="hidden-ips" style="display:none;">
-                        {% for ip in peer.hidden_ips %}
+<div class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" id="auto-refresh-toggle">
+    <label class="form-check-label" for="auto-refresh-toggle">Обновление в реальном времени</label>
+</div>
+<div id="wg-stats-container">
+    {% for interface in stats %}
+    <div class="table-responsive main_table">
+        <table class="table table-striped" id="table-{{ interface.interface }}">
+            <thead>
+                <tr>
+                    <th colspan="8">
+                        <h3>Интерфейс: {{ interface.interface }}</h3>
+                    </th>
+                </tr>
+                <tr>
+                    <th class="text-center">Статус</th>
+                    <th class="text-center">Клиент</th>
+                    <th class="text-center">Пир (скрыт)</th>
+                    <th class="text-center">Конечная точка</th>
+                    <th class="text-center">Разрешенные IP</th>
+                    <th class="text-center">Последнее рукопожатие</th>
+                    <th class="text-center">Получено</th>
+                    <th class="text-center">Передано</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-{{ interface.interface }}">
+                {% for peer in interface.peers %}
+                <tr>
+                    <td>
+                        <div class="text-center status-indicator {{ 'online' if peer.online else 'offline' }}"></div>
+                        <span class="{{ 'online-text' if peer.online else 'offline-text' }}">
+                            {{ 'В сети' if peer.online else 'Не в сети' }}
+                        </span>
+                    </td>
+                    <td class="text-center">{{ peer.client }}</td>
+                    <td class="text-center">{{ peer.masked_peer }}</td>
+                    <td class="text-center">{{ peer.endpoint or 'N/A' }}</td>
+                    <td class="text-center">
+                        {% for ip in peer.visible_ips %}
                         <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
                         {% endfor %}
-                    </span>
-                    <p><a href="#" class="btn btn-link" id="toggle-btn-{{ loop.index }}"
-                            onclick="toggleIps({{ loop.index }})">
-                            Показать все
-                        </a></p>
-                    {% endif %}
-                </td>
-                <td class="text-center">{{ peer.latest_handshake or 'N/A' }}</td>
-                <td class="text-center">{{ peer.received or 'N/A' }}</td>
-                <td class="text-center">{{ peer.sent or 'N/A' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                        {% if peer.hidden_ips %}
+                        <span class="hidden-ips" style="display:none;">
+                            {% for ip in peer.hidden_ips %}
+                            <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </span>
+                        <p><a href="#" class="btn btn-link" id="toggle-btn-{{ loop.index }}"
+                                onclick="toggleIps({{ loop.index }})">
+                                Показать все
+                            </a></p>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ peer.latest_handshake or 'N/A' }}</td>
+                    <td class="text-center">{{ peer.received or 'N/A' }}</td>
+                    <td class="text-center">{{ peer.sent or 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
 </div>
-
-{% endfor %}
 
 <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
 

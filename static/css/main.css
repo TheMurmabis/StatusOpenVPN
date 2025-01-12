@@ -76,28 +76,29 @@ body {
     .table td,
     .table th,
     .form-check-label,
-    h2, a {
+    h2,
+    a {
         color: #d3d3d3;
     }
 
-    .table th a{
+    .table th a {
         text-decoration: none;
     }
 
-    .table th td a:hover{
-        color: #d3d3d3 ;
+    .table th td a:hover {
+        color: #d3d3d3;
     }
 
-    .table th a{
+    .table th a {
         text-decoration: none;
         color: #d3d3d3 !important;
     }
 
-    .table td a{
+    .table td a {
         color: #d3d3d3 !important;
     }
 
-    .table td a:hover{
+    .table td a:hover {
         color: #0a58ca !important;
     }
 
@@ -174,6 +175,28 @@ body {
         transition: background-color 5000s ease-in-out 0s;
     }
 
+    .tab {
+        color: #d3d3d3 !important;
+    }
+
+    .tab.active {
+        background-color: #3d3d3d !important;
+    }
+
+    .tab.active:hover {
+        background-color: #3d3d3d !important;
+    }
+
+    .tab:hover {
+        background-color: #161718 !important;
+    }
+
+    .tab-content {
+        display: none;
+        padding: 20px;
+        background-color: #0f0f0f !important;
+    }
+
 }
 
 header {
@@ -224,18 +247,26 @@ header a {
 
 }
 
-.table td a{
+.table td a {
     color: #000000;
     text-decoration: none;
 }
 
-.table th a{
+.table th a {
     color: #000000;
     text-decoration: none;
 }
 
-.table th a:hover{
+.table th a:hover {
     color: #000000;
+}
+
+.log_table {
+    max-height: calc(100 * 2em);
+    overflow-x: auto; 
+    overflow-y: hidden; 
+    display: block;
+    width: 80%;
 }
 
 .speed-column {
@@ -302,4 +333,39 @@ footer {
 footer a {
     color: #000000;
     text-decoration: none;
+}
+
+/* Стили для вкладок */
+.tabs {
+    display: flex;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.tab {
+    color: #000;
+    padding: 10px 20px;
+    text-decoration: none;
+}
+
+.tab:hover {
+    color: #fff;
+    background-color: #2c3034;
+    text-decoration: none;
+}
+
+.tab.active {
+    color: #fff;
+    background-color: #2c3034;
+
+}
+
+.tab-content {
+    display: none;
+    padding: 20px;
+    background-color: #fff;
+}
+
+.tab-content.active {
+    display: block;
 }

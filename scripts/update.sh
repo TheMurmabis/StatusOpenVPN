@@ -56,7 +56,9 @@ fi
 echo "Updating repository in $TARGET_DIR..."
 cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
-git pull origin main || { echo "Failed to update the repository!"; exit 1; }
+git fetch origin
+git checkout test
+git pull origin test || { echo "Failed to update the repository!"; exit 1; }
 
 # Активация виртуального окружения
 echo "Activating virtual environment..."
@@ -93,6 +95,32 @@ WantedBy=multi-user.target
 EOF
 fi
 
+# Создание и настройка logs.service
+LOGS_SERVICE_FILE="/etc/systemd/system/logs.service"
+cat <<EOF | sudo tee $LOGS_SERVICE_FILE
+[Unit]
+Description=Run logs.py script
+
+[Service]
+Type=oneshot
+ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
+EOF
+
+# Создание и настройка logs.timer
+LOGS_TIMER_FILE="/etc/systemd/system/logs.timer"
+cat <<EOF | sudo tee $LOGS_TIMER_FILE
+[Unit]
+Description=Run logs.py every 30 seconds
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+Unit=logs.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # Перезагрузка systemd и перезапуск сервиса
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
@@ -100,6 +128,9 @@ sudo systemctl daemon-reload
 # Перезапуск сервиса
 echo "Restarting StatusOpenVPN service..."
 sudo systemctl restart StatusOpenVPN
+
+# Активация и запуск таймера
+sudo systemctl enable --now logs.timer
 
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -s ifconfig.me)
@@ -111,4 +142,4 @@ echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
 echo "--------------------------------------------"
 
-rm -f $TARGET_DIR/scripts/setup.sh $TARGET_DIR/README.md
+rm -f $TARGET_DIR/scripts/setup.sh 
