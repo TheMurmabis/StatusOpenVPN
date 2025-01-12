@@ -56,6 +56,7 @@ fi
 echo "Updating repository in $TARGET_DIR..."
 cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
+git fetch origin
 git checkout test
 git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 
