@@ -20,6 +20,12 @@
 {% else %}
 
 <div class="table-responsive log_table w-100">
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="hide_undef" onchange="toggleUNDEF()">
+        <label class="form-check-label" for="hide_undef">
+            Скрыть UNDEF
+        </label>
+    </div>
     <table class="table table-striped">
         <thead>
             <tr>
@@ -35,7 +41,7 @@
         </thead>
         <tbody>
             {% for log in logs %}
-            <tr>
+            <tr class="log-row">
                 <td class="text-center">{{ log['client_name'] }}</td>
                 <td class="text-center">{{ log['real_ip'] }}</td>
                 <td class="text-center">{{ log['local_ip'] }}</td>
