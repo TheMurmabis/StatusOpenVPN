@@ -33,6 +33,12 @@
                 Показать скорость
             </label>
         </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="hide_undef" onchange="toggleUNDEF()">
+            <label class="form-check-label" for="hide_undef">
+                Скрыть UNDEF
+            </label>
+        </div>
     </div>
     <div class="table-responsive main_table w-100">
         <table class="table table-striped">
@@ -117,7 +123,7 @@
             </thead>
             <tbody>
                 {% for client in clients %}
-                <tr class="text-center">
+                <tr class="text-center log-row">
                     <td class="text-center">{{ client[0] }}</td>
                     {% set ip_segments = client[1].split(':')[0].split('.') %}
                     <td class="text-center real-ip-cell" data-real-ip="{{ client[1] }}"
@@ -144,54 +150,7 @@
         </table>
     </div>
 </div>
-<div id="tab2" class="tab-content">
-    <div class="d-flex justify-content-start flex-wrap gap-3">
-        {% for stats in month_stats %}
-            {% if stats['client_name'] != 'UNDEF' %}
-                <div class="card client-card">
-                    <div class="card-body">
-                        <h5 class="card-title text-center">{{ stats['client_name'] }}</h5>
-                        <p class="card-text">
-                            Передано: {{ stats['total_bytes_sent'] }}<br>
-                            Получено: {{ stats['total_bytes_received'] }}
-                        </p>
-                    </div>
-                </div>
-            {% endif %}
-        {% endfor %}
-    </div>
-</div>
-<div id="tab3" class="tab-content">
-    <div class="d-flex justify-content-between flex-wrap">
-        <div class="table-responsive log_table">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th colspan="5" class="text-center">История подключений</th>
-                    </tr>
-                    <tr>
-                        <th class="text-center">Клиент</th>
-                        <th class="text-center">Реальный IP</th>
-                        <th class="text-center">Локальный IP</th>
-                        <th class="text-center">Подключен</th>
-                        <th class="text-center">Протокол</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in logs %}
-                    <tr>
-                        <td class="text-center">{{ log['client_name'] }}</td>
-                        <td class="text-center">{{ log['real_ip'] }}</td>
-                        <td class="text-center">{{ log['local_ip'] }}</td>
-                        <td class="text-center connection-time" data-utc="{{ log['connection_since'] }}">{{ log['connection_since'] }}</td>
-                        <td class="text-center">{{ log['protocol'] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/ovpn_page.js') }}"></script>
