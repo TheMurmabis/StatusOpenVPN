@@ -139,57 +139,105 @@ def parse_log_file(log_file, protocol):
 
 
 def save_monthly_stats(logs):
-    """Сохраняет суммарные данные в таблицу monthly_stats, суммируя данные по всем IP для каждого клиента."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
+    """Сохраняет суммарные данные в таблицу monthly_stats, добавляя разницу или полный трафик при переподключении."""
+    
     current_month = datetime.today().strftime("%b. %Y")
-    cursor.execute("DELETE FROM monthly_stats WHERE month != ?", (current_month,))  # Удаляем старые данные
 
-    # Словарь для агрегированных данных по каждому клиенту и месяцу
-    aggregated_data = {}
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
 
-    for log in logs:
-        connected_since = datetime.fromisoformat(log["connected_since"])
-        month = connected_since.strftime("%b. %Y")
+        # Удаляем старые данные (оставляем только текущий месяц)
+        cursor.execute("DELETE FROM monthly_stats WHERE month != ?", (current_month,))
 
-        client_name = log["client_name"]
-        new_bytes_received = log["bytes_received"]
-        new_bytes_sent = log["bytes_sent"]
-
-        # Если для этого клиента и месяца еще нет записи, создаем пустую запись в словаре
-        if (client_name, month) not in aggregated_data:
-            aggregated_data[(client_name, month)] = {
-                "total_bytes_received": 0,
-                "total_bytes_sent": 0,
-                "total_connections": 0,
-            }
-
-        # Добавляем новые данные к существующему записанному значению
-        aggregated_data[(client_name, month)]["total_bytes_received"] += new_bytes_received
-        aggregated_data[(client_name, month)]["total_bytes_sent"] += new_bytes_sent
-        aggregated_data[(client_name, month)]["total_connections"] += 1
-
-    # После того как мы собрали все данные, записываем их в БД
-    for (client_name, month), data in aggregated_data.items():
-        # Проверим, существует ли запись для данного клиента и месяца
+        # Создаём вспомогательную таблицу, если её нет (хранит последнее состояние клиентов)
         cursor.execute(
             """
-            SELECT total_bytes_received, total_bytes_sent, total_connections 
-            FROM monthly_stats WHERE client_name = ? AND month = ?
-            """,
-            (client_name, month),
+            CREATE TABLE IF NOT EXISTS last_client_stats (
+                client_name TEXT PRIMARY KEY,
+                connected_since TEXT,
+                bytes_received INTEGER,
+                bytes_sent INTEGER
+            )
+            """
         )
-        existing_log = cursor.fetchone()
 
-        if existing_log:
-            # Если запись существует, обновляем только разницу
-            existing_bytes_received, existing_bytes_sent, existing_connections = existing_log
-            diff_received = data["total_bytes_received"] - existing_bytes_received
-            diff_sent = data["total_bytes_sent"] - existing_bytes_sent
+        aggregated_data = {}
 
-            # Если разница положительная, обновляем
+        for log in logs:
+            try:
+                connected_since = datetime.fromisoformat(log["connected_since"])
+                month = connected_since.strftime("%b. %Y")
+            except (ValueError, TypeError):
+                continue  # Пропускаем некорректные данные
+
+            client_name = log["client_name"]
+            new_bytes_received = log.get("bytes_received", 0)
+            new_bytes_sent = log.get("bytes_sent", 0)
+
+            # Получаем предыдущее состояние клиента
+            cursor.execute(
+                "SELECT connected_since, bytes_received, bytes_sent FROM last_client_stats WHERE client_name = ?",
+                (client_name,),
+            )
+            last_state = cursor.fetchone()
+
+            if last_state:
+                last_connected_since, last_bytes_received, last_bytes_sent = last_state
+
+                if last_connected_since != log["connected_since"]:
+                    # Клиент переподключился → добавляем все данные как есть
+                    diff_received = new_bytes_received
+                    diff_sent = new_bytes_sent
+                else:
+                    # Клиент не переподключался → добавляем разницу
+                    diff_received = max(0, new_bytes_received - last_bytes_received)
+                    diff_sent = max(0, new_bytes_sent - last_bytes_sent)
+
+            else:
+                # Первый раз видим клиента → записываем все данные
+                diff_received = new_bytes_received
+                diff_sent = new_bytes_sent
+
+            # Сохраняем разницу только если она положительная
             if diff_received > 0 or diff_sent > 0:
+                key = (client_name, month)
+                if key not in aggregated_data:
+                    aggregated_data[key] = {
+                        "total_bytes_received": 0,
+                        "total_bytes_sent": 0,
+                        "total_connections": 0,
+                    }
+
+                aggregated_data[key]["total_bytes_received"] += diff_received
+                aggregated_data[key]["total_bytes_sent"] += diff_sent
+                aggregated_data[key]["total_connections"] += 1
+
+            # Обновляем состояние клиента в last_client_stats
+            cursor.execute(
+                """
+                INSERT INTO last_client_stats (client_name, connected_since, bytes_received, bytes_sent)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(client_name) DO UPDATE SET
+                connected_since = excluded.connected_since,
+                bytes_received = excluded.bytes_received,
+                bytes_sent = excluded.bytes_sent
+                """,
+                (client_name, log["connected_since"], new_bytes_received, new_bytes_sent),
+            )
+
+        # Записываем данные в monthly_stats
+        for (client_name, month), data in aggregated_data.items():
+            cursor.execute(
+                """
+                SELECT total_bytes_received, total_bytes_sent, total_connections 
+                FROM monthly_stats WHERE client_name = ? AND month = ?
+                """,
+                (client_name, month),
+            )
+            existing_log = cursor.fetchone()
+
+            if existing_log:
+                existing_bytes_received, existing_bytes_sent, existing_connections = existing_log
                 cursor.execute(
                     """
                     UPDATE monthly_stats
@@ -199,35 +247,29 @@ def save_monthly_stats(logs):
                     WHERE client_name = ? AND month = ?
                     """,
                     (
-                        diff_received,
-                        diff_sent,
+                        data["total_bytes_received"],
+                        data["total_bytes_sent"],
                         data["total_connections"],
                         client_name,
                         month,
                     ),
                 )
-        else:
-            # Если записи нет, добавляем новую
-            cursor.execute(
-                """
-                INSERT INTO monthly_stats (client_name, month, total_bytes_received, total_bytes_sent, total_connections)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    client_name,
-                    month,
-                    data["total_bytes_received"],
-                    data["total_bytes_sent"],
-                    data["total_connections"],
-                ),
-            )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO monthly_stats (client_name, month, total_bytes_received, total_bytes_sent, total_connections)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        client_name,
+                        month,
+                        data["total_bytes_received"],
+                        data["total_bytes_sent"],
+                        data["total_connections"],
+                    ),
+                )
 
-    conn.commit()
-    conn.close()
-
-
-
-
+        conn.commit()
 
 
 def save_connection_logs(logs):
@@ -295,7 +337,6 @@ def save_connection_logs(logs):
 
     conn.commit()
     conn.close()
-
 
 
 def process_logs():

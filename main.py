@@ -647,7 +647,7 @@ def page_not_found(_):
 @login_required
 def logout():
     logout_user()
-    session.clear()
+    session.pop("last_activity", None)
     return redirect(url_for("login"))
 
 
@@ -657,7 +657,8 @@ def track_last_activity():
         now = datetime.now(timezone.utc)
         last_activity = session.get("last_activity")
 
-        if request.endpoint in ["login", "change_password", "update_profile"]:
+        # Обновляем время активности только для определённых эндпоинтов
+        if request.endpoint not in ["logout"]:
             session["last_activity"] = now.isoformat()
 
         if last_activity:
@@ -666,13 +667,13 @@ def track_last_activity():
                 last_activity_time = last_activity_time.replace(tzinfo=timezone.utc)
             elapsed_time = (now - last_activity_time).total_seconds()
 
-            if elapsed_time > 300:  # 5 минут
+            # Если "remember me" включён, не завершать сессию
+            if not session.get("_remember") and elapsed_time > 300:  # 5 минут
                 logout_user()
                 session.clear()
                 return redirect(url_for("login"))
 
 
-# Маршрут для логина
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -695,15 +696,26 @@ def login():
                 role=user["role"],
                 password=user["password"],
             )
-            login_user(user_obj)
-            session.permanent = True
-            app.permanent_session_lifetime = timedelta(minutes=5)
+            login_user(user_obj, remember=form.remember_me.data)
+
+            # Настроить время жизни сессии
+            if form.remember_me.data:
+                app.permanent_session_lifetime = timedelta(
+                    days=30
+                )  # Долгосрочная сессия
+            else:
+                app.permanent_session_lifetime = timedelta(minutes=5)  # Короткая сессия
+
+            session.permanent = (
+                form.remember_me.data
+            )  # Сессия перманентная только если "запомнить меня"
+
             next_page = request.args.get("next")
             return redirect(next_page or url_for("home"))
         else:
-            error_message = (
-                "Неправильный логин или пароль!"  # Устанавливаем сообщение об ошибке
-            )
+            error_message = "Неправильный логин или пароль!"
+
+    # Передаем форму и сообщение об ошибке в шаблон
     return render_template("login.html", form=form, error_message=error_message)
 
 
@@ -735,6 +747,7 @@ def api_system_info():
 def wg():
     stats = parse_wireguard_output(get_wireguard_stats())
     return render_template("wg.html", stats=stats, active_page="wg")
+
 
 @app.route("/api/wg/stats")
 @login_required
@@ -890,12 +903,11 @@ def ovpn_stats():
                 }
             )
 
-
         return render_template(
             "ovpn_stats.html",
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
-            active_section = "ovpn",
+            active_section="ovpn",
             active_page="stats",
             month_stats=month_stats,
             current_month=current_month,

@@ -33,6 +33,11 @@
             style="cursor: pointer; color: gray;"><i class="fas fa-eye" id="togglePasswordIcon"></i></span>
         </div>
 
+        <div class="form-check mb-3 text-start">
+          {{ form.remember_me(class="form-check-input", id="remember_me") }}
+          <label for="remember_me" class="form-check-label">Запомнить меня</label>
+        </div>
+
         {% if error_message %}
         <div class="alert alert-danger" role="alert">{{ error_message }}</div>
         {% endif %}
