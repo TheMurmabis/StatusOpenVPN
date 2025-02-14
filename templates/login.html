@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StatusOpenVPN - Вход</title>
+  <title>{{ server_ip }} | {% block title %}Вход{% endblock %} | StatusOpenVPN</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />

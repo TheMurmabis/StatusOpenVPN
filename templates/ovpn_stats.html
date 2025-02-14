@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h2>Статистика за текущий месяц [{{ current_month }}]</h2>
+    <h2>Статистика клиентов OpenVPN</h2>
 </div>
 
 <div class="tabs">
@@ -19,23 +19,27 @@
 </div>
 {% else %}
 <div>
-    <div class="d-flex justify-content-start flex-wrap gap-3">
-        {% for stats in month_stats %}
-            {% if stats['client_name'] != 'UNDEF' %}
-                <div class="card client-card">
-                    <div class="card-body">
-                        <h5 class="card-title text-center">{{ stats['client_name'] }}</h5>
-                        <hr class="my-1">
-                        <p class="card-text">                         
-                            Передано: {{ stats['total_bytes_sent'] }}<br>
-                            Получено: {{ stats['total_bytes_received'] }}
-                        </p>
+    {% for month, stats in month_stats.items() %}
+    <br>
+        <div class="d-flex justify-content-start flex-wrap gap-3">
+            {% for client in stats %}
+                {% if client['client_name'] != 'UNDEF' %}
+                    <div class="card client-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-center">{{ client['client_name'] }}</h5>
+                            <hr class="my-1">
+                            <p class="card-text">                         
+                                Передано: {{ client['total_bytes_sent'] }}<br>
+                                Получено: {{ client['total_bytes_received'] }}
+                            </p>
+                        </div>
                     </div>
-                </div>
-            {% endif %}
-        {% endfor %}
-    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
 </div>
+
 
 {% endif %}
 

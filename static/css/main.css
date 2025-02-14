@@ -175,7 +175,7 @@ body {
         transition: background-color 5000s ease-in-out 0s;
     }
 
-    .tab {
+    .tab, .fancy-link {
         color: #d3d3d3 !important;
     }
 
@@ -195,6 +195,10 @@ body {
         display: none;
         padding: 20px;
         background-color: #0f0f0f !important;
+    }
+  
+    .fancy-link:hover {
+        color: #0a58ca !important;
     }
 
 }
@@ -373,3 +377,12 @@ footer a {
 .form-check-label {
     text-align: left;
   }
+
+.fancy-link {
+    color: #000;
+
+}
+
+.fancy-link:hover {
+    color: #0a58ca;
+}

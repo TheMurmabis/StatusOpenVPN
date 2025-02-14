@@ -89,8 +89,8 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th class="text-center speed-column hidden">Скорость<br>загрузки</th>
-                    <th class="text-center speed-column hidden">Скорость<br>отдачи</th>
+                    <th class="text-center speed-column hidden">Скорость<br>получения</th>
+                    <th class="text-center speed-column hidden">Скорость<br>передачи</th>
                     <th class="text-center">
                         <a
                             href="{{ url_for('ovpn', sort='connection-time', order='asc' if sort_by != 'connection-time' or order == 'desc' else 'desc') }}">

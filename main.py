@@ -303,10 +303,10 @@ def parse_wireguard_output(output):
             peer_data = {"peer": line.split(": ")[1].strip()}
             masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
             peer_data["masked_peer"] = masked_peer
-            peer_data["client"] = clean_client_name(
-                client_mapping.get(peer_data["peer"], "N/A")
-            )
+            peer_data["client"] = client_mapping.get(peer_data["peer"], "N/A")
             interface_data["peers"].append(peer_data)
+        elif line.startswith("endpoint:"):
+            peer_data["endpoint"] = mask_ip(line.split(": ")[1].strip())
         elif line.startswith("allowed ips:"):
             allowed_ips = line.split(": ")[1].split(", ")
             peer_data["allowed_ips"] = allowed_ips
@@ -399,11 +399,6 @@ def format_date(date_string):
     localized_date = date_obj.replace(tzinfo=server_timezone)
     utc_date = localized_date.astimezone(timezone.utc)
     return utc_date.isoformat()
-
-
-# Удаление префикса из имени клиента
-def clean_client_name(name, prefix="antizapret-"):
-    return name[len(prefix) :] if name.startswith(prefix) else name
 
 
 # Маскируем IP-адрес
@@ -504,7 +499,7 @@ def read_csv(file_path, protocol):
                 # Добавляем данные клиента
                 data.append(
                     [
-                        clean_client_name(client_name),
+                        client_name,
                         mask_ip(row[2]),
                         row[3],
                         format_bytes(received),
@@ -521,6 +516,34 @@ def read_csv(file_path, protocol):
 
 
 # ---------Метрики----------
+def get_default_interface():
+    try:
+        result = subprocess.run(
+            ["ip", "route"], capture_output=True, text=True, check=True
+        )
+        for line in result.stdout.splitlines():
+            if "default" in line:
+                return line.split()[4]  # Интерфейс находится в 5-м поле
+    except Exception as e:
+        print(f"Ошибка: {e}")
+    return None
+
+
+def get_network_stats(interface):
+    try:
+        with open(
+            f"/sys/class/net/{interface}/statistics/rx_bytes", "r", encoding="utf-8"
+        ) as f:
+            rx_bytes = int(f.read().strip())
+        with open(
+            f"/sys/class/net/{interface}/statistics/tx_bytes", "r", encoding="utf-8"
+        ) as f:
+            tx_bytes = int(f.read().strip())
+        return {"interface": interface, "rx": rx_bytes, "tx": tx_bytes}
+    except FileNotFoundError:
+        return None  # Если интерфейс не найден
+
+
 def get_network_load():
     net_io_start = psutil.net_io_counters(pernic=True)
     time.sleep(1)
@@ -528,6 +551,9 @@ def get_network_load():
 
     network_data = {}
     for interface in net_io_start:
+        if interface == "lo":
+            continue
+
         sent_start, recv_start = (
             net_io_start[interface].bytes_sent,
             net_io_start[interface].bytes_recv,
@@ -540,12 +566,12 @@ def get_network_load():
         sent_speed = (sent_end - sent_start) * 8 / 1e6
         recv_speed = (recv_end - recv_start) * 8 / 1e6
 
-        # Сохраняем только интерфейсы с ненулевой загрузкой
         if sent_speed > 0 or recv_speed > 0:
             network_data[interface] = {
                 "sent_speed": round(sent_speed, 2),
                 "recv_speed": round(recv_speed, 2),
             }
+
     return network_data
 
 
@@ -620,6 +646,9 @@ def update_system_info():
     while True:
         current_time = time.time()
         if not cached_system_info or (current_time - last_fetch_time >= CACHE_DURATION):
+            interface = get_default_interface()
+            network_stats = get_network_stats(interface) if interface else None
+
             cached_system_info = {
                 "cpu_load": psutil.cpu_percent(interval=1),
                 "memory_used": psutil.virtual_memory().used // (1024**2),
@@ -628,6 +657,9 @@ def update_system_info():
                 "disk_total": psutil.disk_usage("/").total // (1024**3),
                 "network_load": get_network_load(),
                 "uptime": format_uptime(get_uptime()),
+                "network_interface": interface or "Не найдено",
+                "rx_bytes": format_bytes(network_stats["rx"]) if network_stats else 0,
+                "tx_bytes": format_bytes(network_stats["tx"]) if network_stats else 0,
             }
             last_fetch_time = current_time
         time.sleep(CACHE_DURATION)
@@ -719,6 +751,11 @@ def login():
     return render_template("login.html", form=form, error_message=error_message)
 
 
+@app.context_processor
+def inject_info():
+    return {"hostname": socket.gethostname(), "server_ip": get_external_ip()}
+
+
 @app.route("/")
 @login_required
 def home():
@@ -769,7 +806,6 @@ def ovpn():
             ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
             ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
             ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-            ("/etc/openvpn/server/logs/antizapret-no-cipher-status.log", "NoCipher"),
         ]
 
         clients = []
@@ -857,8 +893,8 @@ def ovpn_history():
             [
                 {
                     "client_name": row[1],
-                    "real_ip": mask_ip(row[2]),
-                    "local_ip": row[3],
+                    "real_ip": mask_ip(row[3]),
+                    "local_ip": row[2],
                     "connection_since": row[4],
                     "protocol": row[7],
                 }
@@ -886,22 +922,39 @@ def ovpn_stats():
     try:
         total_received, total_sent = 0, 0
         current_month = datetime.now().strftime("%b. %Y")
-        month_stats = []
+
+        # Определяем предыдущий месяц
+        previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
+        previous_month = previous_month_date.strftime("%b. %Y")
+
+        month_stats = {}
 
         conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
-        month_stats_reader = conn_logs.execute(
-            "SELECT * from monthly_stats WHERE month = ?", (current_month,)
-        ).fetchall()
-        conn_logs.close()
 
-        for stats in month_stats_reader:
-            month_stats.append(
-                {
-                    "client_name": stats[1],
-                    "total_bytes_sent": format_bytes(stats[3]),
-                    "total_bytes_received": format_bytes(stats[4]),
-                }
-            )
+        for month in [current_month, previous_month]:
+            month_stats_reader = conn_logs.execute(
+                """
+                SELECT client_name, 
+                       SUM(total_bytes_sent), 
+                       SUM(total_bytes_received) 
+                FROM monthly_stats 
+                WHERE month = ? 
+                GROUP BY client_name
+                """,
+                (month,),
+            ).fetchall()
+
+            if month_stats_reader:  # Проверяем, есть ли данные
+                month_stats[month] = [
+                    {
+                        "client_name": stats[0],
+                        "total_bytes_sent": format_bytes(stats[1]),
+                        "total_bytes_received": format_bytes(stats[2]),
+                    }
+                    for stats in month_stats_reader
+                ]
+
+        conn_logs.close()
 
         return render_template(
             "ovpn_stats.html",
@@ -911,6 +964,7 @@ def ovpn_stats():
             active_page="stats",
             month_stats=month_stats,
             current_month=current_month,
+            previous_month=previous_month if previous_month in month_stats else None,
         )
 
     except Exception as e:

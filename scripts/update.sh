@@ -58,6 +58,8 @@ cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
 git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 
+rm src/openvpn_logs.db
+
 # Активация виртуального окружения
 echo "Activating virtual environment..."
 source venv/bin/activate

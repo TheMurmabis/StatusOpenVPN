@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StatusOpenVPN - {% block title %}Dashboard{% endblock %}</title>
+    <title>{{ server_ip }} | {% block title %}Dashboard{% endblock %} | StatusOpenVPN</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -77,13 +77,14 @@
             </main>
         </div>
     </div>
-    <footer class="text-center py-3 mt-4">
+    <footer class="text-center py-2 mt-4">
         <div>
             <a href="https://github.com/TheMurmabis/StatusOpenVPN" class="ms-3" target="_blank"
                 rel="noopener noreferrer">
                 <i class="fab fa-github"></i> TheMurmabis
             </a> © 2025 Все права защищены.
         </div>
+        <span class="text-center text-muted small">Сервер: <span class="text-success">{{server_ip}}</span>@{{ hostname }}                
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
