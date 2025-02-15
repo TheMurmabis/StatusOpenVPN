@@ -519,11 +519,11 @@ def read_csv(file_path, protocol):
 def get_default_interface():
     try:
         result = subprocess.run(
-            ["ip", "route"], capture_output=True, text=True, check=True
+            ["/usr/bin/ip", "route"], capture_output=True, text=True, check=True
         )
         for line in result.stdout.splitlines():
             if "default" in line:
-                return line.split()[4]  # Интерфейс находится в 5-м поле
+                return line.split()[4]
     except Exception as e:
         print(f"Ошибка: {e}")
     return None
