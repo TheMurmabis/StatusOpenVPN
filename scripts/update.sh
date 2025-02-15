@@ -61,28 +61,16 @@ git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 sudo apt install sqlite3 -y
 
 sqlite3 src/openvpn_logs.db <<EOF
--- 1. Создать новую таблицу с обновлённой структурой
-CREATE TABLE new_connection_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_name TEXT,
-    local_ip TEXT,
-    real_ip TEXT,
-    connected_since DATETIME,
-    bytes_received INTEGER,
-    bytes_sent INTEGER,
-    protocol TEXT
-);
+-- 1. Переименовываем старую таблицу, чтобы сохранить данные
+ALTER TABLE connection_logs RENAME TO old_connection_logs;
 
--- 2. Перенести старые данные (если столбцы совпадают или можно сопоставить)
-INSERT INTO new_connection_logs (id, client_name, local_ip, real_ip, connected_since, bytes_received, bytes_sent)
-SELECT id, client_name, local_ip, real_ip, connected_since, bytes_received, bytes_sent FROM connection_logs;
+-- 2. Создаём новую таблицу с той же структурой
+CREATE TABLE connection_logs AS SELECT * FROM old_connection_logs;
 
--- 3. Удалить старую таблицу
-DROP TABLE connection_logs;
-
--- 4. Переименовать новую таблицу в connection_logs
-ALTER TABLE new_connection_logs RENAME TO connection_logs;
+-- 3. Удаляем старую таблицу (данные уже скопированы)
+DROP TABLE old_connection_logs;
 EOF
+
 
 
 # Активация виртуального окружения
