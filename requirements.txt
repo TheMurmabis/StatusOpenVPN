@@ -6,7 +6,7 @@ chardet==5.2.0
 charset-normalizer==3.3.2
 click==8.1.7
 colorama==0.4.6
-cryptography==43.0.1
+cryptography==44.0.1
 DateTime==5.5
 Flask==3.0.3
 Flask-Bcrypt==1.0.1
