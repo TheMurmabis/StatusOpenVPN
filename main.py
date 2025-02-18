@@ -948,8 +948,8 @@ def ovpn_stats():
                 month_stats[month] = [
                     {
                         "client_name": stats[0],
-                        "total_bytes_sent": format_bytes(stats[1]),
-                        "total_bytes_received": format_bytes(stats[2]),
+                        "total_bytes_received": format_bytes(stats[1]),
+                        "total_bytes_sent": format_bytes(stats[2]),
                     }
                     for stats in month_stats_reader
                 ]
