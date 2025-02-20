@@ -58,7 +58,7 @@ cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
 git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 
-mv src/openvpn_logs.db src/old_openvpn_logs.db
+rm src/openvpn_logs.db
 #sudo apt install sqlite3 -y
 
 #sqlite3 src/openvpn_logs.db <<EOF
