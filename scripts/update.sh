@@ -58,20 +58,19 @@ cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
 git pull origin main || { echo "Failed to update the repository!"; exit 1; }
 
-sudo apt install sqlite3 -y
+mv src/openvpn_logs.db src/old_openvpn_logs.db
+#sudo apt install sqlite3 -y
 
-sqlite3 src/openvpn_logs.db <<EOF
--- 1. Переименовываем старую таблицу, чтобы сохранить данные
-ALTER TABLE connection_logs RENAME TO old_connection_logs;
+#sqlite3 src/openvpn_logs.db <<EOF
+#-- 1. Переименовываем старую таблицу, чтобы сохранить данные
+#ALTER TABLE connection_logs RENAME TO old_connection_logs;
 
--- 2. Создаём новую таблицу с той же структурой
-CREATE TABLE connection_logs AS SELECT * FROM old_connection_logs;
+#-- 2. Создаём новую таблицу с той же структурой
+#CREATE TABLE connection_logs AS SELECT * FROM old_connection_logs;
 
--- 3. Удаляем старую таблицу (данные уже скопированы)
-DROP TABLE old_connection_logs;
-EOF
-
-
+#-- 3. Удаляем старую таблицу (данные уже скопированы)
+#DROP TABLE old_connection_logs;
+#EOF
 
 # Активация виртуального окружения
 echo "Activating virtual environment..."
