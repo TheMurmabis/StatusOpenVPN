@@ -209,32 +209,32 @@ def is_peer_online(last_handshake):
 
 
 def parse_relative_time(relative_time):
-    """
-    Преобразует строку с часами, минутами и секундами в абсолютное время.
-    """
+    """Преобразует строку с днями, часами, минутами и секундами в абсолютное время."""
     now = datetime.now()
-    time_deltas = {"hours": 0, "minutes": 0, "seconds": 0}
+    time_deltas = {"days": 0, "hours": 0, "minutes": 0, "seconds": 0}
 
-    parts = relative_time.lower().replace("назад", "").replace("ago", "").split()
+    # Разбиваем строку на части
+    parts = relative_time.split()
     i = 0
     while i < len(parts):
         try:
-            value = int(parts[i])
-            unit = parts[i + 1]
-            if "ч" in unit or "hour" in unit:
-                value = int(parts[i])
-                unit = parts[i + 1]
-            if "ч" in unit or "hour" in unit:
+            value = int(parts[i])  # Извлекаем число
+            unit = parts[i + 1]  # Следующее слово — это единица времени
+            if "д" in unit or "day" in unit:
+                time_deltas["days"] += value
+            elif "ч" in unit or "hour" in unit:
                 time_deltas["hours"] += value
             elif "мин" in unit or "minute" in unit:
                 time_deltas["minutes"] += value
             elif "сек" in unit or "second" in unit:
                 time_deltas["seconds"] += value
-            i += 2
+            i += 2  # Пропускаем число и единицу времени
         except (ValueError, IndexError):
-            break
+            break  # Если данные некорректны, прерываем
+
     # Вычисляем итоговую разницу времени
     delta = timedelta(
+        days=time_deltas["days"],
         hours=time_deltas["hours"],
         minutes=time_deltas["minutes"],
         seconds=time_deltas["seconds"],
