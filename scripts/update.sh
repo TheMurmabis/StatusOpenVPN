@@ -56,7 +56,7 @@ fi
 echo "Updating repository in $TARGET_DIR..."
 cd $TARGET_DIR
 git reset --hard  # Отмена всех локальных изменений
-git pull origin main || { echo "Failed to update the repository!"; exit 1; }
+git fetch origin && git reset --hard origin/main
 
 # rm src/openvpn_logs.db
 
