@@ -403,14 +403,20 @@ def format_date(date_string):
 
 # Маскируем IP-адрес
 def mask_ip(ip_address):
-    ip = ip_address.split(":")[0]
+    if not ip_address:  
+        return "0.0.0.0"  # Значение по умолчанию
+    
+    ip = ip_address.split(":")[0] 
     parts = ip.split(".")
-    if len(parts) == 4:
-        # parts = [f"{int(part):03}" for part in parts] # Добавляем ведущие нули, если нужно
-        parts = [str(int(part)) for part in parts]
 
-        return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
-    return ip_address
+    if len(parts) == 4:
+        try:
+            parts = [str(int(part)) for part in parts] 
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+        except ValueError:
+            return ip 
+    
+    return ip_address 
 
 
 # Отсет времени
