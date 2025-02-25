@@ -73,12 +73,19 @@ def initialize_database():
 
 
 def mask_ip(ip_address):
-    ip = ip_address.split(":")[0]
+    if not ip_address:
+        return "0.0.0.0"  # значение по умолчанию
+    
+    ip = ip_address.split(":")[0] 
     parts = ip.split(".")
-    if len(parts) == 4:
-        parts = [str(int(part)) for part in parts]
 
-        return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+    if len(parts) == 4:
+        try:
+            parts = [str(int(part)) for part in parts]
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+        except ValueError:
+            return ip 
+    
     return ip_address
 
 
