@@ -175,7 +175,7 @@ body {
         transition: background-color 5000s ease-in-out 0s;
     }
 
-    .tab, .fancy-link {
+    .tab {
         color: #d3d3d3 !important;
     }
 
@@ -379,10 +379,11 @@ footer a {
   }
 
 .fancy-link {
-    color: #000;
+    color: #007bff;
 
 }
 
 .fancy-link:hover {
-    color: #0a58ca;
+    color: #0056b3;
 }
+

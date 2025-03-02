@@ -133,7 +133,7 @@ sudo systemctl restart StatusOpenVPN
 sudo systemctl enable --now logs.timer
 
 # Получение внешнего IP-адреса сервера
-EXTERNAL_IP=$(curl -s ifconfig.me)
+EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
 # Вывод информации об обновлении
 echo "--------------------------------------------"

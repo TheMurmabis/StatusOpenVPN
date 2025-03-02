@@ -145,7 +145,7 @@ sudo systemctl start logs.timer
 sudo systemctl enable logs.timer
 
 # Получение внешнего IP-адреса сервера
-EXTERNAL_IP=$(curl -s ifconfig.me)
+EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
 echo "Running initial admin setup..."
 ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
