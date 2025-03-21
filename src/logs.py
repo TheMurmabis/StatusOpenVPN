@@ -11,7 +11,6 @@ LOG_FILES = [
     ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
     ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
     ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-    ("/etc/openvpn/server/logs/antizapret-no-cipher-status.log", "NoCipher"),
 ]
 
 # Путь к базе данных
@@ -166,8 +165,8 @@ def save_monthly_stats(logs):
 
     current_month = datetime.today().strftime("%b. %Y")
 
-    previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
-    previous_month = previous_month_date.strftime("%b. %Y")
+    # previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
+    # previous_month = previous_month_date.strftime("%b. %Y")
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
