@@ -132,6 +132,36 @@ Unit=logs.service
 WantedBy=timers.target
 EOF
 
+read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+
+if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
+    BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
+    echo "Creating systemd service file for Telegram bot at $BOT_SERVICE..."
+
+    # Создание systemd service файла для бота
+    cat <<EOF | sudo tee $BOT_SERVICE
+[Unit]
+Description=Telegram Bot Service
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=$TARGET_DIR
+Environment="PATH=$TARGET_DIR/venv/bin"
+ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/vpn_bot.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Создание .env файла с двумя переменными
+cat <<EOF > $TARGET_DIR/src/.env
+BOT_TOKEN=123456789:ABCDEFGHIJKLMN1234567890
+ADMIN_ID=12345678
+EOF
+
 # Перезагрузка systemd и запуск сервиса
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
@@ -139,6 +169,8 @@ sudo systemctl daemon-reload
 echo "Starting StatusOpenVPN service..."
 sudo systemctl start StatusOpenVPN
 sudo systemctl enable StatusOpenVPN
+# sudo systemctl start StatusOpenVPN_bot
+sudo systemctl enable StatusOpenVPN_bot
 
 # Запуск и включение таймера
 sudo systemctl start logs.timer
