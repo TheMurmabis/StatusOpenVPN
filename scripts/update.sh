@@ -146,11 +146,17 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-    # Создание .env файла с двумя переменными
+# Проверка на существование файла .env, создание только если его нет
+if [ ! -f "$TARGET_DIR/src/.env" ]; then
+    echo "Создание .env файла с двумя переменными..."
     cat <<EOF > $TARGET_DIR/src/.env
 BOT_TOKEN=123456789:ABCDEFGHIJKLMN1234567890
 ADMIN_ID=12345678
 EOF
+    echo ".env файл успешно создан."
+else
+    echo ".env файл уже существует."
+fi
 
     # Перезагрузка systemd и запуск сервиса
     echo "Reloading systemd daemon..."
