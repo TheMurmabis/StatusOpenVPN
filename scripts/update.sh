@@ -157,35 +157,35 @@ EOF
 else
     echo ".env файл уже существует."
 fi
+fi # Закрытие if для установки Telegram бота
 
-    # Перезагрузка systemd и запуск сервиса
-    echo "Reloading systemd daemon..."
-    sudo systemctl daemon-reload
+# Перезагрузка systemd и запуск сервиса
+echo "Reloading systemd daemon..."
+sudo systemctl daemon-reload
 
-    # Перезапуск сервиса
-    echo "Restarting StatusOpenVPN service..."
-    sudo systemctl restart StatusOpenVPN
+# Перезапуск сервиса
+echo "Restarting StatusOpenVPN service..."
+sudo systemctl restart StatusOpenVPN
 
-    # Запуск Telegram-бота
-    echo "Starting Telegram bot service..."
-    sudo systemctl start telegram-bot
+# Запуск Telegram-бота
+echo "Starting Telegram bot service..."
+sudo systemctl start telegram-bot
 
-    # Активация и запуск таймера
-    sudo systemctl enable --now logs.timer
+# Активация и запуск таймера
+sudo systemctl enable --now logs.timer
 
-    # Получение внешнего IP-адреса сервера
-    EXTERNAL_IP=$(curl -4 -s ifconfig.me)
+# Получение внешнего IP-адреса сервера
+EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
-    echo "Running initial admin setup..."
-    ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
+echo "Running initial admin setup..."
+ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 
-    # Вывод информации об обновлении
-    echo "--------------------------------------------"
-    echo -e "\e[32mUpdate completed successfully\e[0m"
-    echo "--------------------------------------------"
-    echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
-    echo "--------------------------------------------"
+# Вывод информации об обновлении
+echo "--------------------------------------------"
+echo -e "\e[32mUpdate completed successfully\e[0m"
+echo "--------------------------------------------"
+echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo "--------------------------------------------"
 
-    # Удаление скрипта установки
-    rm -f $TARGET_DIR/scripts/setup.sh
-fi  # Закрытие if для установки Telegram бота
+# Удаление скрипта установки
+rm -f $TARGET_DIR/scripts/setup.sh
