@@ -156,10 +156,16 @@ EOF
     echo "Reloading systemd daemon..."
     sudo systemctl daemon-reload
 
+    # Перезапуск сервиса
+    echo "Restarting StatusOpenVPN service..."
+    sudo systemctl restart StatusOpenVPN
+
     # Запуск Telegram-бота
     echo "Starting Telegram bot service..."
     sudo systemctl start telegram-bot
-    sudo systemctl enable telegram-bot
+
+    # Активация и запуск таймера
+    sudo systemctl enable --now logs.timer
 
     # Получение внешнего IP-адреса сервера
     EXTERNAL_IP=$(curl -4 -s ifconfig.me)
@@ -167,12 +173,11 @@ EOF
     echo "Running initial admin setup..."
     ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 
-    # Вывод информации о доступности сервера
+    # Вывод информации об обновлении
     echo "--------------------------------------------"
-    echo -e "\e[32mSetup completed successfully\e[0m"
+    echo -e "\e[32mUpdate completed successfully\e[0m"
     echo "--------------------------------------------"
     echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
-    echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
     echo "--------------------------------------------"
 
     # Удаление скрипта установки
