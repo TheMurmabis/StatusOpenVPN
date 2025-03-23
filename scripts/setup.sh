@@ -161,6 +161,8 @@ EOF
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
+else
+    echo "Skipping Telegram bot installation."
 fi  # Закрытие if для установки Telegram бота
 
 # Перезагрузка systemd и запуск сервиса
