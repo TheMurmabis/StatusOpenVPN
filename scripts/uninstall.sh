@@ -26,6 +26,14 @@ else
   echo "Failed to delete the systemd unit file"
 fi
 
+# Удаление systemd unit файла telegram-bot
+echo "Deleting the systemd unit file telegram-bot"
+if sudo rm /etc/systemd/system/telegram-bot.service; then
+  success_status "logs.timer deleted successfully"
+else
+  echo "Failed to delete logs.timer"
+fi
+
 # Удаление systemd unit файла logs.service
 echo "Deleting the systemd unit file logs.service"
 if sudo rm /etc/systemd/system/logs.service; then
