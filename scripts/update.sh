@@ -150,8 +150,8 @@ EOF
 if [ ! -f "$TARGET_DIR/src/.env" ]; then
     echo "Создание .env файла с двумя переменными..."
     cat <<EOF > $TARGET_DIR/src/.env
-BOT_TOKEN=123456789:ABCDEFGHIJKLMN1234567890
-ADMIN_ID=12345678
+BOT_TOKEN=<Enter API Token>
+ADMIN_ID=<Enter your user ID>
 EOF
     echo ".env файл успешно создан."
 else

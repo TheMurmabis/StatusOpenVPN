@@ -158,8 +158,8 @@ EOF
 
     # Создание .env файла с двумя переменными
     cat <<EOF > $TARGET_DIR/src/.env
-BOT_TOKEN=123456789:ABCDEFGHIJKLMN1234567890
-ADMIN_ID=12345678
+BOT_TOKEN=<Enter API Token>
+ADMIN_ID=<Enter your user ID>
 EOF
 
     # Перезагрузка systemd и запуск сервиса
