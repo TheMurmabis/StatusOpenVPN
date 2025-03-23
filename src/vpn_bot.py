@@ -204,23 +204,50 @@ def create_confirmation_keyboard(client_name, vpn_type):
 
 async def execute_script(option: str, client_name: str = None, days: str = None):
     """Выполняет shell-скрипт для управления VPN-клиентами."""
-    command = f"/root/antizapret/client.sh {option}"
+    # Путь к скрипту
+    script_path = "/root/antizapret/client.sh"
+    
+    # Проверяем, существует ли файл
+    if not os.path.exists(script_path):
+        return {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": f"❌ Файл {script_path} не найден! Убедитесь, что скрипт client.sh существует.",
+        }
+
+    # Формируем команду
+    command = f"{script_path} {option}"
     if option not in ["8", "7"] and client_name:
         clean_name = client_name.replace("antizapret-", "").replace("vpn-", "")
         command += f" {client_name}"
         if days and option == "1":
             command += f" {days}"
 
-    process = await asyncio.create_subprocess_shell(
-        command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
+    try:
+        # Указываем окружение, включая правильный $PATH
+        env = os.environ.copy()
+        env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-    stdout, stderr = await process.communicate()
-    return {
-        "returncode": process.returncode,
-        "stdout": stdout.decode().strip(),
-        "stderr": stderr.decode().strip(),
-    }
+        # Выполняем команду с указанным окружением
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,  # Передаем окружение
+        )
+
+        stdout, stderr = await process.communicate()
+        return {
+            "returncode": process.returncode,
+            "stdout": stdout.decode().strip(),
+            "stderr": stderr.decode().strip(),
+        }
+    except Exception as e:
+        return {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": f"❌ Ошибка при выполнении скрипта: {str(e)}",
+        }
 
 
 @dp.message(Command("start"))
