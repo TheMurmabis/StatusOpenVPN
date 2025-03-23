@@ -146,20 +146,21 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# Проверка на существование файла .env, создание только если его нет
-if [ ! -f "$TARGET_DIR/src/.env" ]; then
-    echo "Создание .env файла с двумя переменными..."
-    cat <<EOF > $TARGET_DIR/src/.env
+    # Проверка на существование файла .env, создание только если его нет
+    ENV_FILE="$TARGET_DIR/src/.env"
+    if [ ! -f "$ENV_FILE" ]; then
+        echo "Создание .env файла с двумя переменными..."
+        cat <<EOF > $ENV_FILE
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-    echo ".env файл успешно создан."
-else
-    echo ".env файл уже существует."
-fi
-fi # Закрытие if для установки Telegram бота
+        echo ".env файл успешно создан."
+    else
+        echo ".env файл уже существует."
+    fi
+fi  # Закрытие if для установки Telegram бота
 
-# Перезагрузка systemd и запуск сервиса
+# Перезагрузка systemd
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
@@ -167,9 +168,12 @@ sudo systemctl daemon-reload
 echo "Restarting StatusOpenVPN service..."
 sudo systemctl restart StatusOpenVPN
 
-# Запуск Telegram-бота
-echo "Starting Telegram bot service..."
-sudo systemctl start telegram-bot
+# Запуск Telegram-бота, если он был установлен
+if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
+    echo "Starting Telegram bot service..."
+    sudo systemctl start telegram-bot
+    sudo systemctl enable telegram-bot
+fi
 
 # Активация и запуск таймера
 sudo systemctl enable --now logs.timer

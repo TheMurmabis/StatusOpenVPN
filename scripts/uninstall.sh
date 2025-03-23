@@ -29,9 +29,9 @@ fi
 # Удаление systemd unit файла telegram-bot
 echo "Deleting the systemd unit file telegram-bot"
 if sudo rm /etc/systemd/system/telegram-bot.service; then
-  success_status "logs.timer deleted successfully"
+  success_status "telegram-bot.service deleted successfully"
 else
-  echo "Failed to delete logs.timer"
+  echo "Failed to delete telegram-bot.service"
 fi
 
 # Удаление systemd unit файла logs.service
