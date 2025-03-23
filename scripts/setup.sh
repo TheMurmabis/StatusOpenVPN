@@ -156,40 +156,43 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# Создание .env файла с двумя переменными
-cat <<EOF > $TARGET_DIR/src/.env
+    # Создание .env файла с двумя переменными
+    cat <<EOF > $TARGET_DIR/src/.env
 BOT_TOKEN=123456789:ABCDEFGHIJKLMN1234567890
 ADMIN_ID=12345678
 EOF
 
-# Перезагрузка systemd и запуск сервиса
-echo "Reloading systemd daemon..."
-sudo systemctl daemon-reload
+    # Перезагрузка systemd и запуск сервиса
+    echo "Reloading systemd daemon..."
+    sudo systemctl daemon-reload
 
-echo "Starting StatusOpenVPN service..."
-sudo systemctl start StatusOpenVPN
-sudo systemctl enable StatusOpenVPN
-# sudo systemctl start StatusOpenVPN_bot
-sudo systemctl enable StatusOpenVPN_bot
+    echo "Starting StatusOpenVPN service..."
+    sudo systemctl start StatusOpenVPN
+    sudo systemctl enable StatusOpenVPN
 
-# Запуск и включение таймера
-sudo systemctl start logs.timer
-sudo systemctl enable logs.timer
+    # Запуск и включение таймера
+    sudo systemctl start logs.timer
+    sudo systemctl enable logs.timer
 
-# Получение внешнего IP-адреса сервера
-EXTERNAL_IP=$(curl -4 -s ifconfig.me)
+    # Запуск бота
+    echo "Starting Telegram bot service..."
+    sudo systemctl start telegram-bot
+    sudo systemctl enable telegram-bot
 
-echo "Running initial admin setup..."
-ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
+    # Получение внешнего IP-адреса сервера
+    EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
+    echo "Running initial admin setup..."
+    ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
 
-# Вывод информации о доступности сервера
-echo "--------------------------------------------"
-echo -e "\e[32mSetup completed successfully\e[0m"
-echo "--------------------------------------------"
-echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
-echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
-echo "--------------------------------------------"
+    # Вывод информации о доступности сервера
+    echo "--------------------------------------------"
+    echo -e "\e[32mSetup completed successfully\e[0m"
+    echo "--------------------------------------------"
+    echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+    echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
+    echo "--------------------------------------------"
 
-
-rm -f $TARGET_DIR/scripts/setup.sh
+    # Удаление скрипта установки
+    rm -f $TARGET_DIR/scripts/setup.sh
+fi  # Закрытие if для установки Telegram бота
