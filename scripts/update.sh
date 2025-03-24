@@ -154,9 +154,9 @@ EOF
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-        echo ".env файл успешно создан."
+        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting!\e[0m"
     else
-        echo ".env файл уже существует."
+        echo ".env file already exists, skipping creation."
     fi
 fi  # Закрытие if для установки Telegram бота
 
@@ -171,7 +171,7 @@ sudo systemctl restart StatusOpenVPN
 # Запуск Telegram-бота, если он был установлен
 if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
     echo "Starting Telegram bot service..."
-    sudo systemctl start telegram-bot
+    sudo systemctl restart telegram-bot
     sudo systemctl enable telegram-bot
 fi
 

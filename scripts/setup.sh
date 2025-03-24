@@ -165,6 +165,7 @@ EOF
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
+    echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting!\e[0m"
     else
         echo ".env file already exists, skipping creation."
     fi
@@ -176,8 +177,8 @@ sudo systemctl daemon-reload
 
 # Проверка, что Telegram бот сервис был создан
 if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
-    echo "Starting Telegram bot service..."
-    sudo systemctl start telegram-bot
+    echo "Skipping Telegram bot service start. It will start automatically on reboot."
+    # sudo systemctl start telegram-bot
     sudo systemctl enable telegram-bot
 fi
 
