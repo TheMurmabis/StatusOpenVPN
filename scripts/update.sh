@@ -6,6 +6,7 @@ set -e
 # Переменные
 TARGET_DIR="/root/web"  # Папка, где уже клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
+ENV_FILE="$TARGET_DIR/src/.env" # Переменные окружения
 
 # Получение текущего порта из файла сервиса, если он уже установлен
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
@@ -147,16 +148,28 @@ WantedBy=multi-user.target
 EOF
 
     # Проверка на существование файла .env, создание только если его нет
-    ENV_FILE="$TARGET_DIR/src/.env"
     if [ ! -f "$ENV_FILE" ]; then
-        echo "Создание .env файла с двумя переменными..."
+        echo "Creating .env file at $ENV_FILE..."
         cat <<EOF > $ENV_FILE
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting!\e[0m"
+        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting the bot!\e[0m"
+        echo "Once you fill in the .env file, please manually start the bot using: sudo systemctl start telegram-bot"
     else
         echo ".env file already exists, skipping creation."
+
+        # Загружаем переменные из .env
+        source "$ENV_FILE"
+
+        # Проверяем, что BOT_TOKEN не пуст и не содержит дефолтное значение
+        if [[ -z "$BOT_TOKEN" || "$BOT_TOKEN" == "<Enter API Token>" ]]; then
+            echo -e "\e[31mError: BOT_TOKEN is not set! Please specify the API token in $ENV_FILE before starting the bot.\e[0m"
+            echo "Skipping Telegram bot service start."
+        else
+            echo "Restarting Telegram bot service..."
+            sudo systemctl restart telegram-bot
+        fi
     fi
 fi  # Закрытие if для установки Telegram бота
 

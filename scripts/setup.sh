@@ -6,6 +6,7 @@ set -e
 # Переменные
 TARGET_DIR="/root/web"  # Папка, куда будет клонирован репозиторий
 DEFAULT_PORT=1234  # Порт по умолчанию
+ENV_FILE="$TARGET_DIR/src/.env" # Переменные окружения
 
 # Проверка версии Python и установка venv
 install_python_venv() {
@@ -157,7 +158,6 @@ WantedBy=multi-user.target
 EOF
 
     # Создание .env файла с двумя переменными, если файл ещё не существует
-    ENV_FILE="$TARGET_DIR/src/.env"
     if [ ! -f "$ENV_FILE" ]; then
         echo "Creating .env file at $ENV_FILE..."
 
@@ -165,7 +165,7 @@ EOF
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-    echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting!\e[0m"
+        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting the bot!\e[0m"
     else
         echo ".env file already exists, skipping creation."
     fi
