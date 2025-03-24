@@ -15,15 +15,7 @@
 
 
 # Установка и настройка 
-⚠ **Внимание!**. Телеграмм бот реализует функции скрипта client.sh версии от 12.03.2025. 
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/489c2aa6-d6ff-4c37-b71f-e741d2cbb4dc">
-  <img src="https://github.com/user-attachments/assets/03205b7b-2f5d-4119-8fce-758e3cb148f0">
-</picture>
-
-
-Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
 
 <details>
   <summary>Версия от 23.03.2025.</summary>
@@ -33,15 +25,25 @@
 Что реализовано:
 
 1. Добавление клиентов OpenVPN, Wireguard.
-1. Прсмотр списка клиентов.
+1. Прсмотр списка клиентов и получение конфиг-файлов.
 1. Создание резервной копии.
 
 > **Примечание:** На данный момент реализовано создание и удаление конфиг-файлов в директориях: `/root/antizapret/client/openvpn/antizapret/` и `/root/antizapret/client/amneziawg/antizapret/`.
 
 </details>
 
+---
 
+⚠ **Внимание!** Телеграмм бот реализует функции скрипта client.sh версии от [12.03.2025](https://github.com/GubernievS/AntiZapret-VPN/blob/6406263e70ed568a7369370f8faf85375355b360/setup/root/antizapret/client.sh). 
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/489c2aa6-d6ff-4c37-b71f-e741d2cbb4dc">
+  <img src="https://github.com/user-attachments/assets/03205b7b-2f5d-4119-8fce-758e3cb148f0">
+</picture>
+
+Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
+
+---
 
 ## Описание
 
