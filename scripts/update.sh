@@ -161,19 +161,12 @@ EOF
     else
         echo ".env file already exists, skipping creation."
 
-        # Загружаем переменные из .env
-        source "$ENV_FILE"
-
-        # Проверяем, что BOT_TOKEN не пуст и не содержит дефолтное значение
-        if [[ -z "$BOT_TOKEN" || "$BOT_TOKEN" == "<Enter API Token>" ]]; then
-            echo -e "\e[31mError: BOT_TOKEN is not set! Please specify the API token in $ENV_FILE before starting the bot.\e[0m"
-            echo "Skipping Telegram bot service start."
-        else
-            echo "Restarting Telegram bot service..."
-            sudo systemctl restart telegram-bot
-        fi
     fi
 fi  # Закрытие if для установки Telegram бота
+
+# Перезагрузка бота
+echo "Restarting Telegram bot service..."
+sudo systemctl restart telegram-bot
 
 # Перезагрузка systemd
 echo "Reloading systemd daemon..."
