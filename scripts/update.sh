@@ -160,13 +160,15 @@ EOF
         echo "Once you fill in the .env file, please manually start the bot using: sudo systemctl start telegram-bot"
     else
         echo ".env file already exists, skipping creation."
+        
+        # Перезагрузка бота
+        echo "Restarting Telegram bot service..."
+        sudo systemctl restart telegram-bot
 
     fi
 fi  # Закрытие if для установки Telegram бота
 
-# Перезагрузка бота
-echo "Restarting Telegram bot service..."
-sudo systemctl restart telegram-bot
+
 
 # Перезагрузка systemd
 echo "Reloading systemd daemon..."
