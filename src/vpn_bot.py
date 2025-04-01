@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import requests
 import asyncio
 
@@ -28,6 +29,16 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTM
 dp = Dispatcher()
 
 
+# Проверяем, что переменные окружения корректны
+if not BOT_TOKEN or BOT_TOKEN == "<Enter API Token>":
+    print("Ошибка: BOT_TOKEN не задан или содержит значение по умолчанию.")
+    sys.exit(1)
+
+if not ADMIN_ID or ADMIN_ID == "<Enter your user ID>":
+    print("Ошибка: ADMIN_ID не задан или содержит значение по умолчанию.")
+    sys.exit(1)
+
+
 class VPNSetup(StatesGroup):
     """Класс состояний для управления процессами настройки VPN через бота."""
 
@@ -36,6 +47,10 @@ class VPNSetup(StatesGroup):
     entering_days = State()  # Состояние ввода количества дней для сертификата.
     deleting_client = State()  # Состояние подтверждения удаления клиента.
     list_for_delete = State()  # Состояние выбора клиента из списка для удаления.
+    choosing_config_type = State()  # Состояние для выбора конфигурации
+    choosing_protocol = State()  # Для выбора протокола OpenVPN
+    choosing_wg_type = State()  # Для выбора типа WireGuard
+    confirming_rename = State()  # Для подтверждения переименования файлов WireGuard
 
 
 # Описание для вашего бота
@@ -104,6 +119,11 @@ def create_main_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
+                InlineKeyboardButton(
+                    text=f"🌐 Сервер: {SERVER_IP}", callback_data="no_action"
+                ),
+            ],
+            [
                 InlineKeyboardButton(text="OpenVPN", callback_data="openvpn_menu"),
                 InlineKeyboardButton(text="WireGuard", callback_data="wireguard_menu"),
             ],
@@ -124,8 +144,52 @@ def create_openvpn_menu():
                 InlineKeyboardButton(text="❌ Удалить клиента", callback_data="2"),
             ],
             [
-                InlineKeyboardButton(text="Список клиентов", callback_data="3"),
+                InlineKeyboardButton(text="📝 Список клиентов", callback_data="3"),
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
+            ],
+        ]
+    )
+
+
+# Новые функции для создания меню выбора
+def create_openvpn_config_menu(client_name: str):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="Antizapret",
+                    callback_data=f"openvpn_config_antizapret_{client_name}",
+                ),
+            ],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_client_list")],
+        ]
+    )
+
+
+def create_openvpn_protocol_menu(interface: str, client_name: str):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Стандартный (auto)",
+                    callback_data=f"send_ovpn_{interface}_default_{client_name}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="TCP", callback_data=f"send_ovpn_{interface}_tcp_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="UDP", callback_data=f"send_ovpn_{interface}_udp_{client_name}"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад", callback_data=f"back_to_interface_{client_name}"
+                )
             ],
         ]
     )
@@ -140,8 +204,47 @@ def create_wireguard_menu():
                 InlineKeyboardButton(text="❌ Удалить клиента", callback_data="5"),
             ],
             [
-                InlineKeyboardButton(text="Список клиентов", callback_data="6"),
+                InlineKeyboardButton(text="📝 Список клиентов", callback_data="6"),
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
+            ],
+        ]
+    )
+
+
+def create_wireguard_config_menu(client_name: str):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="Antizapret",
+                    callback_data=f"wireguard_config_antizapret_{client_name}",
+                ),
+            ],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_client_list")],
+        ]
+    )
+
+
+def create_wireguard_type_menu(interface: str, client_name: str):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="WireGuard",
+                    callback_data=f"send_wg_{interface}_wg_{client_name}",
+                ),
+                InlineKeyboardButton(
+                    text="AmneziaWG",
+                    callback_data=f"send_wg_{interface}_am_{client_name}",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад", callback_data=f"back_to_interface_{client_name}"
+                )
             ],
         ]
     )
@@ -206,7 +309,7 @@ async def execute_script(option: str, client_name: str = None, days: str = None)
     """Выполняет shell-скрипт для управления VPN-клиентами."""
     # Путь к скрипту
     script_path = "/root/antizapret/client.sh"
-    
+
     # Проверяем, существует ли файл
     if not os.path.exists(script_path):
         return {
@@ -250,6 +353,15 @@ async def execute_script(option: str, client_name: str = None, days: str = None)
         }
 
 
+async def send_single_config(chat_id: int, path: str, caption: str):
+    if os.path.exists(path):
+        await bot.send_document(
+            chat_id, document=FSInputFile(path), caption=f"🔐 {caption}"
+        )
+        return True
+    return False
+
+
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     """Обрабатывает команду /start и отображает главное меню."""
@@ -261,6 +373,310 @@ async def start(message: types.Message, state: FSMContext):
     await state.set_state(VPNSetup.choosing_option)
 
 
+@dp.callback_query(lambda c: c.data in ["main_menu", "openvpn_menu", "wireguard_menu"])
+async def handle_main_menus(callback: types.CallbackQuery):
+    if callback.data == "main_menu":
+        await callback.message.edit_text(
+            "Главное меню:", reply_markup=create_main_menu()
+        )
+    elif callback.data == "openvpn_menu":
+        await callback.message.edit_text(
+            "Меню OpenVPN:", reply_markup=create_openvpn_menu()
+        )
+    else:
+        await callback.message.edit_text(
+            "Меню WireGuard:", reply_markup=create_wireguard_menu()
+        )
+    await callback.answer()
+
+
+@dp.callback_query(lambda c: c.data == "no_action")
+async def handle_no_action(callback: types.CallbackQuery):
+    await callback.answer(
+        "В разработке", show_alert=False
+    )  # Просто закрываем всплывающее окно
+
+
+@dp.callback_query(lambda c: c.data.startswith("client_"))
+async def handle_client_selection(callback: types.CallbackQuery, state: FSMContext):
+    _, vpn_type, client_name = callback.data.split("_", 2)
+    await state.update_data(client_name=client_name, vpn_type=vpn_type)
+
+    if vpn_type == "openvpn":
+        await callback.message.edit_text(
+            "Выберите тип конфигурации OpenVPN:",
+            reply_markup=create_openvpn_config_menu(client_name),
+        )
+        await state.set_state(VPNSetup.choosing_config_type)
+    else:
+        await callback.message.edit_text(
+            "Выберите тип конфигурации WireGuard:",
+            reply_markup=create_wireguard_config_menu(client_name),
+        )
+        await state.set_state(VPNSetup.choosing_config_type)
+    await callback.answer()
+
+
+@dp.callback_query(VPNSetup.choosing_config_type)
+async def handle_interface_selection(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    client_name = user_data["client_name"]
+    vpn_type = user_data["vpn_type"]
+
+    # Обработка кнопки "Назад"
+    if callback.data == "back_to_client_list":
+        clients = await get_clients(vpn_type)
+        total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+
+        await callback.message.edit_text(
+            "Список клиентов:",
+            reply_markup=create_client_list_keyboard(
+                clients, 1, total_pages, vpn_type, "list"
+            ),
+        )
+        await state.set_state(VPNSetup.list_for_delete)
+        await callback.answer()
+        return
+
+    if callback.data.startswith("openvpn_config_"):
+        _, _, interface, _ = callback.data.split("_", 3)
+        await state.update_data(interface=interface)
+        await callback.message.edit_text(
+            f"OpenVPN ({interface}): выберите протокол:",
+            reply_markup=create_openvpn_protocol_menu(interface, client_name),
+        )
+        await state.set_state(VPNSetup.choosing_protocol)
+    else:
+        _, _, interface, _ = callback.data.split("_", 3)
+        await state.update_data(interface=interface)
+        await callback.message.edit_text(
+            f"WireGuard ({interface}): выберите тип:",
+            reply_markup=create_wireguard_type_menu(interface, client_name),
+        )
+        await state.set_state(VPNSetup.choosing_wg_type)
+    await callback.answer()
+
+
+@dp.callback_query(VPNSetup.choosing_protocol)
+async def handle_protocol_selection(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    client_name = user_data["client_name"]
+
+    if callback.data.startswith("send_ovpn_"):
+        _, _, interface, proto, _ = callback.data.split("_", 4)
+        file_name = (
+            client_name.replace("antizapret-", "").replace("vpn-", "") + f"-{SERVER_IP}"
+        )
+
+        if proto == "default":
+            path = f"/root/antizapret/client/openvpn/{interface}/{interface}-{file_name}.ovpn"
+            caption = f"{interface}-{file_name}.ovpn"
+        else:
+            path = f"/root/antizapret/client/openvpn/{interface}-{proto}/{interface}-{file_name}-{proto}.ovpn"
+            caption = f"{interface}-{file_name}-{proto}.ovpn"
+
+        if await send_single_config(callback.from_user.id, path, caption):
+            await callback.message.delete()
+            await callback.message.answer(
+                "Главное меню:", reply_markup=create_main_menu()
+            )
+            await state.clear()
+        else:
+            await callback.answer("❌ Файл не найден", show_alert=True)
+
+    elif callback.data.startswith("back_to_interface_"):
+        await handle_back_to_interface(callback, state)
+
+
+@dp.callback_query(VPNSetup.choosing_wg_type)
+async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    client_name = user_data["client_name"]
+
+    if callback.data.startswith("send_wg_"):
+        _, _, interface, wg_type, _ = callback.data.split("_", 4)
+
+        full_ip = SERVER_IP  # Используем полный IP
+
+        # Формируем имя файла без обрезки IP
+        file_name = (
+            f"{client_name.replace('antizapret-', '').replace('vpn-', '')}-{full_ip}"
+        )
+
+        # Формируем полный путь к файлу
+        path = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/{interface}-{file_name}-{wg_type}.conf"
+
+        # Проверяем существование файла сразу
+        if not os.path.exists(path):
+            # Попробуем найти файл без точного совпадения IP
+            config_dir = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/"
+            try:
+                # Ищем файл по шаблону
+                for f in os.listdir(config_dir):
+                    if f.startswith(
+                        f"{interface}-{client_name.replace('antizapret-', '').replace('vpn-', '')}"
+                    ) and f.endswith(f"-{wg_type}.conf"):
+                        path = os.path.join(config_dir, f)
+                        break
+            except Exception as e:
+                print(f"Ошибка поиска файла: {e}")
+
+        # Сохраняем данные для следующего шага
+        await state.update_data(
+            {
+                "file_path": path,
+                "original_name": os.path.basename(path),
+                "short_name": f"{client_name.replace('antizapret-', '').replace('vpn-', '')}-{wg_type}.conf",
+            }
+        )
+
+        # Проверяем существование файла еще раз
+        if not os.path.exists(path):
+            await callback.answer(
+                f"❌ Файл конфигурации не найден: {os.path.basename(path)}",
+                show_alert=True,
+            )
+            await state.clear()
+            return
+
+        await callback.message.edit_text(
+            "Android может не принимать файлы с длинными именами.\nХотите переименовать файл при отправке?",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="✅ Да", callback_data="confirm_rename"
+                        ),
+                        InlineKeyboardButton(text="❌ Нет", callback_data="no_rename"),
+                    ]
+                ]
+            ),
+        )
+        await state.set_state(VPNSetup.confirming_rename)
+
+
+@dp.callback_query(VPNSetup.confirming_rename)
+async def handle_rename_confirmation(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    file_path = user_data["file_path"]
+
+    # Проверяем, существует ли файл
+    if not os.path.exists(file_path):
+        print(f"Файл не найден: {file_path}")
+        await callback.answer("❌ Файл не найден", show_alert=True)
+        await state.clear()
+        return
+
+    # Проверяем размер файла (не пустой и не слишком большой)
+    file_size = os.path.getsize(file_path)
+    if file_size == 0:
+        print(f"Файл пуст: {file_path}")
+        await callback.answer("❌ Файл пуст", show_alert=True)
+        await state.clear()
+        return
+
+    if file_size > 50 * 1024 * 1024:  # 50MB
+        print(f"Файл слишком большой: {file_path} ({file_size} байт)")
+        await callback.answer(
+            "❌ Файл слишком большой для отправки в Telegram", show_alert=True
+        )
+        await state.clear()
+        return
+
+    try:
+        if callback.data == "confirm_rename":
+            file = FSInputFile(file_path, filename=user_data["short_name"])
+            caption = f"🔐 {user_data['short_name']}"
+        else:
+            file = FSInputFile(file_path)
+            caption = f"🔐 {user_data['original_name']}"
+
+        await bot.send_document(
+            chat_id=callback.from_user.id, document=file, caption=caption
+        )
+
+        await callback.message.delete()
+        await callback.message.answer("Главное меню:", reply_markup=create_main_menu())
+
+    except Exception as e:
+        print(f"Ошибка при отправке файла: {e}")
+        await callback.answer("❌ Ошибка при отправке файла", show_alert=True)
+
+    await state.clear()
+
+
+async def handle_back_to_interface(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    client_name = user_data["client_name"]
+    vpn_type = user_data["vpn_type"]
+
+    if vpn_type == "openvpn":
+        await callback.message.edit_text(
+            "Выберите тип конфигурации OpenVPN:",
+            reply_markup=create_openvpn_config_menu(client_name),
+        )
+        await state.set_state(VPNSetup.choosing_config_type)
+    else:
+        await callback.message.edit_text(
+            "Выберите тип конфигурации WireGuard:",
+            reply_markup=create_wireguard_config_menu(client_name),
+        )
+        await state.set_state(VPNSetup.choosing_config_type)
+    await callback.answer()
+
+
+@dp.callback_query(lambda c: c.data.startswith("cancel_config_"))
+async def handle_config_cancel(callback: types.CallbackQuery, state: FSMContext):
+    client_name = callback.data.split("_")[-1]
+    user_data = await state.get_data()
+    vpn_type = user_data["vpn_type"]
+
+    clients = await get_clients(vpn_type)
+    total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    await callback.message.edit_text(
+        "Список клиентов:",
+        reply_markup=create_client_list_keyboard(
+            clients, 1, total_pages, vpn_type, "list"
+        ),
+    )
+    await state.clear()
+    await callback.answer()
+
+
+async def cleanup_openvpn_files(client_name: str):
+    """Дополнительная очистка файлов OpenVPN после основного скрипта"""
+    # Получаем имя файла без префиксов
+    clean_name = client_name.replace("antizapret-", "").replace("vpn-", "")
+
+    # Директории для проверки
+    dirs_to_check = [
+        "/root/antizapret/client/openvpn/antizapret/",
+        "/root/antizapret/client/openvpn/antizapret-tcp/",
+        "/root/antizapret/client/openvpn/antizapret-udp/",
+        "/root/antizapret/client/openvpn/vpn/",
+        "/root/antizapret/client/openvpn/vpn-tcp/",
+        "/root/antizapret/client/openvpn/vpn-udp/",
+    ]
+
+    deleted_files = []
+
+    for dir_path in dirs_to_check:
+        if not os.path.exists(dir_path):
+            continue
+
+        for filename in os.listdir(dir_path):
+            # Удаляем все файлы, содержащие имя клиента
+            if clean_name in filename:
+                try:
+                    file_path = os.path.join(dir_path, filename)
+                    os.remove(file_path)
+                    deleted_files.append(file_path)
+                except Exception as e:
+                    print(f"Ошибка удаления {file_path}: {e}")
+
+    return deleted_files
+
+
 @dp.callback_query()
 async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext):
     """Обрабатывает нажатия на кнопки в Telegram боте и выполняет соответствующие действия."""
@@ -269,46 +685,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
 
     try:
         if user_id != ADMIN_ID:
-            await callback.answer("Доступ запрещен")
-            return
-
-        # Навигация по меню
-        if data == "main_menu":
-            await callback.message.edit_text(
-                "Главное меню:", reply_markup=create_main_menu()
-            )
-            await callback.answer()
-            return
-
-        if data == "openvpn_menu":
-            await callback.message.edit_text(
-                "Меню OpenVPN:", reply_markup=create_openvpn_menu()
-            )
-            await callback.answer()
-            return
-
-        if data == "wireguard_menu":
-            await callback.message.edit_text(
-                "Меню WireGuard:", reply_markup=create_wireguard_menu()
-            )
-            await callback.answer()
-            return
-
-        # Обработка выбора клиента из списка
-        if data.startswith("client_"):
-            _, vpn_type, client_name = data.split("_", 2)
-
-            # Определяем тип конфига для отправки
-            option = "1" if vpn_type == "openvpn" else "4"
-
-            # Отправляем файл конфигурации
-            await send_config(callback.from_user.id, client_name, option)
-            await callback.answer()
-
-            # Возвращаемся в предыдущее меню
-            await callback.message.edit_text(
-                "Главное меню:", reply_markup=create_main_menu()
-            )
+            await callback.answer("Доступ запрещен!")
             return
 
         # Пагинация
@@ -377,18 +754,35 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
         if data.startswith("confirm_"):
             _, vpn_type, client_name = data.split("_", 2)
             option = "2" if vpn_type == "openvpn" else "5"
-            result = await execute_script(option, client_name)
 
-            if result["returncode"] == 0:
-                await callback.message.edit_text(f"✅ Клиент {client_name} удален!")
-                await callback.message.answer(
-                    "Главное меню:", reply_markup=create_main_menu()
-                )
+            try:
+                result = await execute_script(option, client_name)
 
-            else:
-                await callback.message.edit_text(f"❌ Ошибка: {result['stderr']}")
-            await callback.answer()
-            return
+                # Для OpenVPN делаем дополнительную очистку
+                if vpn_type == "openvpn" and result["returncode"] == 0:
+                    deleted_files = await cleanup_openvpn_files(client_name)
+                    if deleted_files:
+                        result["additional_deleted"] = deleted_files
+
+                # Формируем сообщение о результате
+                if result["returncode"] == 0:
+                    msg = f"✅ Клиент {client_name} удален!"
+                    if vpn_type == "openvpn" and result.get("additional_deleted"):
+                        msg += f"\nДополнительно удалено файлов: {len(result['additional_deleted'])}"
+
+                    await callback.message.edit_text(msg)
+                    await callback.message.answer(
+                        "Главное меню:", reply_markup=create_main_menu()
+                    )
+                else:
+                    await callback.message.edit_text(f"❌ Ошибка: {result['stderr']}")
+
+            except Exception as e:
+                print(f"Ошибка при удалении клиента: {e}")
+
+            finally:
+                await callback.answer()
+                await state.clear()
 
         if data == "cancel_delete":
             await callback.message.edit_text(

@@ -134,6 +134,8 @@ if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
 [Unit]
 Description=Telegram Bot Service
 After=network.target
+StartLimitBurst=3
+StartLimitIntervalSec=300
 
 [Service]
 User=root
@@ -141,7 +143,7 @@ Group=www-data
 WorkingDirectory=$TARGET_DIR
 Environment="PATH=$TARGET_DIR/venv/bin"
 ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/vpn_bot.py
-Restart=always
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
