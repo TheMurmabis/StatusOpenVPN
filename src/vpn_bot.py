@@ -188,7 +188,8 @@ def create_openvpn_protocol_menu(interface: str, client_name: str):
             ],
             [
                 InlineKeyboardButton(
-                    text="⬅️ Назад", callback_data=f"back_to_interface_{client_name}"
+                    text="⬅️ Назад",
+                    callback_data=f"back_to_interface_{interface}_{client_name}",
                 )
             ],
         ]
@@ -492,6 +493,13 @@ async def handle_protocol_selection(callback: types.CallbackQuery, state: FSMCon
 async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMContext):
     user_data = await state.get_data()
     client_name = user_data["client_name"]
+
+    # Обработка кнопки "Назад"
+    if callback.data.startswith("back_to_interface_"):
+        _, _, interface, client_name = callback.data.split("_", 3)
+        await handle_back_to_interface(callback, state)  # Ваша функция для возврата
+        await callback.answer()  # Важно: подтверждаем нажатие
+        return
 
     if callback.data.startswith("send_wg_"):
         _, _, interface, wg_type, _ = callback.data.split("_", 4)
