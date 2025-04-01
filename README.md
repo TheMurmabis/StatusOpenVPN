@@ -45,8 +45,8 @@
 ⚠ **Внимание!** Телеграмм бот реализует функции скрипта client.sh версии от [12.03.2025](https://github.com/GubernievS/AntiZapret-VPN/blob/6406263e70ed568a7369370f8faf85375355b360/setup/root/antizapret/client.sh). 
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/489c2aa6-d6ff-4c37-b71f-e741d2cbb4dc">
-  <img src="https://github.com/user-attachments/assets/03205b7b-2f5d-4119-8fce-758e3cb148f0">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/072ee8de-cbc5-4e73-b90a-2d671abd2bbf">
+  <img src="https://github.com/user-attachments/assets/8eff640b-f420-4503-8313-a36cfbbd088f">
 </picture>
 
 Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
