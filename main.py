@@ -403,20 +403,20 @@ def format_date(date_string):
 
 # Маскируем IP-адрес
 def mask_ip(ip_address):
-    if not ip_address:  
+    if not ip_address:
         return "0.0.0.0"  # Значение по умолчанию
-    
-    ip = ip_address.split(":")[0] 
+
+    ip = ip_address.split(":")[0]
     parts = ip.split(".")
 
     if len(parts) == 4:
         try:
-            parts = [str(int(part)) for part in parts] 
+            parts = [str(int(part)) for part in parts]
             return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
         except ValueError:
-            return ip 
-    
-    return ip_address 
+            return ip
+
+    return ip_address
 
 
 # Отсет времени
@@ -757,9 +757,27 @@ def login():
     return render_template("login.html", form=form, error_message=error_message)
 
 
+def get_git_version():
+    try:
+        version = (
+            subprocess.check_output(
+                ["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL
+            )
+            .strip()
+            .decode()
+        )
+    except subprocess.CalledProcessError:
+        version = "unknown"
+    return version
+
+
 @app.context_processor
 def inject_info():
-    return {"hostname": socket.gethostname(), "server_ip": get_external_ip()}
+    return {
+        "hostname": socket.gethostname(),
+        "server_ip": get_external_ip(),
+        "version": get_git_version(),
+    }
 
 
 @app.route("/")

@@ -966,7 +966,7 @@ async def send_config(chat_id: int, client_name: str, option: str):
 
         # Применяем обрезку как в оригинальном скрипте
         if option == "4":  # WireGuard
-            file_name = file_name[:18]
+            # file_name = file_name[:18]
             path = f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf"
         else:  # OpenVPN
             path = f"/root/antizapret/client/openvpn/antizapret/antizapret-{file_name}.ovpn"
@@ -995,22 +995,28 @@ async def send_config(chat_id: int, client_name: str, option: str):
 
 
 # Добавляем функцию send_backup здесь
-async def send_backup(chat_id: int):
+async def send_backup(chat_id: int) -> bool:
     """Функция отправки резервной копии"""
 
-    backup_path = "/root/antizapret/backup.tar.gz"
-    try:
-        if os.path.exists(backup_path):
-            await bot.send_document(
-                chat_id=chat_id,
-                document=FSInputFile(backup_path),
-                caption="📦 Бэкап клиентов",
-            )
-            return True
-        return False
-    except Exception as e:
-        print(f"Ошибка отправки бэкапа: {e}")
-        return False
+    paths_to_check = [
+        f"/root/antizapret/backup-{SERVER_IP}.tar.gz",
+        "/root/antizapret/backup.tar.gz"
+    ]
+
+    for backup_path in paths_to_check:
+        try:
+            if os.path.exists(backup_path):
+                await bot.send_document(
+                    chat_id=chat_id,
+                    document=FSInputFile(backup_path),
+                    caption="📦 Бэкап клиентов",
+                )
+                return True
+        except Exception as e:
+            print(f"Ошибка отправки бэкапа ({backup_path}): {e}")
+            return False
+
+    return False  # Если ни один файл не найден
 
 
 async def main():
