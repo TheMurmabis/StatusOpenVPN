@@ -761,7 +761,7 @@ def get_git_version():
     try:
         version = (
             subprocess.check_output(
-                ["git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL
+                ["/usr/bin/git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL
             )
             .strip()
             .decode()
