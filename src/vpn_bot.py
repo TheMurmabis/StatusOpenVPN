@@ -466,7 +466,8 @@ async def handle_protocol_selection(callback: types.CallbackQuery, state: FSMCon
     if callback.data.startswith("send_ovpn_"):
         _, _, interface, proto, _ = callback.data.split("_", 4)
         file_name = (
-            client_name.replace("antizapret-", "").replace("vpn-", "") + f"-{SERVER_IP}"
+            client_name.replace("antizapret-", "").replace("vpn-", "")
+            + f"-({SERVER_IP})"
         )
 
         if proto == "default":
@@ -497,7 +498,7 @@ async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMCont
     # Обработка кнопки "Назад"
     if callback.data.startswith("back_to_interface_"):
         _, _, interface, client_name = callback.data.split("_", 3)
-        await handle_back_to_interface(callback, state)  # Ваша функция для возврата
+        await handle_back_to_interface(callback, state)
         await callback.answer()  # Важно: подтверждаем нажатие
         return
 
@@ -940,11 +941,9 @@ async def get_clients(vpn_type: str):
             c.strip()
             for c in result["stdout"].split("\n")
             if c.strip()  # Убираем пустые строки
+            and not c.startswith("OpenVPN client names:")  # Убираем заголовок OpenVPN
             and not c.startswith(
-                "OpenVPN existing client names:"
-            )  # Убираем заголовок OpenVPN
-            and not c.startswith(
-                "WireGuard/AmneziaWG existing client names:"
+                "WireGuard/AmneziaWG client names:"
             )  # Убираем заголовок WireGuard
             and not c.startswith(
                 "OpenVPN - List clients"
@@ -960,16 +959,12 @@ async def get_clients(vpn_type: str):
 async def send_config(chat_id: int, client_name: str, option: str):
     """Функция отправки конфига"""
     try:
-        # Формируем имя файла согласно логике client.sh
-        file_name = client_name.replace("antizapret-", "").replace("vpn-", "")
-        file_name = f"{file_name}-{SERVER_IP}"
-
-        # Применяем обрезку как в оригинальном скрипте
         if option == "4":  # WireGuard
-            # file_name = file_name[:18]
+            name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
+            file_name = f"{name_core}-({SERVER_IP})"
             path = f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf"
         else:  # OpenVPN
-            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-{file_name}.ovpn"
+            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-client-({SERVER_IP}).ovpn"
 
         # Ожидание файла
         timeout = 25
@@ -1000,7 +995,7 @@ async def send_backup(chat_id: int) -> bool:
 
     paths_to_check = [
         f"/root/antizapret/backup-{SERVER_IP}.tar.gz",
-        "/root/antizapret/backup.tar.gz"
+        "/root/antizapret/backup.tar.gz",
     ]
 
     for backup_path in paths_to_check:

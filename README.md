@@ -18,7 +18,7 @@
 
 
 <details>
-  <summary>Версия от 08.04.2025.</summary>
+  <summary>Версия от 09.04.2025.</summary>
   
 ### StatusOpenVPN:
 1. Правка ссылок bootstrap.
