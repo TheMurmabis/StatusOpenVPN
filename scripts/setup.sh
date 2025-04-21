@@ -198,7 +198,7 @@ sudo systemctl enable logs.timer
 EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
 echo "Running initial admin setup..."
-ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
+ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
 
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
