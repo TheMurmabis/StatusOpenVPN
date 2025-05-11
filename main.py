@@ -275,6 +275,27 @@ def read_wg_config(file_path):
     return client_mapping
 
 
+def get_daily_stats_map():
+    """Получение ежедневной статистики WG"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect(app.config["WG_STATS_PATH"])
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM wg_daily_stats WHERE date = ?", (today,))
+    rows = cursor.fetchall()
+    conn.close()
+    return {(row["peer"], row["interface"]): row for row in rows}
+
+
+def humanize_bytes(num, suffix="B"):
+    """Функция для преобразования байт в удобный формат"""
+    for unit in ["", "K", "M", "G", "T"]:
+        if abs(num) < 1024.0:
+            return f"{num:.1f} {unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f} P{suffix}"
+
+
 def parse_wireguard_output(output):
     """Парсинг вывода команды wg show."""
     stats = []
@@ -284,6 +305,7 @@ def parse_wireguard_output(output):
     vpn_mapping = read_wg_config("/etc/wireguard/vpn.conf")
     antizapret_mapping = read_wg_config("/etc/wireguard/antizapret.conf")
     client_mapping = {**vpn_mapping, **antizapret_mapping}
+    daily_stats_map = get_daily_stats_map()
 
     for line in lines:
         line = line.strip()
@@ -304,6 +326,26 @@ def parse_wireguard_output(output):
             masked_peer = peer_data["peer"][:4] + "..." + peer_data["peer"][-4:]
             peer_data["masked_peer"] = masked_peer
             peer_data["client"] = client_mapping.get(peer_data["peer"], "N/A")
+
+            daily_row = daily_stats_map.get(
+                (peer_data["peer"], interface_data["interface"])
+            )
+            if daily_row:
+                peer_data["daily_received"] = humanize_bytes(daily_row["received"])
+                peer_data["daily_sent"] = humanize_bytes(daily_row["sent"])
+                try:
+                    total = parse_bytes(peer_data["received"]) + parse_bytes(
+                        peer_data["sent"]
+                    )
+                    daily_total = daily_row["received"] + daily_row["sent"]
+                    round_res = round((daily_total / total * 100) if total > 0 else 0)
+                    peer_data["daily_traffic_percentage"] = round_res
+                except Exception:
+                    peer_data["daily_traffic_percentage"] = 0
+            else:
+                peer_data["daily_received"] = "0 B"
+                peer_data["daily_sent"] = "0 B"
+                peer_data["daily_traffic_percentage"] = 0
             interface_data["peers"].append(peer_data)
         elif line.startswith("endpoint:"):
             peer_data["endpoint"] = mask_ip(line.split(": ")[1].strip())
@@ -329,11 +371,58 @@ def parse_wireguard_output(output):
             transfer_data = line.split(":")[1].strip().split(", ")
             received = transfer_data[0].replace(" received", "").strip()
             sent = transfer_data[1].replace(" sent", "").strip()
-            peer_data["received"] = received
-            peer_data["sent"] = sent
+
+            received_str = transfer_data[0].replace(" received", "").strip()
+            sent_str = transfer_data[1].replace(" sent", "").strip()
+
+            # Конвертируем строки в байты
+            peer_data["received_bytes"] = (
+                parse_bytes(received_str) if received_str else 0
+            )
+            peer_data["sent_bytes"] = parse_bytes(sent_str) if sent_str else 0
+
+            peer_data["received"] = received if received else "0 B"
+            peer_data["sent"] = sent if sent else "0 B"
+
+            total_bytes = peer_data["received_bytes"] + peer_data["sent_bytes"]
+            peer_data["received_percentage"] = (
+                round((peer_data["received_bytes"] / total_bytes * 100), 2)
+                if total_bytes > 0
+                else 0
+            )
+            peer_data["sent_percentage"] = (
+                round((peer_data["sent_bytes"] / total_bytes * 100), 2)
+                if total_bytes > 0
+                else 0
+            )
 
     if interface_data:
         stats.append(interface_data)
+
+    return stats
+
+
+def get_daily_stats():
+    """Получение ежедневной статистики"""
+    conn = sqlite3.connect(app.config["WG_STATS_PATH"])
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    date_today = date.today().isoformat()
+
+    cursor.execute(
+        "SELECT interface, client, received, sent FROM wg_daily_stats WHERE date = ?",
+        (date_today,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    stats = {}
+    for row in rows:
+        iface = row["interface"]
+        client = row["client"]
+        if iface not in stats:
+            stats[iface] = {}
+        stats[iface][client] = {"received": row["received"], "sent": row["sent"]}
 
     return stats
 
@@ -766,7 +855,7 @@ def get_git_version():
             .strip()
             .decode()
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         version = "unknown"
     return version
 
@@ -806,8 +895,12 @@ def api_system_info():
 @app.route("/wg")
 @login_required
 def wg():
+    """Маршрут клиентов WireGuard"""
     stats = parse_wireguard_output(get_wireguard_stats())
-    return render_template("wg.html", stats=stats, active_page="wg")
+
+    return render_template(
+        "wg.html", stats=stats, active_page="wg"
+    )
 
 
 @app.route("/api/wg/stats")

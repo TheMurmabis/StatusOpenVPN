@@ -133,6 +133,25 @@ Unit=logs.service
 WantedBy=timers.target
 EOF
 
+WG_STATS="/etc/systemd/system/wg_stats.service"
+cat <<EOF | sudo tee $WG_STATS
+[Unit]
+Description=WireGuard Traffic Statistics Collector
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/web/src
+Environment="PATH=/root/web/venv/bin"
+ExecStart=/root/web/venv/bin/python /root/web/src/wg_stats.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
 
 if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
