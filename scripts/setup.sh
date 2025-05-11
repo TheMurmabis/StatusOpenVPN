@@ -209,6 +209,9 @@ echo "Starting StatusOpenVPN service..."
 sudo systemctl start StatusOpenVPN
 sudo systemctl enable StatusOpenVPN
 
+sudo systemctl start wg_stats
+sudo systemctl enable wg_stats
+
 # Запуск и включение таймера
 sudo systemctl start logs.timer
 sudo systemctl enable logs.timer

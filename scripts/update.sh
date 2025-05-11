@@ -196,6 +196,8 @@ sudo systemctl daemon-reload
 # Перезапуск сервиса
 echo "Restarting StatusOpenVPN service..."
 sudo systemctl restart StatusOpenVPN
+sudo systemctl enable wg_stats
+sudo systemctl restart wg_stats
 
 # Запуск Telegram-бота, если он был установлен
 if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then

@@ -50,6 +50,14 @@ else
   echo "Failed to delete logs.timer"
 fi
 
+# Удаление systemd unit файла wg_stats.service
+echo "Deleting the systemd unit file wg_stats.service"
+if sudo rm /etc/systemd/system/wg_stats.service; then
+  success_status "wg_stats.service deleted successfully"
+else
+  echo "Failed to delete wg_stats"
+fi
+
 # Перезапуск systemd
 echo "Restarting systemd"
 if sudo systemctl daemon-reload; then
