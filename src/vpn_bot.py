@@ -964,7 +964,7 @@ async def send_config(chat_id: int, client_name: str, option: str):
             file_name = f"{name_core}-({SERVER_IP})"
             path = f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf"
         else:  # OpenVPN
-            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-client-({SERVER_IP}).ovpn"
+            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-{client_name}-({SERVER_IP}).ovpn"
 
         # Ожидание файла
         timeout = 25
