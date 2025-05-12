@@ -32,7 +32,7 @@ from flask import (
 from src.forms import LoginForm
 from src.config import Config
 from flask_bcrypt import Bcrypt
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
 from collections import defaultdict
 
