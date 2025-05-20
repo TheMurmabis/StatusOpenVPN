@@ -962,32 +962,44 @@ async def send_config(chat_id: int, client_name: str, option: str):
         if option == "4":  # WireGuard
             name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
             file_name = f"{name_core}-({SERVER_IP})"
-            path = f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf"
+            paths = [
+                f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf",
+                f"/root/antizapret/client/amneziawg/vpn/vpn-{file_name}-am.conf"
+            ]
+            config_types = ["AmneziaWG (antizapret)", "AmneziaWG (vpn)"]
         else:  # OpenVPN
-            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-{client_name}-({SERVER_IP}).ovpn"
+            paths = [
+                f"/root/antizapret/client/openvpn/antizapret/antizapret-{client_name}-({SERVER_IP}).ovpn",
+                f"/root/antizapret/client/openvpn/vpn/vpn-{client_name}-({SERVER_IP}).ovpn"
+            ]
+            config_types = ["OpenVPN (antizapret)", "OpenVPN (vpn)"]
 
-        # Ожидание файла
         timeout = 25
         interval = 0.5
-        elapsed = 0
+        files_found = []
 
-        while not os.path.exists(path) and elapsed < timeout:
-            await asyncio.sleep(interval)
-            elapsed += interval
+        for path in paths:
+            elapsed = 0
+            while not os.path.exists(path) and elapsed < timeout:
+                await asyncio.sleep(interval)
+                elapsed += interval
+            if os.path.exists(path):
+                files_found.append(path)
 
-        if os.path.exists(path):
+        for path in files_found:
+            config_type = config_types[paths.index(path)]
             await bot.send_document(
                 chat_id,
                 document=FSInputFile(path),
-                caption=f"🔐 Конфигурация {client_name}",
+                caption=f"🔐 Конфигурация {client_name} {config_type}",
             )
-        else:
-            await bot.send_message(chat_id, "❌ Файл конфигурации не найден")
+
+        if not files_found:
+            await bot.send_message(chat_id, "❌ Файлы конфигураций не найдены")
 
     except Exception as e:
         print(f"Ошибка: {e}")
         await bot.send_message(chat_id, "⚠️ Ошибка при отправке конфигурации")
-
 
 # Добавляем функцию send_backup здесь
 async def send_backup(chat_id: int) -> bool:
