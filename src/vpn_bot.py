@@ -465,19 +465,27 @@ async def handle_protocol_selection(callback: types.CallbackQuery, state: FSMCon
 
     if callback.data.startswith("send_ovpn_"):
         _, _, interface, proto, _ = callback.data.split("_", 4)
-        file_name = (
-            client_name.replace("antizapret-", "").replace("vpn-", "")
-            + f"-({SERVER_IP})"
-        )
+        name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
 
         if proto == "default":
-            path = f"/root/antizapret/client/openvpn/{interface}/{interface}-{file_name}.ovpn"
-            caption = f"{interface}-{file_name}.ovpn"
+            dir_path = f"/root/antizapret/client/openvpn/{interface}/"
+            pattern = re.compile(rf"{interface}-{re.escape(name_core)}-\([^)]+\)\.ovpn")
         else:
-            path = f"/root/antizapret/client/openvpn/{interface}-{proto}/{interface}-{file_name}-{proto}.ovpn"
-            caption = f"{interface}-{file_name}-{proto}.ovpn"
+            dir_path = f"/root/antizapret/client/openvpn/{interface}-{proto}/"
+            pattern = re.compile(
+                rf"{interface}-{re.escape(name_core)}-\([^)]+\)-{proto}\.ovpn"
+            )
 
-        if await send_single_config(callback.from_user.id, path, caption):
+        matched_file = None
+        if os.path.exists(dir_path):
+            for file in os.listdir(dir_path):
+                if pattern.fullmatch(file):
+                    matched_file = os.path.join(dir_path, file)
+                    break
+
+        if matched_file and await send_single_config(
+            callback.from_user.id, matched_file, os.path.basename(matched_file)
+        ):
             await callback.message.delete()
             await callback.message.answer(
                 "Главное меню:", reply_markup=create_main_menu()
@@ -497,65 +505,43 @@ async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMCont
 
     # Обработка кнопки "Назад"
     if callback.data.startswith("back_to_interface_"):
-        _, _, interface, client_name = callback.data.split("_", 3)
         await handle_back_to_interface(callback, state)
-        await callback.answer()  # Важно: подтверждаем нажатие
+        await callback.answer()
         return
 
     if callback.data.startswith("send_wg_"):
         _, _, interface, wg_type, _ = callback.data.split("_", 4)
 
-        full_ip = SERVER_IP  # Используем полный IP
+        name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
+        dir_path = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/"
+        pattern = re.compile(rf"{interface}-{re.escape(name_core)}-\([^)]+\)-{wg_type}\.conf")
 
-        # Формируем имя файла без обрезки IP
-        file_name = (
-            f"{client_name.replace('antizapret-', '').replace('vpn-', '')}-{full_ip}"
-        )
+        matched_file = None
+        if os.path.exists(dir_path):
+            for file in os.listdir(dir_path):
+                if pattern.fullmatch(file):
+                    matched_file = os.path.join(dir_path, file)
+                    break
 
-        # Формируем полный путь к файлу
-        path = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/{interface}-{file_name}-{wg_type}.conf"
-
-        # Проверяем существование файла сразу
-        if not os.path.exists(path):
-            # Попробуем найти файл без точного совпадения IP
-            config_dir = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/"
-            try:
-                # Ищем файл по шаблону
-                for f in os.listdir(config_dir):
-                    if f.startswith(
-                        f"{interface}-{client_name.replace('antizapret-', '').replace('vpn-', '')}"
-                    ) and f.endswith(f"-{wg_type}.conf"):
-                        path = os.path.join(config_dir, f)
-                        break
-            except Exception as e:
-                print(f"Ошибка поиска файла: {e}")
-
-        # Сохраняем данные для следующего шага
-        await state.update_data(
-            {
-                "file_path": path,
-                "original_name": os.path.basename(path),
-                "short_name": f"{client_name.replace('antizapret-', '').replace('vpn-', '')}-{wg_type}.conf",
-            }
-        )
-
-        # Проверяем существование файла еще раз
-        if not os.path.exists(path):
-            await callback.answer(
-                f"❌ Файл конфигурации не найден: {os.path.basename(path)}",
-                show_alert=True,
-            )
+        if not matched_file:
+            await callback.answer("❌ Файл конфигурации не найден", show_alert=True)
             await state.clear()
             return
+
+        await state.update_data(
+            {
+                "file_path": matched_file,
+                "original_name": os.path.basename(matched_file),
+                "short_name": f"{name_core}-{wg_type}.conf",
+            }
+        )
 
         await callback.message.edit_text(
             "Android может не принимать файлы с длинными именами.\nХотите переименовать файл при отправке?",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(
-                            text="✅ Да", callback_data="confirm_rename"
-                        ),
+                        InlineKeyboardButton(text="✅ Да", callback_data="confirm_rename"),
                         InlineKeyboardButton(text="❌ Нет", callback_data="no_rename"),
                     ]
                 ]
@@ -961,28 +947,56 @@ async def send_config(chat_id: int, client_name: str, option: str):
     try:
         if option == "4":  # WireGuard
             name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
-            file_name = f"{name_core}-({SERVER_IP})"
-            path = f"/root/antizapret/client/amneziawg/antizapret/antizapret-{file_name}-am.conf"
+            directories = [
+                (
+                    "/root/antizapret/client/amneziawg/antizapret",
+                    "AmneziaWG (antizapret)",
+                ),
+                ("/root/antizapret/client/amneziawg/vpn", "AmneziaWG (vpn)"),
+            ]
+            pattern = re.compile(
+                rf"(antizapret|vpn)-{re.escape(name_core)}-\([^)]+\)-am\.conf"
+            )
         else:  # OpenVPN
-            path = f"/root/antizapret/client/openvpn/antizapret/antizapret-{client_name}-({SERVER_IP}).ovpn"
+            directories = [
+                ("/root/antizapret/client/openvpn/antizapret", "OpenVPN (antizapret)"),
+                ("/root/antizapret/client/openvpn/vpn", "OpenVPN (vpn)"),
+            ]
+            pattern = re.compile(
+                rf"(antizapret|vpn)-{re.escape(client_name)}-\([^)]+\)\.ovpn"
+            )
 
-        # Ожидание файла
         timeout = 25
         interval = 0.5
-        elapsed = 0
+        files_found = []
 
-        while not os.path.exists(path) and elapsed < timeout:
-            await asyncio.sleep(interval)
-            elapsed += interval
+        for directory, config_type in directories:
+            try:
+                for filename in os.listdir(directory):
+                    if pattern.fullmatch(filename):
+                        full_path = os.path.join(directory, filename)
 
-        if os.path.exists(path):
+                        # Ждём появления файла, если его ещё нет
+                        elapsed = 0
+                        while not os.path.exists(full_path) and elapsed < timeout:
+                            await asyncio.sleep(interval)
+                            elapsed += interval
+
+                        if os.path.exists(full_path):
+                            files_found.append((full_path, config_type))
+                        break  # нашли один подходящий — больше не ищем в этой папке
+            except FileNotFoundError:
+                continue
+
+        for path, config_type in files_found:
             await bot.send_document(
                 chat_id,
                 document=FSInputFile(path),
-                caption=f"🔐 Конфигурация {client_name}",
+                caption=f"🔐 Клиент \"{client_name}\". {config_type}.",
             )
-        else:
-            await bot.send_message(chat_id, "❌ Файл конфигурации не найден")
+
+        if not files_found:
+            await bot.send_message(chat_id, "❌ Файлы конфигураций не найдены")
 
     except Exception as e:
         print(f"Ошибка: {e}")

@@ -18,21 +18,20 @@
 
 
 <details>
-  <summary>Версия от 11.05.2025.</summary>
+  <summary>Версия от 23.05.2025.</summary>
   
 ### StatusOpenVPN:
-1. Добавлена суточная статистика для клиентов Wireguard/AmneziaWG.
-2. Изменен дизайн страницы Wireguard.
-3. Внесены правки на странице OpenVPN. Убран пробел для чек-бокса "Скрыть UNDEF".
+1. Изменен интервал сохранения дневного трафика для Wireguard на 30 сек.
 
 ### TelegramBot:
-1. Исправлена ошибка выдачи конфиг-файла при создании клиента OpenVPN.
+1. При создании клиента теперь выдаются оба конфигурационных файла (antizapret/vpn).
+1. Добавлена поддержка выдачи конфигурационных файлов с доменом. Конфигурационный файл выдается вне зависимости от содержимого в скобках в имени файла (домен или IP).
 
 </details>
 
 ---
 
-⚠ **Внимание!** Телеграмм бот реализует функции скрипта client.sh версии от [12.03.2025](https://github.com/GubernievS/AntiZapret-VPN/blob/6406263e70ed568a7369370f8faf85375355b360/setup/root/antizapret/client.sh). 
+⚠ **Внимание!** Телеграмм бот реализует функции скрипта client.sh версии от [19.05.2025](https://github.com/GubernievS/AntiZapret-VPN/blob/8b2dfbc1b4fb13daf5a5b337b8d341ccabb303e6/setup/root/antizapret/client.sh). 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/072ee8de-cbc5-4e73-b90a-2d671abd2bbf">
