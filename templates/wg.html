@@ -40,6 +40,7 @@
 
                          <div class="client-details {{ 'traffic-online' if peer.online else 'traffic-offline' }}">
                             <div class="detail-row"><span>IP-адрес:</span> {{ peer.visible_ips[0] }}</div>
+                            <div class="detail-row"><span>Реальный IP:</span>{{ peer.endpoint or 'N/A' }}</div>
                             <div class="detail-row"><span>{{ 'В сети: ' if peer.online else 'Не в сети: ' }}</span> {{
                                 peer.latest_handshake or 'Нет данных' }}</div>
                         </div>

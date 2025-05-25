@@ -97,6 +97,7 @@ async function updateStats() {
                     </div>
                     <div class="client-details ${peer.online ? 'traffic-online' : 'traffic-offline'}">
                         <div class="detail-row"><span>IP-адрес:</span> ${peer.visible_ips[0] || 'N/A'}</div>
+                        <div class="detail-row"><span>Реальный IP:</span>${ peer.endpoint || 'N/A' }</div>
                         <div class="detail-row"><span>${peer.online ? 'В сети: ' : 'Не в сети: '}</span> ${peer.latest_handshake || 'Нет данных'}</div>
                     </div>
                     <div class="traffic-bars">
