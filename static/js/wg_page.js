@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     autoRefreshEnabled = localStorage.getItem('autoRefreshEnabled') === 'true';
     checkbox.checked = autoRefreshEnabled;
 
-    
     if (autoRefreshEnabled) {
         startAutoRefresh();
     }
@@ -23,22 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
             stopAutoRefresh();
         }
     });
-
-    // Имитация клика по карточке
-    document.querySelectorAll('.client-card').forEach(card => {
-        card.addEventListener('click', function(e) {
-            if (!e.target.closest('.icon-btn')) {
-                console.log('Открываем клиента:', this.querySelector('h4').textContent);
-            }
-        });
-    });
 });
 
 function startAutoRefresh() {
-    stopAutoRefresh(); // очистим на всякий случай
-
+    stopAutoRefresh(); // Очистка предыдущего интервала
     refreshInterval = setInterval(updateStats, 3000);
-    updateStats(); // сразу первый раз
+    updateStats(); // Немедленный запуск
 }
 
 function stopAutoRefresh() {
@@ -50,104 +39,83 @@ function stopAutoRefresh() {
 
 async function updateStats() {
     try {
-        // const response = await fetch('/api/wg/stats');
         const response = await fetch('/api/wg/stats', {
             method: 'GET',
             headers: {
-                'X-No-Session-Refresh': 'true',  // Специальный заголовок
+                'X-No-Session-Refresh': 'true',
                 'Content-Type': 'application/json',
                 'Cache-Control': 'no-cache'
             },
             credentials: 'same-origin'
         });
-        
+
         const data = await response.json();
 
         data.forEach(interface => {
-            const container = document.querySelector(`.interface-section[data-interface="${interface.interface}"]`);
-            if (!container) return;
+            const tbody = document.getElementById(`tbody-${interface.interface}`);
+            if (!tbody) return;
 
-            //Обновление количества подкюченных клиентов
-            const statsElement = container.querySelector('.interface-stats');
-            if (statsElement) {
-                const onlineCount = interface.peers.filter(peer => peer.online).length;
-                const totalCount = interface.peers.length;
-                statsElement.innerHTML = `[<span title="Онлайн">${onlineCount}/</span><span title="Клиентов">${totalCount}</span>]`;
-            }
+            // Очистить старые строки
+            tbody.innerHTML = '';
 
-            const clientGrid = container.querySelector('.client-grid');
-            if (!clientGrid) return;
+            interface.peers.forEach((peer, index) => {
+                const tr = document.createElement('tr');
+                tr.className = peer.online ? 'traffic-online' : 'traffic-offline wg_table';
 
-            clientGrid.innerHTML = '';
-
-            interface.peers.forEach(peer => {
-                const card = document.createElement('div');
-                card.className = `wg-client-card card-style ${peer.online ? 'online' : 'offline'}`;
-
-                card.innerHTML = `
-                
-                    <div class="client-header">
-                        <div class="client-name-status">
-                            <div class="status-dot ${peer.online ? 'dot-online' : 'dot-offline'}"></div>
-                            <h4 class="${peer.online ? 'traffic-online' : 'traffic-offline'}">${peer.client}</h4>
+                tr.innerHTML = `
+                    <td>
+                        <div class="d-flex flex-column align-items-center">
+                            <span>
+                            <small class="${peer.online ? 'text-success' : 'traffic-offline'}">
+                                ${peer.online ? 'Онлайн' : 'Офлайн'}
+                            </small>
                         </div>
-                        <div class="client-actions ${peer.online ? 'traffic-online' : 'traffic-offline'}">
-                            <i class="fas fa-user"></i>
-                        </div>
-                    </div>
-                    <div class="client-details ${peer.online ? 'traffic-online' : 'traffic-offline'}">
-                        <div class="detail-row"><span>IP-адрес:</span> ${peer.visible_ips[0] || 'N/A'}</div>
-                        <div class="detail-row"><span>Реальный IP:</span>${ peer.endpoint || 'N/A' }</div>
-                        <div class="detail-row"><span>${peer.online ? 'В сети: ' : 'Не в сети: '}</span> ${peer.latest_handshake || 'Нет данных'}</div>
-                    </div>
-                    <div class="traffic-bars">
-                        <!--<div class="progress-bar">
-                            <div class="progress-fill" style="width: ${peer.traffic_percentage}%; background-color: ${peer.online ? 'green' : 'gray'}"></div>
-                        </div>-->
-                        <div class="progress-container">
-                            <div title="Получено от клиента (${ peer.received_percentage }%)" class="progress-fill ${ peer.online ? 'received-fill-online' : 'received-fill-offline'}"
-                                    style="width: ${ peer.received_percentage }%;">
+                    </td>
+                    <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
+                    <td class="d-none d-sm-table-cell">${peer.endpoint || 'N/A'}</td>
+                    <td class="d-none d-sm-table-cell">
+                        ${peer.visible_ips.map(ip => `<span>${ip}</span>`).join(', ')}
+                        ${peer.hidden_ips && peer.hidden_ips.length > 0 ? `
+                            <div class="hidden-ips" style="display:none;">
+                                ${peer.hidden_ips.map(ip => `<span>${ip}</span>`).join(', ')}
                             </div>
-                            <div title="Передано клиенту (${ peer.sent_percentage }%)" class="progress-fill ${ peer.online ? 'sent-fill-online' : 'sent-fill-offline'}"
-                                    style="width: ${ peer.sent_percentage }%;">
-                            </div>
-                                
-                                
-                        </div>
-                        <div class="traffic-labels ${peer.online ? 'traffic-online' : 'traffic-offline'}">
-                            <span title="Получено от клиента (${ peer.received_percentage }%)"><i class="fas fa-arrow-down"></i> ${peer.received || '0.0 '}</span>
-                            <span title="Передано клиенту (${ peer.sent_percentage }%)"><i class="fas fa-arrow-up"></i> ${peer.sent || '0.0 '}</span>
-                        </div>
-                        <hr>
-
-                        <div class="traffic-labels small ${peer.online ? 'traffic-online' : 'traffic-offline'}">
-                            <span><i class="fas fa-calendar-day"></i> Сегодня: ↓ ${peer.daily_received}</span>
-                            <span>↑ ${peer.daily_sent}</span>
-                        </div>
-                    </div>
-                    ${peer.hidden_ips && peer.hidden_ips.length > 0 ? `
-                        <details class="ip-toggle">
-                            <summary>Доп. IP</summary>
-                            <div class="ip-list">
-                                ${peer.hidden_ips.map(ip => `<span>${ip}</span>`).join('')}
-                            </div>
-                        </details>
-                    ` : ''}
+                            <a href="#" class="btn btn-link p-0 small" onclick="toggleIps(${index}); return false;">
+                                Показать все
+                            </a>
+                        ` : ''}
+                    </td>
+                    <td class="d-none d-sm-table-cell">${peer.latest_handshake || 'N/A'}</td>
+                    <td class="d-none d-sm-table-cell">${peer.daily_received || '0.0'}</td>
+                    <td class="d-none d-sm-table-cell">${peer.daily_sent || '0.0'}</td>
+                    <td>${peer.received || '0.0'}</td>
+                    <td>${peer.sent || '0.0'}</td>
                 `;
 
-                card.addEventListener('click', function(e) {
-                    if (!e.target.closest('.icon-btn')) {
-                        console.log('Открываем клиента:', peer.client);
-                    }
-                });
-
-                clientGrid.appendChild(card);
+                tbody.appendChild(tr);
             });
-        });
 
+            // Обновить количество онлайн / всего
+            const badge = tbody.closest('.table-responsive').querySelector('.badge');
+            if (badge) {
+                const onlineCount = interface.peers.filter(p => p.online).length;
+                const totalCount = interface.peers.length;
+                badge.innerHTML = `<strong> ${onlineCount}</strong> / <strong>${totalCount}</strong>`;
+            }
+        });
     } catch (error) {
         console.error('Ошибка при обновлении данных:', error);
     }
 }
 
-
+// Переключение показа скрытых IP-адресов
+function toggleIps(index) {
+    const rows = document.querySelectorAll(`#wg-stats-container .table-responsive`);
+    rows.forEach((row, i) => {
+        if (i === index) {
+            const hiddenDiv = row.querySelector('.hidden-ips');
+            if (hiddenDiv) {
+                hiddenDiv.style.display = hiddenDiv.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+    });
+}

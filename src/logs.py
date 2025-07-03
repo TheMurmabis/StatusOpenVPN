@@ -2,7 +2,7 @@ import os
 import sqlite3
 import csv
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from tzlocal import get_localzone
 
 # Пути к файлам логов OpenVPN

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container">
     <h2 class="text-center">Добро пожаловать в панель мониторинга <a href="/ovpn"
-            class="text-decoration-none fancy-link">OpenVPN</a> и <a href="/wg" class="fancy-link text-decoration-none">WireGuard</a></h2>
+            class="fancy-link">OpenVPN</a> и <a href="/wg" class="fancy-link">WireGuard</a></h2>
     <p class="text-center">Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и
         WireGuard.</p>
     <!-- <div class="row text-center">
@@ -34,6 +34,17 @@
         <h4 class="text-center">Системные метрики:</h4>
         <p class="text-center text-muted small">Сервер: <span class="text-success">{{server_ip}}</span>@{{ hostname}}
         <div class="row">
+            <div class="col-12 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Клиенты онлайн:</h5>
+                        <p class="card-text" id="vpn_clients">
+                            <a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>: {{ system_info.vpn_clients['OpenVPN'] }} шт.<br>
+                            <a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>: {{ system_info.vpn_clients['WireGuard'] }} шт.
+                        </p>
+                    </div>
+                </div>
+            </div>
             <div class="col-12 col-md-6 mb-3">
                 <div class="card">
                     <div class="card-body">

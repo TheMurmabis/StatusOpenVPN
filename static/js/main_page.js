@@ -12,6 +12,10 @@ async function updateSystemInfo() {
         const interfaceElement = document.getElementById('network_interface');
         const rxElement = document.getElementById('rx_bytes');
         const txElement = document.getElementById('tx_bytes');
+        const vpnClientsElement = document.getElementById('vpn_clients');
+        const openvpn = data.vpn_clients?.OpenVPN ?? 0;
+        const wireguard = data.vpn_clients?.WireGuard ?? 0;
+        const vpnHtml = `<a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>: ${openvpn} шт.<br><a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>: ${wireguard} шт.`;
 
         // Обновляем только если данные изменились
         if (cpuElement.textContent !== data.cpu_load) {
@@ -26,7 +30,7 @@ async function updateSystemInfo() {
         if (uptimeElement.textContent !== data.uptime) {
             uptimeElement.textContent = data.uptime;
         }
-
+        
         // Обновление сетевой информации
         if (interfaceElement.textContent !== data.network_interface) {
             interfaceElement.textContent = data.network_interface;
@@ -37,7 +41,7 @@ async function updateSystemInfo() {
         if (txElement.textContent !== data.tx_bytes.toLocaleString()) {
             txElement.textContent = data.tx_bytes.toLocaleString();
         }
-
+        
         // Обновляем сетевую нагрузку
         let networkHtml = '';
         for (const [interface, stats] of Object.entries(data.network_load)) {
@@ -45,6 +49,9 @@ async function updateSystemInfo() {
         }
         if (networkElement.innerHTML !== networkHtml) {
             networkElement.innerHTML = networkHtml;
+        }
+        if (vpnClientsElement.innerHTML !== vpnHtml) {
+            vpnClientsElement.innerHTML = vpnHtml;
         }
     } catch (error) {
         console.error('Ошибка при загрузке данных:', error);

@@ -724,6 +724,44 @@ def format_uptime(uptime_string):
 
     return " ".join(result)
 
+def count_online_clients(file_paths):
+    total_openvpn = 0
+    results = {}
+
+    # Подсчёт WireGuard
+    try:
+        wg_output = subprocess.check_output(["wg", "show"], text=True)
+        wg_latest_handshakes = re.findall(r'latest handshake: (.+)', wg_output)
+
+        online_wg = 0
+        for handshake in wg_latest_handshakes:
+            if handshake.strip() == '0 seconds ago':
+                online_wg += 1
+            else:
+                try:
+                    number, unit, *_ = handshake.split()
+                    number = int(number)
+                    if ('second' in unit and number <= 180) or \
+                       ('minute' in unit and number <= 3):
+                        online_wg += 1
+                except Exception:
+                    continue
+        results["WireGuard"] = online_wg
+    except Exception as e:
+        results["WireGuard"] = 0  # или f"Ошибка: {e}" по желанию
+
+    # Подсчёт OpenVPN
+    for path, _ in file_paths:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("CLIENT_LIST"):
+                        total_openvpn += 1
+        except:
+            continue
+
+    results["OpenVPN"] = total_openvpn
+    return results
 
 # Переменная для хранения кэшированных данных
 cached_system_info = None
@@ -738,11 +776,20 @@ def get_system_info():
 
 def update_system_info():
     global cached_system_info, last_fetch_time
+
+    file_paths = [
+        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
+        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
+        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
+        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
+    ]
+    
     while True:
         current_time = time.time()
         if not cached_system_info or (current_time - last_fetch_time >= CACHE_DURATION):
             interface = get_default_interface()
             network_stats = get_network_stats(interface) if interface else None
+            vpn_clients = count_online_clients(file_paths)
 
             cached_system_info = {
                 "cpu_load": psutil.cpu_percent(interval=1),
@@ -755,6 +802,7 @@ def update_system_info():
                 "network_interface": interface or "Не найдено",
                 "rx_bytes": format_bytes(network_stats["rx"]) if network_stats else 0,
                 "tx_bytes": format_bytes(network_stats["tx"]) if network_stats else 0,
+                "vpn_clients": vpn_clients,
             }
             last_fetch_time = current_time
         time.sleep(CACHE_DURATION)

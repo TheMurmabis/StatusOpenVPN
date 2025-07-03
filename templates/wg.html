@@ -8,96 +8,85 @@
     <label class="switch">
         <input type="checkbox" id="auto-refresh-toggle">
         <span class="slider round"></span>
-        <span title="Автобновление данных страницы каждые 3 сек.">Автобновление</span>
+        <span title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
     </label>
 </div>
 
-<div class="wg-container">
-    <div class="wg-clients">
-        {% for interface in stats %}
-        <div class="interface-section" data-interface="{{ interface.interface }}">
-            <div class="interface-card">
-                <h2 class="interface-header text-center">{{ interface.interface }}
-                    <span class="interface-stats">
-                        [<span title="Онлайн">{{ interface.peers|selectattr('online')|list|length }}/</span><span
-                            title="Клиентов">{{ interface.peers|length }}</span>]
-                    </span>
-                </h2>
-                <div class="client-grid">
-                    {% for peer in interface.peers %}
-                    <div class="wg-client-card card-style {{ 'online' if peer.online else 'offline' }}">
-                        <div class="client-header">
-                            <div class="client-name-status">
-                                <div class="status-dot {{ 'dot-online' if peer.online else 'dot-offline' }}"></div>
-                                <h4 class="{{ 'traffic-online' if peer.online else 'traffic-offline' }}">{{ peer.client }}</h4>
-                            </div>
-                            <div class="client-actions {{ 'traffic-online' if peer.online else 'traffic-offline' }}">
-                                <i class="fas fa-user"></i>
-                                <!-- <button class="icon-btn" title="Скачать конфиг"><i class="fas fa-download"></i></button>
-                                <button class="icon-btn" title="Показать QR-код"><i class="fas fa-qrcode"></i></button> -->
-                            </div>
+<div id="wg-stats-container">
+    {% for interface in stats %}
+    <div class="table-responsive w-100 mb-4">
+        <table class="table align-middle text-center">
+            <thead>
+                <tr>
+                    <th colspan="3" class="text-start fs-5 align-middle">
+                        <div class="d-flex align-items-center flex-wrap">
+                            <span class="me-2">
+                                Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
+                                interface.interface|capitalize }}
+                            </span>
+                            <span class="badge bg-dark">
+                                <strong> {{ interface.peers | selectattr('online') | list | length }}</strong>
+                                / <strong>{{ interface.peers | length }}</strong>
+                            </span>
                         </div>
-
-                         <div class="client-details {{ 'traffic-online' if peer.online else 'traffic-offline' }}">
-                            <div class="detail-row"><span>IP-адрес:</span> {{ peer.visible_ips[0] }}</div>
-                            <div class="detail-row"><span>Реальный IP:</span>{{ peer.endpoint or 'N/A' }}</div>
-                            <div class="detail-row"><span>{{ 'В сети: ' if peer.online else 'Не в сети: ' }}</span> {{
-                                peer.latest_handshake or 'Нет данных' }}</div>
+                    </th>
+                    <th colspan="2" class="d-none d-sm-table-cell"></th>
+                    <th colspan="2" class="d-none d-sm-table-cell" title="Суточная статистика">Сегодня</th>
+                    <th colspan="2" title="Итоговая статистика">Всего</th>
+                </tr>
+                <tr>
+                    <th>Статус</th>
+                    <th>Клиент</th>
+                    <th class="d-none d-sm-table-cell">Реальный IP</th>
+                    <th class="d-none d-sm-table-cell">Локальный IP</th>
+                    <th class="d-none d-md-table-cell" style="width: 200px;">Рукопожатие</th>
+                    <th class="d-none d-sm-table-cell" title="Передано клиенту">Получено</th>
+                    <th class="d-none d-sm-table-cell" title="Получено от клиента">Передано</th>
+                    <th title="Передано клиенту">Получено</th>
+                    <th title="Получено от клиента">Передано</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-{{ interface.interface }}">
+                {% for peer in interface.peers %}
+                <tr class="{{ 'traffic-online ' if peer.online else 'traffic-offline wg_table' }}">
+                    <td>
+                        <div class="d-flex flex-column align-items-center">
+                            <span>
+                                <small class="{{ 'text-success' if peer.online else 'traffic-offline' }} fs-8">
+                                        {{ 'Онлайн' if peer.online else 'Офлайн' }}
+                                </small>
+                            </span>
                         </div>
-
-                        <div class="traffic-bars">
-                            <!-- <div class="progress-bar">
-                                <div class="progress-fill"
-                                    style="width: {{ peer.traffic_percentage }}%; background-color: {{ 'green' if peer.online else 'gray' }}">
-                                </div>
-                            </div> -->
-                            <div class="progress-container">
-                                <div title="Получено от клиента ({{ peer.received_percentage }}%)"
-                                    class="progress-fill {{'received-fill-online' if peer.online else 'received-fill-offline'}}"
-                                    style="width: {{ peer.received_percentage }}%; ">
-                                </div>
-                                <div title="Передано клиенту ({{ peer.sent_percentage }}%)"
-                                    class="progress-fill {{'sent-fill-online' if peer.online else 'sent-fill-offline'}}"
-                                    style="width: {{ peer.sent_percentage }}%; ">
-                                </div>
-                            </div>
-                            <div class="traffic-labels {{ 'traffic-online' if peer.online else 'traffic-offline' }}">
-                                <span title="Получено от клиента ({{ peer.received_percentage }}%)"><i
-                                        class="fas fa-arrow-down"></i> {{ peer.received or 0.0 }}</span>
-                                <span title="Передано клиенту ({{ peer.sent_percentage }}%)"><i
-                                        class="fas fa-arrow-up"></i> {{ peer.sent or 0.0 }} </span>
-                            </div>
-
-                            <!-- Суточный прогресс -->
-                            <hr>
-                            <div
-                                class="traffic-labels small {{ 'traffic-online' if peer.online else 'traffic-offline' }}">
-                                <span><i class="fas fa-calendar-day"></i> Сегодня: ↓ {{ peer.daily_received }}</span>
-                                <span>↑ {{ peer.daily_sent }}</span>
-                            </div>
-                        </div>
-
+                    </td>
+                    <td title="Peer: {{ peer.masked_peer }}">{{ peer.client }}</td>
+                    <td class="d-none d-sm-table-cell">{{ peer.endpoint or 'N/A' }}</td>
+                    <td class="d-none d-sm-table-cell">
+                        {% for ip in peer.visible_ips %}
+                        <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
                         {% if peer.hidden_ips %}
-                        <details class="ip-toggle">
-                            <summary>Доп. IP</summary>
-                            <div class="ip-list">
-                                {% for ip in peer.hidden_ips %}<span>{{ ip }}</span>{% endfor %}
-                            </div>
-                        </details>
+                        <div class="hidden-ips" style="display:none;">
+                            {% for ip in peer.hidden_ips %}
+                            <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </div>
+                        <a href="#" class="btn btn-link p-0 small" onclick="toggleIps({{ loop.index }})">
+                            Показать все
+                        </a>
                         {% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endfor %}
+                    </td>
+                    <td class="d-none d-sm-table-cell">{{ peer.latest_handshake or 'N/A' }}</td>
+                    <td class="d-none d-sm-table-cell">{{ peer.daily_received or '0.0' }}</td>
+                    <td class="d-none d-sm-table-cell">{{ peer.daily_sent or '0.0' }}</td>
+                    <td>{{ peer.received or '0.0' }}</td>
+                    <td>{{ peer.sent or '0.0' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-
+    {% endfor %}
 </div>
 
-<div class="modal" id="client-modal"></div>
-
 <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
-
-
 {% endblock %}
