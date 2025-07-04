@@ -724,30 +724,31 @@ def format_uptime(uptime_string):
 
     return " ".join(result)
 
+
 def count_online_clients(file_paths):
     total_openvpn = 0
     results = {}
 
     # Подсчёт WireGuard
     try:
-        wg_output = subprocess.check_output(["wg", "show"], text=True)
-        wg_latest_handshakes = re.findall(r'latest handshake: (.+)', wg_output)
+        wg_output = subprocess.check_output(["/usr/bin/wg", "show"], text=True)
+        wg_latest_handshakes = re.findall(r"latest handshake: (.+)", wg_output)
 
         online_wg = 0
         for handshake in wg_latest_handshakes:
-            if handshake.strip() == '0 seconds ago':
+            handshake_str = handshake.strip()
+            if handshake_str == "0 seconds ago":
                 online_wg += 1
             else:
                 try:
-                    number, unit, *_ = handshake.split()
-                    number = int(number)
-                    if ('second' in unit and number <= 180) or \
-                       ('minute' in unit and number <= 3):
+                    # Используем parse_relative_time и is_peer_online для определения онлайн-статуса
+                    handshake_time = parse_relative_time(handshake_str)
+                    if is_peer_online(handshake_time):
                         online_wg += 1
                 except Exception:
                     continue
         results["WireGuard"] = online_wg
-    except Exception as e:
+    except Exception:
         results["WireGuard"] = 0  # или f"Ошибка: {e}" по желанию
 
     # Подсчёт OpenVPN
@@ -762,6 +763,7 @@ def count_online_clients(file_paths):
 
     results["OpenVPN"] = total_openvpn
     return results
+
 
 # Переменная для хранения кэшированных данных
 cached_system_info = None
@@ -783,7 +785,7 @@ def update_system_info():
         ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
         ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
     ]
-    
+
     while True:
         current_time = time.time()
         if not cached_system_info or (current_time - last_fetch_time >= CACHE_DURATION):
@@ -898,7 +900,8 @@ def get_git_version():
     try:
         version = (
             subprocess.check_output(
-                ["/usr/bin/git", "describe", "--tags", "--abbrev=0"], stderr=subprocess.DEVNULL
+                ["/usr/bin/git", "describe", "--tags", "--abbrev=0"],
+                stderr=subprocess.DEVNULL,
             )
             .strip()
             .decode()
@@ -946,9 +949,7 @@ def wg():
     """Маршрут клиентов WireGuard"""
     stats = parse_wireguard_output(get_wireguard_stats())
 
-    return render_template(
-        "wg.html", stats=stats, active_page="wg"
-    )
+    return render_template("wg.html", stats=stats, active_page="wg")
 
 
 @app.route("/api/wg/stats")
