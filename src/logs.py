@@ -81,6 +81,7 @@ def ensure_column_exists():
             cursor.execute("ALTER TABLE monthly_stats ADD COLUMN last_connected TEXT")
             conn.commit()
 
+ensure_column_exists()
 
 def mask_ip(ip_address):
     if not ip_address:
@@ -409,4 +410,4 @@ def process_logs():
 
 if __name__ == "__main__":
     process_logs()
-    ensure_column_exists()
+    
