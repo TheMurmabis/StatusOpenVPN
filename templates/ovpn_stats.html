@@ -35,7 +35,7 @@
                     {% if client['last_connected'] %}
                     <span title="Дата и время последнего подключения клиента." class="text-muted text-center small text-center connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
                     {% else %}
-                    Нет данных
+                    <span class="text-muted text-center small text-center" >Нет данных</span>
                     {% endif %}
                 </p>
             </div>
