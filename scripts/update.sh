@@ -208,6 +208,7 @@ fi
 
 # Активация и запуск таймера
 sudo systemctl enable --now logs.timer
+sudo systemctl restart logs.timer
 
 # Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -4 -s ifconfig.me)
