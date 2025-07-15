@@ -33,6 +33,7 @@ def initialize_database():
             total_bytes_received INTEGER,
             total_bytes_sent INTEGER,
             total_connections INTEGER,
+            last_connected TEXT,
             UNIQUE(client_name, month, ip_address)
             )
         """
@@ -71,11 +72,21 @@ def initialize_database():
     conn.close()
 
 
+def ensure_column_exists():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(monthly_stats)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "last_connected" not in columns:
+            cursor.execute("ALTER TABLE monthly_stats ADD COLUMN last_connected TEXT")
+            conn.commit()
+
+
 def mask_ip(ip_address):
     if not ip_address:
         return "0.0.0.0"  # значение по умолчанию
-    
-    ip = ip_address.split(":")[0] 
+
+    ip = ip_address.split(":")[0]
     parts = ip.split(".")
 
     if len(parts) == 4:
@@ -83,8 +94,8 @@ def mask_ip(ip_address):
             parts = [str(int(part)) for part in parts]
             return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
         except ValueError:
-            return ip 
-    
+            return ip
+
     return ip_address
 
 
@@ -241,6 +252,12 @@ def save_monthly_stats(logs):
             aggregated_data[key]["total_bytes_sent"] += diff_sent
             aggregated_data[key]["total_connections"] += 1
 
+            # Обновляем время последнего подключения
+            aggregated_data[key]["last_connected"] = max(
+                aggregated_data[key].get("last_connected", connected_since),
+                connected_since,
+            )
+
             cursor.execute(
                 """
                 INSERT INTO last_client_stats (client_name, ip_address, connected_since, bytes_received, bytes_sent)
@@ -262,29 +279,34 @@ def save_monthly_stats(logs):
         for (client_name, ip_address, month), data in aggregated_data.items():
             cursor.execute(
                 """
-                SELECT total_bytes_received, total_bytes_sent, total_connections 
+                SELECT total_bytes_received, total_bytes_sent, total_connections, last_connected 
                 FROM monthly_stats WHERE client_name = ? AND ip_address = ? AND month = ?
                 """,
                 (client_name, ip_address, month),
             )
             existing_log = cursor.fetchone()
 
+
+
+
             if existing_log:
-                existing_bytes_received, existing_bytes_sent, existing_connections = (
-                    existing_log
-                )
+                existing_bytes_received, existing_bytes_sent, existing_connections, existing_last_connected = existing_log 
+                last_connected = max(existing_last_connected or "", data["last_connected"].isoformat())
+
                 cursor.execute(
                     """
                     UPDATE monthly_stats
                     SET total_bytes_received = total_bytes_received + ?, 
                         total_bytes_sent = total_bytes_sent + ?, 
-                        total_connections = total_connections + ?
+                        total_connections = total_connections + ?,
+                        last_connected = ?
                     WHERE client_name = ? AND ip_address = ? AND month = ?
                     """,
                     (
                         data["total_bytes_received"],
                         data["total_bytes_sent"],
                         data["total_connections"],
+                        last_connected,
                         client_name,
                         ip_address,
                         month,
@@ -293,8 +315,8 @@ def save_monthly_stats(logs):
             else:
                 cursor.execute(
                     """
-                    INSERT INTO monthly_stats (client_name, ip_address, month, total_bytes_received, total_bytes_sent, total_connections)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO monthly_stats (client_name, ip_address, month, total_bytes_received, total_bytes_sent, total_connections, last_connected)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         client_name,
@@ -303,9 +325,9 @@ def save_monthly_stats(logs):
                         data["total_bytes_received"],
                         data["total_bytes_sent"],
                         data["total_connections"],
+                        data["last_connected"].isoformat(),
                     ),
                 )
-
         conn.commit()
 
 
@@ -375,7 +397,6 @@ def save_connection_logs(logs):
         conn.commit()
 
 
-
 def process_logs():
     """Основная функция для обработки логов."""
     initialize_database()
@@ -388,3 +409,4 @@ def process_logs():
 
 if __name__ == "__main__":
     process_logs()
+    ensure_column_exists()

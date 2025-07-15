@@ -21,26 +21,34 @@
 <div>
     {% for month, stats in month_stats.items() %}
     <br>
-        <div class="d-flex justify-content-start flex-wrap gap-3">
-            {% for client in stats %}
-                {% if client['client_name'] != 'UNDEF' %}
-                    <div class="card client-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-center">{{ client['client_name'] }}</h5>
-                            <hr class="my-1">
-                            <p class="card-text">                         
-                                Передано: {{ client['total_bytes_sent'] }}<br>
-                                Получено: {{ client['total_bytes_received'] }}
-                            </p>
-                        </div>
-                    </div>
-                {% endif %}
-            {% endfor %}
+    <div class="d-flex justify-content-start flex-wrap gap-3">
+        {% for client in stats %}
+        {% if client['client_name'] != 'UNDEF' %}
+        <div class="card client-card">
+            <div class="card-body">
+                <h5 class="card-title text-center">{{ client['client_name'] }}</h5>
+                <hr class="my-1">
+                <p class="card-text">
+                    Передано: {{ client['total_bytes_sent'] }}<br>
+                    Получено: {{ client['total_bytes_received'] }}<br>
+                    <span title="Дата и время последнего подключения клиента." class="text-center text-muted small">Был(а):</span>
+                    {% if client['last_connected'] %}
+                    <span title="Дата и время последнего подключения клиента." class="text-muted text-center small text-center connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
+                    {% else %}
+                    Нет данных
+                    {% endif %}
+                </p>
+            </div>
         </div>
+        {% endif %}
+        {% endfor %}
+    </div>
     {% endfor %}
 </div>
 
 
 {% endif %}
+
+<script src="{{ url_for('static', filename='js/ovpn_history.js') }}"></script>
 
 {% endblock %}

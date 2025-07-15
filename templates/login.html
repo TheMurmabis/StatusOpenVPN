@@ -4,63 +4,62 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ server_ip }} | {% block title %}Вход{% endblock %} | StatusOpenVPN</title>
+  <title>{{ (server_ip.split('.')[0] + '.***.***.' + server_ip.split('.')[-1]) }} | Авторизация</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0-beta3/css/all.min.css">
 </head>
 
-<body class="text-center">
-  <div class="container d-flex justify-content-center align-items-center">
-    <div class="form-container">
-      <h1 class="mb-3 text-center">Antizapret VPN</h1>
-      <form method="post" action="" class="form-signin" autocomplete="on">
-        {{ form.hidden_tag() }}
+<body class="d-flex justify-content-center align-items-center full-height">
 
-        <div class="form-floating mb-3">
-          <input type="text" class="form-control" id="username" placeholder="Введите имя пользователя" maxlength="20"
-            minlength="2" name="username" required value="admin" autocomplete="username" />
-          <label for="username">Имя пользователя</label>
-        </div>
+  <div class="login-wrapper">
+    <h1 class="text-center login-title">Авторизация</h1>
+    <form method="post" action="" autocomplete="on">
+      {{ form.hidden_tag() }}
 
-        <div class="form-floating mb-3 position-relative">
-          <input type="password" class="form-control" id="password" placeholder="Введите пароль" name="password"
-            required autocomplete="current-password" />
-          <label for="password">Пароль</label>
-          <span class="position-absolute top-50 end-0 translate-middle-y me-3" onmousedown="showPassword()"
-            onmouseup="hidePassword()" ontouchstart="showPassword()" ontouchend="hidePassword()"
-            style="cursor: pointer; color: gray;"><i class="fas fa-eye" id="togglePasswordIcon"></i></span>
-        </div>
+      <div class="form-floating mb-3">
+        <input type="text" class="form-control" id="username" placeholder="Имя пользователя" name="username" required
+          maxlength="20" autocomplete="username" />
+        <label for="username">Имя пользователя</label>
+      </div>
 
-        <div class="form-check mb-3 text-start">
+      <div class="form-floating mb-3 position-relative">
+        <input type="password" class="form-control" id="password" placeholder="Пароль" name="password" required
+          autocomplete="current-password" />
+        <label for="password">Пароль</label>
+        <span class="position-absolute top-50 end-0 translate-middle-y me-3"
+          onmousedown="showPassword()" onmouseup="hidePassword()" ontouchstart="showPassword()" ontouchend="hidePassword()"
+          style="cursor: pointer; color: gray;"><i class="fas fa-eye" id="togglePasswordIcon"></i></span>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="form-check m-0">
           {{ form.remember_me(class="form-check-input", id="remember_me") }}
           <label for="remember_me" class="form-check-label">Запомнить меня</label>
         </div>
+        <a href="#" class="text-muted text-decoration-none ms-3" onclick="showPasswordHint(event)">Забыли пароль?</a>
+      </div>
 
-        {% if error_message %}
-        <div class="alert alert-danger" role="alert">{{ error_message }}</div>
-        {% endif %}
+      
+      <div style="display: none;">
+        <input type="text" name="email_confirmation" value="">
+      </div>
+
+      {% if error_message %}
+      <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+      {% endif %}
 
         <button class="w-100 btn btn-lg btn-primary mb-3" type="submit" id="submit">Вход</button>
-        <a href="#" class="text-muted text-decoration-none" onclick="showPasswordHint(event)">Забыли пароль?</a>
-        <p id="passwordHint" class="text-muted forgot-password-link">
+        <p id="passwordHint" class="text-muted forgot-password-link text-center">
           Для смены пароля обратитесь к администратору системы или воспользуйтесь
-          <a href="https://github.com/TheMurmabis/StatusOpenVPN/tree/main?tab=readme-ov-file#%D1%81%D0%BC%D0%B5%D0%BD%D0%B0-%D0%BF%D0%B0%D1%80%D0%BE%D0%BB%D1%8F"
-            target="_blank" class="text-decoration-none">командой</a> в терминале.
+          <a href="{{ url_for('redirect_to_help') }}?v={{ token }}" class="text-decoration-none" target="_blank">инструкцией</a>.
         </p>
-      </form>
-    </div>
+    </form>
   </div>
-  <footer class="text-center py-3 mt-4">
-    <div>
-      <a href="https://github.com/TheMurmabis/StatusOpenVPN" class="ms-3" target="_blank" rel="noopener noreferrer">
-        <i class="fab fa-github"></i> StatusOpenVPN [{{ version }}]
-      </a> © 2025
-    </div>
-  </footer>
 
   <script src="{{ url_for('static', filename='js/login_page.js') }}"></script>
+
 </body>
 
 </html>

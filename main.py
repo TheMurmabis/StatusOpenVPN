@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import sqlite3
 import requests
 import os
@@ -610,6 +611,11 @@ def read_csv(file_path, protocol):
     return data, total_received, total_sent, None
 
 
+def get_token():
+    now = time.strftime("%Y-%m-%d %H:%M")
+    return hashlib.md5(now.encode()).hexdigest()[:8]
+
+
 # ---------Метрики----------
 def get_default_interface():
     try:
@@ -814,9 +820,9 @@ def update_system_info():
 threading.Thread(target=update_system_info, daemon=True).start()
 
 
-@app.errorhandler(404)
-def page_not_found(_):
-    return redirect(url_for("home"))
+# @app.errorhandler(404)
+# def page_not_found(_):
+#     return redirect(url_for("home"))
 
 
 # Маршрут для выхода из системы
@@ -893,7 +899,9 @@ def login():
             error_message = "Неправильный логин или пароль!"
 
     # Передаем форму и сообщение об ошибке в шаблон
-    return render_template("login.html", form=form, error_message=error_message)
+    return render_template(
+        "login.html", form=form, error_message=error_message, token=get_token()
+    )
 
 
 def get_git_version():
@@ -918,6 +926,16 @@ def inject_info():
         "server_ip": get_external_ip(),
         "version": get_git_version(),
     }
+
+
+@app.route("/help")
+def redirect_to_help():
+    token = request.args.get("v")
+    if token != get_token():
+        return "", 404
+    return redirect(
+        "https://github.com/TheMurmabis/StatusOpenVPN/tree/main?tab=readme-ov-file#смена-пароля"
+    )
 
 
 @app.route("/")
@@ -1102,7 +1120,8 @@ def ovpn_stats():
                 """
                 SELECT client_name, 
                        SUM(total_bytes_sent), 
-                       SUM(total_bytes_received) 
+                       SUM(total_bytes_received),
+                       MAX(last_connected) 
                 FROM monthly_stats 
                 WHERE month = ? 
                 GROUP BY client_name
@@ -1116,6 +1135,7 @@ def ovpn_stats():
                         "client_name": stats[0],
                         "total_bytes_received": format_bytes(stats[1]),
                         "total_bytes_sent": format_bytes(stats[2]),
+                        "last_connected": stats[3],
                     }
                     for stats in month_stats_reader
                 ]

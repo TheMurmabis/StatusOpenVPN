@@ -13,6 +13,10 @@ body {
     color: black;
 }
 
+body.full-height {
+    height: 100vh;
+}
+
 @media (prefers-color-scheme: dark) {
 
     /* Стили для темной темы */
@@ -50,12 +54,11 @@ body {
 
     .nav-link.nav-link.active {
         color: #fff !important;
-        background-color: #3d3d3d !important;
+        background-color: #181a1b !important;
     }
 
     .nav-link.active:hover {
-
-        background-color: #3d3d3d !important;
+        background-color: #181a1b !important;
     }
 
     .nav-link:hover {
@@ -69,13 +72,13 @@ body {
 
     .form-control {
         color: #d3d3d3;
-        background-color: #272727;
+        background-color: #181a1b;
         border: none;
     }
 
     .form-control:focus {
         color: #d3d3d3;
-        background-color: #272727;
+        background-color: #181a1b !important;
         border: none;
     }
 
@@ -155,7 +158,8 @@ body {
     }
 
     .card-body {
-        background-color: #272727 !important;
+        background-color: #181a1b !important;
+        
     }
 
     .card-body .card-title,
@@ -165,6 +169,7 @@ body {
 
     .border {
         border-color: #272727 !important;
+        border-width: 1px !important;
     }
 
     footer {
@@ -188,7 +193,7 @@ body {
         background-color: #222 !important;
         color: #d3d3d3 !important;
         border: 1px solid #444 !important;
-        -webkit-box-shadow: 0 0 0px 1000px #222 inset !important;
+        -webkit-box-shadow: 0 0 0px 1000px #181a1b inset !important;
         -webkit-text-fill-color: #d3d3d3 !important;
         transition: background-color 5000s ease-in-out 0s;
     }
@@ -198,11 +203,11 @@ body {
     }
 
     .tab.active {
-        background-color: #3d3d3d !important;
+        background-color: #181a1b !important;
     }
 
     .tab.active:hover {
-        background-color: #3d3d3d !important;
+        background-color: #181a1b !important;
     }
 
     .tab:hover {
@@ -231,6 +236,12 @@ body {
     .ovpn_table td {
         color: #d3d3d3;
     }
+
+    .login-wrapper {
+        background-color: #23272b !important;
+        border: 1px solid #343a40 !important;
+    }
+
 
 }
 
@@ -426,3 +437,45 @@ footer a {
 .traffic-offline h4 {
     color: #ccc;
 }
+
+.login-wrapper {
+    max-width: 360px;
+    width: 100%;
+    padding: 30px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.login-title {
+    font-size: 1.8rem;
+    margin-bottom: 25px;
+    font-weight: bold;
+}
+
+#passwordHint {
+    display: none;
+    font-size: 0.9rem;
+    color: #b0b0b0;
+}
+
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.alert-danger {
+    background-color: rgb(255, 199, 206);
+    color: rgb(156, 0, 6);
+    border-color: rgb(156, 0, 6);
+}
+
+
