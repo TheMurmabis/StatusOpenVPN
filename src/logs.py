@@ -81,7 +81,7 @@ def ensure_column_exists():
             cursor.execute("ALTER TABLE monthly_stats ADD COLUMN last_connected TEXT")
             conn.commit()
 
-ensure_column_exists()
+
 
 def mask_ip(ip_address):
     if not ip_address:
@@ -401,6 +401,7 @@ def save_connection_logs(logs):
 def process_logs():
     """Основная функция для обработки логов."""
     initialize_database()
+    ensure_column_exists()
     all_logs = []
     for log_file, protocol in LOG_FILES:
         all_logs.extend(parse_log_file(log_file, protocol))
