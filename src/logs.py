@@ -34,7 +34,8 @@ def initialize_database():
             total_bytes_sent INTEGER,
             total_connections INTEGER,
             last_connected TEXT,
-            UNIQUE(client_name, month, ip_address)         
+            UNIQUE(client_name, month, ip_address)
+            )
         """
     )
 
