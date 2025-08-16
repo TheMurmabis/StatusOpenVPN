@@ -69,8 +69,8 @@ fi
 
 # === Обновление репозитория ===
 cd $TARGET_DIR
-# git reset --hard
-# git fetch origin && git reset --hard origin/main
+git reset --hard
+git fetch origin && git reset --hard origin/main
 
 # Активация виртуального окружения
 source venv/bin/activate
