@@ -104,8 +104,10 @@ get_server_ip() { curl -s http://checkip.amazonaws.com; }
 
 check_domain_ip() {
     local domain="$1"
-    local server_ip=$(get_server_ip)
-    local domain_ip=$(getent ahostsv4 "$domain" | awk '{print $1}' | head -n1)
+    local server_ip
+    server_ip=$(get_server_ip)
+    local domain_ip
+    domain_ip=$(getent ahostsv4 "$domain" | awk '{print $1}' | head -n1)
     [[ "$server_ip" == "$domain_ip" ]]
 }
 
@@ -113,7 +115,20 @@ if [[ -f "$SETUP_FILE" ]]; then
     source "$SETUP_FILE"
 fi
 
-if [[ "$HTTPS_ENABLED" -ne 1 || -z "$DOMAIN" ]]; then
+# Сначала спрашиваем, хотим ли включить HTTPS
+if [[ "$HTTPS_ENABLED" -ne 1 ]]; then
+    read -p "Do you want to enable HTTPS? (y/N): " enable_ssl
+    if [[ "$enable_ssl" =~ ^[Yy]$ ]]; then
+        HTTPS_ENABLED=1
+        save_setup_var "HTTPS_ENABLED" "1"
+    else
+        HTTPS_ENABLED=0
+        save_setup_var "HTTPS_ENABLED" "0"
+    fi
+fi
+
+# Если HTTPS выбран, запрашиваем домен и проверяем его
+if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
     while true; do
         if [[ -z "$DOMAIN" ]]; then
             read -e -p "Enter your domain (example.com): " DOMAIN
@@ -126,29 +141,27 @@ if [[ "$HTTPS_ENABLED" -ne 1 || -z "$DOMAIN" ]]; then
             DOMAIN=""
         fi
     done
-fi
 
-if [[ -n "$DOMAIN" ]]; then
     CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
     NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
 
     if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
        && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
         echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
-        save_setup_var "HTTPS_ENABLED" "1"
         SERVER_URL="https://$DOMAIN"
     else
         if [[ -f "$SSL_SCRIPT" ]]; then
             if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
                 echo -e "${GREEN}HTTPS successfully enabled for: $DOMAIN${RESET}"
-                save_setup_var "HTTPS_ENABLED" "1"
                 SERVER_URL="https://$DOMAIN"
             else
                 echo -e "${RED}SSL setup failed.${RESET}"
+                HTTPS_ENABLED=0
                 save_setup_var "HTTPS_ENABLED" "0"
             fi
         else
             echo -e "${RED}SSL script not found.${RESET}"
+            HTTPS_ENABLED=0
             save_setup_var "HTTPS_ENABLED" "0"
         fi
     fi
