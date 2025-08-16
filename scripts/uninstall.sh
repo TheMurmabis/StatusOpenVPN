@@ -52,7 +52,6 @@ SYSTEMD_UNITS=(
 )
 
 for unit in "${SYSTEMD_UNITS[@]}"; do
-    info_status "Deleting the systemd unit file $unit"
     if sudo rm -f "/etc/systemd/system/$unit"; then
         success_status "$unit deleted successfully"
     else
