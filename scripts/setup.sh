@@ -185,12 +185,78 @@ EOF
         fi
 
         BOT_ENABLED=1
+        echo "BOT_ENABLED=1" >> "$SETUP_FILE"
     else
         BOT_ENABLED=0
     fi
 fi
 
-# Перезагрузка systemd и запуск сервиса
+# === Логика HTTPS ===
+save_setup_var() {
+    local key=$1
+    local value=$2
+    if grep -q "^$key=" "$SETUP_FILE" 2>/dev/null; then
+        sed -i "s|^$key=.*|$key=$value|" "$SETUP_FILE"
+    else
+        echo "$key=$value" >> "$SETUP_FILE"
+    fi
+}
+
+get_server_ip() { curl -s http://checkip.amazonaws.com; }
+
+check_domain_ip() {
+    local domain="$1"
+    local server_ip=$(get_server_ip)
+    local domain_ip=$(getent ahostsv4 "$domain" | awk '{print $1}' | head -n1)
+    [[ "$server_ip" == "$domain_ip" ]]
+}
+
+if [[ -f "$SETUP_FILE" ]]; then
+    source "$SETUP_FILE"
+fi
+
+if [[ "$HTTPS_ENABLED" -ne 1 || -z "$DOMAIN" ]]; then
+    while true; do
+        if [[ -z "$DOMAIN" ]]; then
+            read -e -p "Enter your domain (example.com): " DOMAIN
+        fi
+        if check_domain_ip "$DOMAIN"; then
+            save_setup_var "DOMAIN" "$DOMAIN"
+            break
+        else
+            echo -e "${RED}❌ Domain does not point to this server. Try again.${RESET}"
+            DOMAIN=""
+        fi
+    done
+fi
+
+if [[ -n "$DOMAIN" ]]; then
+    CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
+
+    if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
+       && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
+        echo -e "${YELLOW}✅ HTTPS already enabled and valid for: $DOMAIN${RESET}"
+        save_setup_var "HTTPS_ENABLED" "1"
+        SERVER_URL="https://$DOMAIN"
+    else
+        if [[ -f "$SSL_SCRIPT" ]]; then
+            if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
+                echo -e "${GREEN}✅ HTTPS successfully enabled for: $DOMAIN${RESET}"
+                save_setup_var "HTTPS_ENABLED" "1"
+                SERVER_URL="https://$DOMAIN"
+            else
+                echo -e "${RED}❌ SSL setup failed.${RESET}"
+                save_setup_var "HTTPS_ENABLED" "0"
+            fi
+        else
+            echo -e "${RED}❌ SSL script not found.${RESET}"
+            save_setup_var "HTTPS_ENABLED" "0"
+        fi
+    fi
+fi
+
+# Перезагрузка systemd и запуск сервисов
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 sudo systemctl enable StatusOpenVPN wg_stats logs.timer
@@ -206,10 +272,14 @@ echo "Running initial admin setup..."
 ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
 
 # Вывод информации о доступности сервера
+if [[ -z "$SERVER_URL" ]]; then
+    SERVER_URL="http://$EXTERNAL_IP:$PORT"
+fi
+
 echo "--------------------------------------------"
 echo -e "${GREEN}✅ Setup completed successfully${RESET}"
 echo "--------------------------------------------"
-echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
 echo -e "Admin login: ${GREEN}admin${RESET}"
 echo -e "Admin password: ${GREEN}$ADMIN_PASS${RESET}"
 echo "--------------------------------------------"
