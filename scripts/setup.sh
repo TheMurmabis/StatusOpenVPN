@@ -3,47 +3,50 @@
 # Обработка ошибок
 set -e
 
+# Цвета
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RESET='\e[0m'
+
 # Переменные
-TARGET_DIR="/root/web"  # Папка, куда будет клонирован репозиторий
-DEFAULT_PORT=1234  # Порт по умолчанию
-ENV_FILE="$TARGET_DIR/src/.env" # Переменные окружения
+TARGET_DIR="/root/web"
+DEFAULT_PORT=1234
+ENV_FILE="$TARGET_DIR/src/.env"
+SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
+SETUP_FILE="$TARGET_DIR/setup"
+SSL_SCRIPT="$TARGET_DIR/scripts/ssl.sh"
+SERVER_URL=""
 
 # Проверка версии Python и установка venv
 install_python_venv() {
-    # Получаем основную версию Python 3 (например, 3.8, 3.10 и т.д.)
     PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-    
     echo "Detected Python version: $PYTHON_VERSION"
-    
-    # Устанавливаем python3-venv для текущей версии Python
+
     if ! dpkg -s "python${PYTHON_VERSION}-venv" >/dev/null 2>&1; then
         echo "Installing python${PYTHON_VERSION}-venv..."
-        apt update && apt install -y "python${PYTHON_VERSION}-venv" || { echo "Failed to install python${PYTHON_VERSION}-venv"; exit 1; }
+        apt update && apt install -y "python${PYTHON_VERSION}-venv" || { echo -e "${RED}❌ Failed to install python${PYTHON_VERSION}-venv${RESET}"; exit 1; }
     else
         echo "python${PYTHON_VERSION}-venv is already installed."
     fi
 }
 
-# Функция для проверки, свободен ли порт
+# Проверка порта
 check_port_free() {
     local PORT=$1
     if ! ss -tuln | grep -q ":$PORT "; then
-        return 0  # Порт свободен
+        return 0
     else
-        return 1  # Порт занят
+        return 1
     fi
 }
 
-# Запрос на изменение порта
+# === Запрос порта ===
 read -e -p "Would you like to change the default port $DEFAULT_PORT? (Y/N): " -i N CHANGE_PORT
-
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
     while true; do
         read -p "Please enter a new port number: " NEW_PORT
-
-        # Проверка, что введённый порт является числом и в диапазоне допустимых значений
         if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -ge 1 ] && [ "$NEW_PORT" -le 65535 ]; then
-            # Проверка, что порт свободен
             if check_port_free "$NEW_PORT"; then
                 PORT=$NEW_PORT
                 echo "Port $PORT is free and will be used."
@@ -60,40 +63,28 @@ else
     echo "Using default port $PORT."
 fi
 
-# Клонирование репозитория в папку web
+# === Клонирование проекта ===
 echo "Cloning repository into $TARGET_DIR..."
 git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
-
-# Переход в директорию проекта
 cd $TARGET_DIR
 
-# Проверка и установка python3-venv
+# === Python окружение ===
 install_python_venv
-
-# Создание виртуального окружения
 echo "Creating virtual environment..."
 python3 -m venv venv
-
-# Активация виртуального окружения
-echo "Activating virtual environment..."
 source venv/bin/activate
 
-# Установка зависимостей из requirements.txt, если файл существует
 if [ -f "requirements.txt" ]; then
-    echo "Installing requirements from requirements.txt..."
+    echo "Installing requirements..."
     pip install -r requirements.txt
-else
-    echo "requirements.txt not found, skipping this step."
 fi
 
 # Создание и настройка systemd-сервиса
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 echo "Creating systemd service file at $SERVICE_FILE..."
-
-# Создание systemd service файла
 cat <<EOF | sudo tee $SERVICE_FILE
 [Unit]
-Description=Gunicorn instance to serve my Flask app
+Description=Gunicorn instance to serve StatusOpenVPN
 After=network.target
 
 [Service]
@@ -118,7 +109,6 @@ Type=oneshot
 ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
 EOF
 
-# Создание logs.timer
 LOGS_TIMER="/etc/systemd/system/logs.timer"
 cat <<EOF | sudo tee $LOGS_TIMER
 [Unit]
@@ -133,6 +123,7 @@ Unit=logs.service
 WantedBy=timers.target
 EOF
 
+# Создание wg_stats.service
 WG_STATS="/etc/systemd/system/wg_stats.service"
 cat <<EOF | sudo tee $WG_STATS
 [Unit]
@@ -142,9 +133,9 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/web/src
-Environment="PATH=/root/web/venv/bin"
-ExecStart=/root/web/venv/bin/python /root/web/src/wg_stats.py
+WorkingDirectory=$TARGET_DIR/src
+Environment="PATH=$TARGET_DIR/venv/bin"
+ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/wg_stats.py
 Restart=always
 RestartSec=5
 
@@ -152,14 +143,19 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+# === Telegram Bot (с сохранением состояния) ===
+BOT_ENABLED=0
+if [[ -f "$SETUP_FILE" ]]; then
+    source "$SETUP_FILE"
+fi
 
-if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
-    BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
-    echo "Creating systemd service file for Telegram bot at $BOT_SERVICE..."
+if [[ "$BOT_ENABLED" -ne 1 ]]; then
+    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+    if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
+        BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
+        echo "Creating Telegram bot service..."
 
-    # Создание systemd service файла для бота
-    cat <<EOF | sudo tee $BOT_SERVICE
+        cat <<EOF | sudo tee $BOT_SERVICE
 [Unit]
 Description=Telegram Bot Service
 After=network.target
@@ -179,55 +175,43 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-    # Создание .env файла с двумя переменными, если файл ещё не существует
-    if [ ! -f "$ENV_FILE" ]; then
-        echo "Creating .env file at $ENV_FILE..."
-
-        cat <<EOF > $ENV_FILE
+        if [ ! -f "$ENV_FILE" ]; then
+            echo "Creating .env file..."
+            cat <<EOF > $ENV_FILE
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting the bot!\e[0m"
+            echo -e "${YELLOW}⚠️  Warning: The .env file has been created, but BOT_TOKEN is empty.${RESET}"
+        fi
+
+        BOT_ENABLED=1
     else
-        echo ".env file already exists, skipping creation."
+        BOT_ENABLED=0
     fi
-fi  # Закрытие if для установки Telegram бота
+fi
 
 # Перезагрузка systemd и запуск сервиса
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
+sudo systemctl enable StatusOpenVPN wg_stats logs.timer
+sudo systemctl start StatusOpenVPN wg_stats logs.timer
 
-# Проверка, что Telegram бот сервис был создан
-if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
-    echo "Skipping Telegram bot service start. It will start automatically on reboot."
-    # sudo systemctl start telegram-bot
+if [[ "$BOT_ENABLED" -eq 1 ]]; then
     sudo systemctl enable telegram-bot
 fi
 
-# Запуск и включение других сервисов
-echo "Starting StatusOpenVPN service..."
-sudo systemctl start StatusOpenVPN
-sudo systemctl enable StatusOpenVPN
-
-sudo systemctl start wg_stats
-sudo systemctl enable wg_stats
-
-# Запуск и включение таймера
-sudo systemctl start logs.timer
-sudo systemctl enable logs.timer
-
-# Получение внешнего IP-адреса сервера
+# === Первичная настройка ===
 EXTERNAL_IP=$(curl -4 -s ifconfig.me)
-
 echo "Running initial admin setup..."
 ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
 
 # Вывод информации о доступности сервера
 echo "--------------------------------------------"
-echo -e "\e[32mSetup completed successfully\e[0m"
+echo -e "${GREEN}✅ Setup completed successfully${RESET}"
 echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
-echo -e "Admin password: \e[32m$ADMIN_PASS\e[0m"
+echo -e "Admin login: ${GREEN}admin${RESET}"
+echo -e "Admin password: ${GREEN}$ADMIN_PASS${RESET}"
 echo "--------------------------------------------"
 
 # Удаление скрипта установки

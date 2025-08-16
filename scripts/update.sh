@@ -3,85 +3,88 @@
 # Обработка ошибок
 set -e
 
-# Переменные
-TARGET_DIR="/root/web"  # Папка, где уже клонирован репозиторий
-DEFAULT_PORT=1234  # Порт по умолчанию
-ENV_FILE="$TARGET_DIR/src/.env" # Переменные окружения
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RESET='\e[0m'
 
-# Получение текущего порта из файла сервиса, если он уже установлен
+# Переменные
+TARGET_DIR="/root/web"
+SETUP_FILE="$TARGET_DIR/setup"
+DEFAULT_PORT=1234
+ENV_FILE="$TARGET_DIR/src/.env"
+SSL_SCRIPT="$TARGET_DIR/scripts/ssl.sh"
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
+SERVER_URL=""
+
+# === Получение текущего порта ===
 if [ -f "$SERVICE_FILE" ]; then
     CURRENT_PORT=$(grep -oP '(?<=-b 0.0.0.0:)[0-9]+' "$SERVICE_FILE" || echo "$DEFAULT_PORT")
 else
     CURRENT_PORT=$DEFAULT_PORT
 fi
 
-# Функция для проверки, свободен ли порт
+# === Проверка порта ===
 check_port_free() {
     local PORT=$1
     if ! ss -tuln | grep -q ":$PORT "; then
-        return 0  # Порт свободен
+        return 0
     else
-        return 1  # Порт занят
+        return 1
     fi
 }
 
-# Запрос на изменение текущего порта
-read -e -p "Would you like to change the current port $CURRENT_PORT? (Y/N): " -i N CHANGE_PORT
+# === Сохранение переменных ===
+save_setup_var() {
+    local key=$1
+    local value=$2
+    if grep -q "^$key=" "$SETUP_FILE" 2>/dev/null; then
+        sed -i "s|^$key=.*|$key=$value|" "$SETUP_FILE"
+    else
+        echo "$key=$value" >> "$SETUP_FILE"
+    fi
+}
 
+# === Ввод нового порта ===
+read -e -p "Would you like to change the current port $CURRENT_PORT? (Y/N): " -i N CHANGE_PORT
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
-    # Остановка сервиса
-    echo "Stopping StatusOpenVPN service..."
     sudo systemctl stop StatusOpenVPN
     while true; do
         read -p "Please enter a new port number: " NEW_PORT
-
         if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -ge 1 ] && [ "$NEW_PORT" -le 65535 ]; then
             if check_port_free "$NEW_PORT"; then
                 PORT=$NEW_PORT
                 echo "Port $PORT is free and will be used."
                 break
             else
-                echo "Port $NEW_PORT is already in use. Please try another one."
+                echo "Port $NEW_PORT is already in use."
             fi
         else
-            echo "Invalid port number. Please enter a number between 1 and 65535."
+            echo "Invalid port."
         fi
     done
 else
     PORT=$CURRENT_PORT
-    echo "Using current port $PORT."
 fi
 
-# Обновление репозитория
-echo "Updating repository in $TARGET_DIR..."
+# === Обновление репозитория ===
 cd $TARGET_DIR
-git reset --hard  # Отмена всех локальных изменений
-git fetch origin && git reset --hard origin/main
+# git reset --hard
+# git fetch origin && git reset --hard origin/main
 
-# rm src/openvpn_logs.db
-
-#Активация виртуального окружения
-echo "Activating virtual environment..."
+# Активация виртуального окружения
 source venv/bin/activate
-
-# Проверка и установка новых зависимостей
 if [ -f "requirements.txt" ]; then
-    echo "Installing any new requirements from requirements.txt..."
     pip install -r requirements.txt
-else
-    echo "requirements.txt not found, skipping this step."
 fi
 
-# Обновление конфигурации порта в systemd-сервисе
+# === Обновление systemd сервиса ===
 if [ -f "$SERVICE_FILE" ]; then
-    echo "Updating port configuration in systemd service file."
     sudo sed -i "s/-b 0.0.0.0:[0-9]*/-b 0.0.0.0:$PORT/" $SERVICE_FILE
 else
-    echo "Creating systemd service file at $SERVICE_FILE..."
     cat <<EOF | sudo tee $SERVICE_FILE
 [Unit]
-Description=Gunicorn instance to serve my Flask app
+Description=Gunicorn instance to serve StatusOpenVPN
 After=network.target
 
 [Service]
@@ -96,60 +99,73 @@ WantedBy=multi-user.target
 EOF
 fi
 
-# Создание и настройка logs.service
-LOGS_SERVICE_FILE="/etc/systemd/system/logs.service"
-cat <<EOF | sudo tee $LOGS_SERVICE_FILE
-[Unit]
-Description=Run logs.py script
+# === Логика HTTPS ===
+get_server_ip() { curl -s http://checkip.amazonaws.com; }
 
-[Service]
-Type=oneshot
-ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
-EOF
+check_domain_ip() {
+    local domain="$1"
+    local server_ip=$(get_server_ip)
+    local domain_ip=$(getent ahostsv4 "$domain" | awk '{print $1}' | head -n1)
+    [[ "$server_ip" == "$domain_ip" ]]
+}
 
-# Создание и настройка logs.timer
-LOGS_TIMER_FILE="/etc/systemd/system/logs.timer"
-cat <<EOF | sudo tee $LOGS_TIMER_FILE
-[Unit]
-Description=Run logs.py every 30 seconds
+if [[ -f "$SETUP_FILE" ]]; then
+    source "$SETUP_FILE"
+fi
 
-[Timer]
-OnBootSec=30s
-OnUnitActiveSec=30s
-Unit=logs.service
+if [[ "$HTTPS_ENABLED" -ne 1 || -z "$DOMAIN" ]]; then
+    while true; do
+        if [[ -z "$DOMAIN" ]]; then
+            read -e -p "Enter your domain (example.com): " DOMAIN
+        fi
+        if check_domain_ip "$DOMAIN"; then
+            save_setup_var "DOMAIN" "$DOMAIN"
+            break
+        else
+            echo -e "${RED}Domain does not point to this server. Try again.${RESET}"
+            DOMAIN=""
+        fi
+    done
+fi
 
-[Install]
-WantedBy=timers.target
-EOF
+if [[ -n "$DOMAIN" ]]; then
+    CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
 
-WG_STATS="/etc/systemd/system/wg_stats.service"
-cat <<EOF | sudo tee $WG_STATS
-[Unit]
-Description=WireGuard Traffic Statistics Collector
-After=network.target
+    if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
+       && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
+        echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
+        save_setup_var "HTTPS_ENABLED" "1"
+        SERVER_URL="https://$DOMAIN"
+    else
+        if [[ -f "$SSL_SCRIPT" ]]; then
+            if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
+                echo -e "${GREEN}HTTPS successfully enabled for: $DOMAIN${RESET}"
+                save_setup_var "HTTPS_ENABLED" "1"
+                SERVER_URL="https://$DOMAIN"
+            else
+                echo -e "${RED}SSL setup failed.${RESET}"
+                save_setup_var "HTTPS_ENABLED" "0"
+            fi
+        else
+            echo -e "${RED}SSL script not found.${RESET}"
+            save_setup_var "HTTPS_ENABLED" "0"
+        fi
+    fi
+fi
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/web/src
-Environment="PATH=/root/web/venv/bin"
-ExecStart=/root/web/venv/bin/python /root/web/src/wg_stats.py
-Restart=always
-RestartSec=5
+if [[ -z "$SERVER_URL" ]]; then
+    SERVER_URL="http://$EXTERNAL_IP:$PORT"
+fi
 
-[Install]
-WantedBy=multi-user.target
-EOF
+# === Telegram Bot (состояние сохраняется) ===
+if [[ "$BOT_ENABLED" -ne 1 ]]; then
+    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+    if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
+        BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
+        echo "Creating Telegram bot service..."
 
-# Запрос на установку Telegram-бота
-read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
-
-if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
-    BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
-    echo "Creating systemd service file for Telegram bot at $BOT_SERVICE..."
-
-    # Создание systemd service файла для бота
-    cat <<EOF | sudo tee $BOT_SERVICE
+        cat <<EOF | sudo tee $BOT_SERVICE
 [Unit]
 Description=Telegram Bot Service
 After=network.target
@@ -163,66 +179,42 @@ WorkingDirectory=$TARGET_DIR
 Environment="PATH=$TARGET_DIR/venv/bin"
 ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/vpn_bot.py
 Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Проверка на существование файла .env, создание только если его нет
-    if [ ! -f "$ENV_FILE" ]; then
-        echo "Creating .env file at $ENV_FILE..."
-        cat <<EOF > $ENV_FILE
+        if [ ! -f "$ENV_FILE" ]; then
+            echo "Creating .env file..."
+            cat <<EOF > $ENV_FILE
 BOT_TOKEN=<Enter API Token>
 ADMIN_ID=<Enter your user ID>
 EOF
-        echo -e "\e[33m⚠️ Warning: The .env file has been created, but BOT_TOKEN is empty. Please fill it in before starting the bot!\e[0m"
-        echo "Once you fill in the .env file, please manually start the bot using: sudo systemctl start telegram-bot"
+            echo -e "${YELLOW}Warning: The .env file has been created, but BOT_TOKEN is empty.${RESET}"
+        fi
+
+        save_setup_var "BOT_ENABLED" "1"
+        sudo systemctl enable telegram-bot
     else
-        echo ".env file already exists, skipping creation."
-        
-        # Перезагрузка бота
-        echo "Restarting Telegram bot service..."
-        sudo systemctl restart telegram-bot
-
+        save_setup_var "BOT_ENABLED" "0"
     fi
-fi  # Закрытие if для установки Telegram бота
+else
+    echo -e "${GREEN}Telegram bot already enabled.${RESET}"
+fi
 
-
-
-# Перезагрузка systemd
-echo "Reloading systemd daemon..."
+# === Перезагрузка сервисов ===
 sudo systemctl daemon-reload
-
-# Перезапуск сервиса
-echo "Restarting StatusOpenVPN service..."
 sudo systemctl restart StatusOpenVPN
 sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats
-
-# Запуск Telegram-бота, если он был установлен
-if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
-    echo "Starting Telegram bot service..."
-    sudo systemctl restart telegram-bot
-    sudo systemctl enable telegram-bot
-fi
-
-# Активация и запуск таймера
 sudo systemctl enable --now logs.timer
-sudo systemctl restart logs.timer
-sudo systemctl restart logs.service
+sudo systemctl restart logs.timer logs.service
 
-# Получение внешнего IP-адреса сервера
 EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
-echo "Running initial admin setup..."
-ADMIN_PASS=$(python3 -c "from main import add_admin; print(add_admin())")
-
-# Вывод информации об обновлении
 echo "--------------------------------------------"
-echo -e "\e[32mUpdate completed successfully\e[0m"
-echo "--------------------------------------------"
-echo -e "Server is available at: \e[4;38;5;33mhttp://$EXTERNAL_IP:$PORT\e[0m"
+echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
 echo "--------------------------------------------"
 
-# Удаление скрипта установки
 rm -f $TARGET_DIR/scripts/setup.sh
