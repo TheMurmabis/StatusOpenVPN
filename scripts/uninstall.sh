@@ -1,75 +1,77 @@
 #!/bin/bash
 
-# Функция для вывода статуса с зелёной галочкой
+GREEN="\e[32m"
+RED="\e[31m"
+YELLOW="\e[33m"
+RESET="\e[0m"
+
+# Функции для вывода статуса
 success_status() {
-  echo -e "\e[32m✔ $1\e[0m"
+  echo -e "${GREEN}✔ $1${RESET}"
 }
 
-# Остановка и отключение сервиса
-echo "Stopping and disabling the service"
-if sudo systemctl stop StatusOpenVPN && sudo systemctl disable StatusOpenVPN; then
-  success_status "Service stopped and disabled successfully"
-else
-  echo "Failed to stop and disable the service"
+error_status() {
+  echo -e "${RED}❌ $1${RESET}"
+}
+
+info_status() {
+  echo -e "${YELLOW}ℹ $1${RESET}"
+}
+
+# === Подгрузка setup файла ===
+SETUP_FILE="/root/web/setup.env"
+if [[ -f "$SETUP_FILE" ]]; then
+    source "$SETUP_FILE"
 fi
 
-# Остановка и отключение logs.service и logs.timer
-echo "Stopping and disabling logs.service and logs.timer"
+# === Удаление SSL, если есть домен ===
+if [[ -n "$DOMAIN" && -f "/root/web/ssl.sh" ]]; then
+    info_status "Removing SSL for domain: $DOMAIN"
+    bash /root/web/ssl.sh -r "$DOMAIN"
+fi
+
+# === Остановка и отключение сервисов ===
+info_status "Stopping and disabling the service"
+if sudo systemctl stop StatusOpenVPN && sudo systemctl disable StatusOpenVPN; then
+    success_status "Service stopped and disabled successfully"
+else
+    error_status "Failed to stop and disable the service"
+fi
+
+info_status "Stopping and disabling logs.service and logs.timer"
 sudo systemctl stop logs.service logs.timer
 sudo systemctl disable logs.service logs.timer
 
-# Удаление systemd unit файла StatusOpenVPN
-echo "Deleting the systemd unit file StatusOpenVPN.service"
-if sudo rm /etc/systemd/system/StatusOpenVPN.service; then
-  success_status "Systemd unit file deleted successfully"
-else
-  echo "Failed to delete the systemd unit file"
-fi
+# === Удаление systemd unit файлов ===
+SYSTEMD_UNITS=(
+    "StatusOpenVPN.service"
+    "telegram-bot.service"
+    "logs.service"
+    "logs.timer"
+    "wg_stats.service"
+)
 
-# Удаление systemd unit файла telegram-bot
-echo "Deleting the systemd unit file telegram-bot"
-if sudo rm /etc/systemd/system/telegram-bot.service; then
-  success_status "telegram-bot.service deleted successfully"
-else
-  echo "Failed to delete telegram-bot.service"
-fi
+for unit in "${SYSTEMD_UNITS[@]}"; do
+    info_status "Deleting the systemd unit file $unit"
+    if sudo rm -f "/etc/systemd/system/$unit"; then
+        success_status "$unit deleted successfully"
+    else
+        error_status "Failed to delete $unit"
+    fi
+done
 
-# Удаление systemd unit файла logs.service
-echo "Deleting the systemd unit file logs.service"
-if sudo rm /etc/systemd/system/logs.service; then
-  success_status "logs.service deleted successfully"
-else
-  echo "Failed to delete logs.service"
-fi
-
-# Удаление systemd unit файла logs.timer
-echo "Deleting the systemd unit file logs.timer"
-if sudo rm /etc/systemd/system/logs.timer; then
-  success_status "logs.timer deleted successfully"
-else
-  echo "Failed to delete logs.timer"
-fi
-
-# Удаление systemd unit файла wg_stats.service
-echo "Deleting the systemd unit file wg_stats.service"
-if sudo rm /etc/systemd/system/wg_stats.service; then
-  success_status "wg_stats.service deleted successfully"
-else
-  echo "Failed to delete wg_stats"
-fi
-
-# Перезапуск systemd
-echo "Restarting systemd"
+# === Перезапуск systemd ===
+info_status "Reloading systemd"
 if sudo systemctl daemon-reload; then
-  success_status "Systemd reloaded successfully"
+    success_status "Systemd reloaded successfully"
 else
-  echo "Failed to reload systemd"
+    error_status "Failed to reload systemd"
 fi
 
-# Удаление директории с проектом
-echo "Deleting a directory with a project"
+# === Удаление директории с проектом ===
+info_status "Deleting project directory /root/web"
 if sudo rm -rf /root/web; then
-  success_status "Directory deleted successfully"
+    success_status "Directory deleted successfully"
 else
-  echo "Failed to delete the directory"
+    error_status "Failed to delete the directory"
 fi
