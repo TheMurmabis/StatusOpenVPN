@@ -142,24 +142,6 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
     }
 }
-
-# Закрыть доступ по IP (HTTPS)
-server {
-    listen 443 ssl default_server;
-    server_name _;
-
-    ssl_certificate     $CERT_PATH;
-    ssl_certificate_key $KEY_PATH;
-
-    return 444;
-}
-
-# Закрыть доступ по IP (HTTP)
-server {
-    listen 80 default_server;
-    server_name _;
-    return 444;
-}
 EOF
 
     ln -sf "$NGINX_CONF" "$NGINX_LINK"
