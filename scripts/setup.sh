@@ -219,7 +219,7 @@ fi
 
 # Сначала спрашиваем, нужно ли включить HTTPS
 if [[ "$HTTPS_ENABLED" -ne 1 ]]; then
-    read -p "Do you want to enable HTTPS? (y/N): " enable_ssl
+    read -e -p "Do you want to enable HTTPS? (y/N): " -i N enable_ssl
     if [[ "$enable_ssl" =~ ^[Yy]$ ]]; then
         HTTPS_ENABLED=1
         save_setup_var "HTTPS_ENABLED" "1"
