@@ -167,6 +167,8 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
     fi
 fi
 
+EXTERNAL_IP=$(curl -4 -s ifconfig.me)
+
 if [[ -z "$SERVER_URL" ]]; then
     SERVER_URL="http://$EXTERNAL_IP:$PORT"
 fi
@@ -223,8 +225,6 @@ sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats
 sudo systemctl enable --now logs.timer
 sudo systemctl restart logs.timer logs.service
-
-EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
 echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
