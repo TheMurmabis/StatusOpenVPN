@@ -2,6 +2,22 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN**.
 
+## [v1.1.14](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.14) - 19.08.2025
+
+### Добавлено:
+**StatusOpenVPN:**
+- Добавлен скрипт `ssl.sh` для настройки HTTPS по домену:
+  - `ssl.sh -i <домен>` — настройка Nginx и получение SSL-сертификата.
+  - `ssl.sh -r <домен>` — удаление конфигурации Nginx.
+- Обновлён скрипт установки и обновления:
+  - Добавлен запрос на установку SSL.
+  - Все ответы на запросы (кроме порта) сохраняются в файл `setup`.
+
+### Важно:
+- Для успешного получения сертификата в **Antizapret-VPN** необходимо отключить резервные порты OpenVPN.  
+  На запрос:  `Use TCP/UDP ports 80 and 443 as backup for OpenVPN connections? [y/n]:` нужно ответить **N**.
+
+
 ## [v1.1.13](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.13) - 16.07.2025
 
 ### Добавлено:
