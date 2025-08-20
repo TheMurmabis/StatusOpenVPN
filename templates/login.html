@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ (server_ip.split('.')[0] + '.***.***.' + server_ip.split('.')[-1]) }} | Авторизация</title>
+  <title>Авторизация</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
@@ -52,8 +52,7 @@
 
         <button class="w-100 btn btn-lg btn-primary mb-3" type="submit" id="submit">Вход</button>
         <p id="passwordHint" class="text-muted forgot-password-link text-center">
-          Для смены пароля обратитесь к администратору системы или воспользуйтесь
-          <a href="{{ url_for('redirect_to_help') }}?v={{ token }}" class="text-decoration-none" target="_blank">инструкцией</a>.
+          Для смены пароля обратитесь к администратору системы.
         </p>
     </form>
   </div>

@@ -611,11 +611,6 @@ def read_csv(file_path, protocol):
     return data, total_received, total_sent, None
 
 
-def get_token():
-    now = time.strftime("%Y-%m-%d %H:%M")
-    return hashlib.md5(now.encode()).hexdigest()[:8]
-
-
 # ---------Метрики----------
 def get_default_interface():
     try:
@@ -900,8 +895,7 @@ def login():
 
     # Передаем форму и сообщение об ошибке в шаблон
     return render_template(
-        "login.html", form=form, error_message=error_message, token=get_token()
-    )
+        "login.html", form=form, error_message=error_message)
 
 
 def get_git_version():
@@ -926,16 +920,6 @@ def inject_info():
         "server_ip": get_external_ip(),
         "version": get_git_version(),
     }
-
-
-@app.route("/help")
-def redirect_to_help():
-    token = request.args.get("v")
-    if token != get_token():
-        return "", 404
-    return redirect(
-        "https://github.com/TheMurmabis/StatusOpenVPN/tree/main?tab=readme-ov-file#смена-пароля"
-    )
 
 
 @app.route("/")
