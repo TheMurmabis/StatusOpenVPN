@@ -4,7 +4,7 @@ function showPasswordHint(event) {
     passwordHint.classList.toggle("show");
 }
 
-    function showPassword() {
+function showPassword() {
     const passwordInput = document.getElementById("password");
     const toggleIcon = document.getElementById("togglePasswordIcon");
     passwordInput.type = "text";
@@ -19,3 +19,17 @@ function hidePassword() {
     toggleIcon.classList.remove("fa-eye-slash");
     toggleIcon.classList.add("fa-eye");
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+    const rememberCheckbox = document.getElementById("remember_me");
+
+    if (rememberCheckbox) {
+        if (localStorage.getItem("remember_choice") === "1") {
+            rememberCheckbox.checked = true;
+        }
+
+        rememberCheckbox.addEventListener("change", function () {
+            localStorage.setItem("remember_choice", this.checked ? "1" : "0");
+        });
+    }
+});

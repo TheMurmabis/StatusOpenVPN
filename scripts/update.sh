@@ -99,6 +99,17 @@ WantedBy=multi-user.target
 EOF
 fi
 
+# Проверяем, есть ли SECRET_KEY
+if ! grep -q 'SECRET_KEY=' "$SERVICE_FILE"; then
+    SECRET_KEY=$(openssl rand -hex 32)
+
+    sudo sed -i "/^Environment=\"PATH=/a Environment=\"SECRET_KEY=$SECRET_KEY\"" "$SERVICE_FILE"
+
+    # Перечитываем systemd и перезапускаем сервис
+    sudo systemctl daemon-reexec
+    sudo systemctl restart StatusOpenVPN.service
+fi
+
 # === Логика HTTPS ===
 get_server_ip() { curl -s http://checkip.amazonaws.com; }
 

@@ -479,3 +479,10 @@ footer a {
 }
 
 
+#no-active-clients {
+    display: none;
+}
+
+#no-active-clients.show {
+    display: block;
+}

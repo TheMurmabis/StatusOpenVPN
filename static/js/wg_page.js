@@ -1,33 +1,44 @@
 let autoRefreshEnabled = false;
 let refreshInterval = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-    const checkbox = document.getElementById('auto-refresh-toggle');
+document.addEventListener("DOMContentLoaded", () => {
+    const autoRefreshToggle = document.getElementById("auto-refresh-toggle");
+    const onlineOnlyToggle = document.getElementById("online-only-toggle");
 
-    // Восстановление состояния из localStorage
-    autoRefreshEnabled = localStorage.getItem('autoRefreshEnabled') === 'true';
-    checkbox.checked = autoRefreshEnabled;
+    autoRefreshEnabled = localStorage.getItem("autoRefreshEnabled") === "true";
+    autoRefreshToggle.checked = autoRefreshEnabled;
+    if (autoRefreshEnabled) startAutoRefresh();
 
-    if (autoRefreshEnabled) {
-        startAutoRefresh();
-    }
+    autoRefreshToggle.addEventListener("change", () => {
+        autoRefreshEnabled = autoRefreshToggle.checked;
+        localStorage.setItem("autoRefreshEnabled", autoRefreshEnabled);
+        if (autoRefreshEnabled) startAutoRefresh();
+        else stopAutoRefresh();
+    });
 
-    checkbox.addEventListener('change', () => {
-        autoRefreshEnabled = checkbox.checked;
-        localStorage.setItem('autoRefreshEnabled', autoRefreshEnabled);
+    onlineOnlyToggle.checked = localStorage.getItem("showOnlineOnly") === "true";
 
-        if (autoRefreshEnabled) {
-            startAutoRefresh();
-        } else {
-            stopAutoRefresh();
-        }
+    // Применяем фильтр сразу при загрузке, чтобы убрать моргание
+    updateStats().then(() => {
+        applyOnlineFilter();
+        document.getElementById("wg-stats-container").style.visibility = "visible";
+    });
+
+    // Слушаем изменения чекбокса
+    onlineOnlyToggle.addEventListener("change", async () => {
+        localStorage.setItem("showOnlineOnly", onlineOnlyToggle.checked);
+        await updateStats(); // обновляем данные
+        applyOnlineFilter(); // применяем фильтр
     });
 });
 
 function startAutoRefresh() {
-    stopAutoRefresh(); // Очистка предыдущего интервала
-    refreshInterval = setInterval(updateStats, 3000);
-    updateStats(); // Немедленный запуск
+    stopAutoRefresh();
+    refreshInterval = setInterval(async () => {
+        await updateStats();
+        applyOnlineFilter();
+    }, 3000);
+    updateStats().then(applyOnlineFilter);
 }
 
 function stopAutoRefresh() {
@@ -39,14 +50,14 @@ function stopAutoRefresh() {
 
 async function updateStats() {
     try {
-        const response = await fetch('/api/wg/stats', {
-            method: 'GET',
+        const response = await fetch("/api/wg/stats", {
+            method: "GET",
             headers: {
-                'X-No-Session-Refresh': 'true',
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
+                "X-No-Session-Refresh": "true",
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache"
             },
-            credentials: 'same-origin'
+            credentials: "same-origin"
         });
 
         const data = await response.json();
@@ -55,12 +66,11 @@ async function updateStats() {
             const tbody = document.getElementById(`tbody-${interface.interface}`);
             if (!tbody) return;
 
-            // Очистить старые строки
-            tbody.innerHTML = '';
+            tbody.innerHTML = "";
 
             interface.peers.forEach((peer, index) => {
-                const tr = document.createElement('tr');
-                tr.className = peer.online ? 'traffic-online' : 'traffic-offline wg_table';
+                const tr = document.createElement("tr");
+                tr.className = peer.online ? "traffic-online" : "traffic-offline wg_table";
 
                 tr.innerHTML = `
                     <td>
@@ -93,28 +103,61 @@ async function updateStats() {
 
                 tbody.appendChild(tr);
             });
-
-            // Обновить количество онлайн / всего
-            const badge = tbody.closest('.table-responsive').querySelector('.badge');
-            if (badge) {
-                const onlineCount = interface.peers.filter(p => p.online).length;
-                const totalCount = interface.peers.length;
-                badge.innerHTML = `<strong> ${onlineCount}</strong> / <strong>${totalCount}</strong>`;
-            }
         });
     } catch (error) {
-        console.error('Ошибка при обновлении данных:', error);
+        console.error("Ошибка при обновлении данных:", error);
+    }
+}
+
+
+function applyOnlineFilter() {
+    const onlineOnlyToggle = document.getElementById("online-only-toggle");
+    const showOnlyOnline = onlineOnlyToggle.checked;
+    const tables = document.querySelectorAll("#wg-stats-container .table-responsive");
+    const noClientsCard = document.getElementById("no-active-clients");
+
+    let anyOnlineClients = false;
+
+    tables.forEach(table => {
+        const rows = table.querySelectorAll("tbody tr");
+        let onlineCount = 0;
+        let totalCount = rows.length;
+
+        rows.forEach(row => {
+            const isOnline = row.classList.contains("traffic-online");
+            if (showOnlyOnline && !isOnline) row.style.display = "none";
+            else row.style.display = "";
+            if (isOnline) onlineCount++;
+        });
+
+        // Обновляем бейдж
+        const badge = table.querySelector(".badge");
+        if (badge) {
+            badge.innerHTML = `<strong>${onlineCount}</strong> / <strong>${totalCount}</strong>`;
+        }
+
+        // Скрываем интерфейс без онлайн-клиентов
+        table.style.display = showOnlyOnline && onlineCount === 0 ? "none" : "";
+
+        if (onlineCount > 0) anyOnlineClients = true;
+    });
+
+    // Показ плашки «Нет активных подключений»
+    if (showOnlyOnline && !anyOnlineClients) {
+        noClientsCard.classList.add("show");
+    } else {
+        noClientsCard.classList.remove("show");
     }
 }
 
 // Переключение показа скрытых IP-адресов
 function toggleIps(index) {
-    const rows = document.querySelectorAll(`#wg-stats-container .table-responsive`);
+    const rows = document.querySelectorAll("#wg-stats-container .table-responsive");
     rows.forEach((row, i) => {
         if (i === index) {
-            const hiddenDiv = row.querySelector('.hidden-ips');
+            const hiddenDiv = row.querySelector(".hidden-ips");
             if (hiddenDiv) {
-                hiddenDiv.style.display = hiddenDiv.style.display === 'none' ? 'block' : 'none';
+                hiddenDiv.style.display = hiddenDiv.style.display === "none" ? "block" : "none";
             }
         }
     });

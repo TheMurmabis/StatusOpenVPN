@@ -5,13 +5,25 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h2>Клиенты WireGuard</h2>
-    <label class="switch">
-        <input type="checkbox" id="auto-refresh-toggle">
-        <span class="slider round"></span>
-        <span title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
-    </label>
+    <div class="d-flex align-items-center gap-4">
+        <label class="switch d-flex align-items-center gap-2 mb-0">
+            <input type="checkbox" id="auto-refresh-toggle">
+            <span class="slider round"></span>
+            <span title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
+        </label>
+        <label class="switch d-flex align-items-center gap-2 mb-0">
+            <input type="checkbox" id="online-only-toggle">
+            <span class="slider round"></span>
+            <span title="Скрывать оффлайн клиентов">Только онлайн</span>
+        </label>
+    </div>
 </div>
-
+<div id="no-active-clients" class="card text-center shadow-sm my-4">
+    <div class="card-body">
+        <h5 class="card-title">Нет активных подключений</h5>
+        <p class="card-text text-muted">Клиенты оффлайн, статистика появится при подключении.</p>
+    </div>
+</div>
 <div id="wg-stats-container">
     {% for interface in stats %}
     <div class="table-responsive w-100 mb-4">
@@ -53,7 +65,7 @@
                         <div class="d-flex flex-column align-items-center">
                             <span>
                                 <small class="{{ 'text-success' if peer.online else 'traffic-offline' }} fs-8">
-                                        {{ 'Онлайн' if peer.online else 'Офлайн' }}
+                                    {{ 'Онлайн' if peer.online else 'Офлайн' }}
                                 </small>
                             </span>
                         </div>

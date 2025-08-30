@@ -6,7 +6,10 @@ class Config:
     DATABASE_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "db.db")
     LOGS_DATABASE_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "openvpn_logs.db")
     WG_STATS_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "wireguard_stats.db")
-    PERMANENT_SESSION_LIFETIME=timedelta(days=30)
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=5)
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
+    SESSION_REFRESH_EACH_REQUEST = False
+
 class DevelopmentConfig(Config):
     DEBUG = True
 class ProductionConfig(Config):

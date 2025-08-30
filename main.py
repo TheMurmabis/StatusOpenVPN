@@ -1,5 +1,4 @@
 import csv
-import hashlib
 import sqlite3
 import requests
 import os
@@ -22,6 +21,7 @@ from flask_login import (
 )
 from flask import (
     Flask,
+    make_response,
     render_template,
     url_for,
     redirect,
@@ -831,25 +831,11 @@ def logout():
 
 @app.before_request
 def track_last_activity():
-    if current_user.is_authenticated:
-        now = datetime.now(timezone.utc)
-        last_activity = session.get("last_activity")
+    if request.path.startswith("/api/"):
+        return  
 
-        # Обновляем время активности только для определённых эндпоинтов
-        if request.endpoint not in ["logout"]:
-            session["last_activity"] = now.isoformat()
-
-        if last_activity:
-            last_activity_time = datetime.fromisoformat(last_activity)
-            if last_activity_time.tzinfo is None:
-                last_activity_time = last_activity_time.replace(tzinfo=timezone.utc)
-            elapsed_time = (now - last_activity_time).total_seconds()
-
-            # Если "remember me" включён, не завершать сессию
-            if not session.get("_remember") and elapsed_time > 300:  # 5 минут
-                logout_user()
-                session.clear()
-                return redirect(url_for("login"))
+    session.permanent = True
+    session["last_activity"] = time.time()
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -876,26 +862,20 @@ def login():
             )
             login_user(user_obj, remember=form.remember_me.data)
 
-            # Настроить время жизни сессии
-            if form.remember_me.data:
-                app.permanent_session_lifetime = timedelta(
-                    days=30
-                )  # Долгосрочная сессия
-            else:
-                app.permanent_session_lifetime = timedelta(minutes=5)  # Короткая сессия
-
-            session.permanent = (
-                form.remember_me.data
-            )  # Сессия перманентная только если "запомнить меня"
+            # Просто указываем, должна ли сессия быть "долгой"
+            session.permanent = form.remember_me.data
 
             next_page = request.args.get("next")
             return redirect(next_page or url_for("home"))
         else:
             error_message = "Неправильный логин или пароль!"
 
-    # Передаем форму и сообщение об ошибке в шаблон
-    return render_template(
-        "login.html", form=form, error_message=error_message)
+    # Добавляем заголовок запрета индексации
+    resp = make_response(render_template(
+        "login.html", form=form, error_message=error_message
+    ))
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
 
 
 def get_git_version():
@@ -1010,15 +990,6 @@ def ovpn():
             clients.sort(key=lambda x: x[7], reverse=reverse_order)
         elif sort_by == "protocol":
             clients.sort(key=lambda x: x[9], reverse=reverse_order)
-
-        # Проверка на пустую таблицу
-        # if not clients:
-        #     return render_template(
-        #         "ovpn.html",
-        #         error_message="Нет данных для отображения. Проверьте наличие файлов в /etc/openvpn/server/logs/",
-        #         errors=errors,
-        #         active_page="ovpn",
-        #     )
 
         total_clients = len(clients)
         return render_template(

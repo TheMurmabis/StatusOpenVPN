@@ -17,6 +17,7 @@ SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 SETUP_FILE="$TARGET_DIR/setup"
 SSL_SCRIPT="$TARGET_DIR/scripts/ssl.sh"
 SERVER_URL=""
+SECRET_KEY=$(openssl rand -hex 32)
 
 # Проверка версии Python и установка venv
 install_python_venv() {
@@ -92,6 +93,7 @@ User=root
 Group=www-data
 WorkingDirectory=$TARGET_DIR
 Environment="PATH=$TARGET_DIR/venv/bin"
+Environment="SECRET_KEY=$SECRET_KEY"
 ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 main:app -b 0.0.0.0:$PORT
 
 [Install]
