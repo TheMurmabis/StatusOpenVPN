@@ -22,7 +22,7 @@ load_dotenv()
 
 # Конфигурация
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_ID = [int(x) for x in os.getenv("ADMIN_ID", "").split(",") if x.strip().isdigit()]
 ITEMS_PER_PAGE = 5
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -366,7 +366,7 @@ async def send_single_config(chat_id: int, path: str, caption: str):
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     """Обрабатывает команду /start и отображает главное меню."""
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_ID:
         await message.answer("Доступ запрещен")
         return
 
@@ -679,7 +679,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
     user_id = callback.from_user.id
 
     try:
-        if user_id != ADMIN_ID:
+        if user_id not in ADMIN_ID:
             await callback.answer("Доступ запрещен!")
             return
 
