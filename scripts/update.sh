@@ -16,6 +16,12 @@ ENV_FILE="$TARGET_DIR/src/.env"
 SSL_SCRIPT="$TARGET_DIR/scripts/ssl.sh"
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 SERVER_URL=""
+INTERFACES=("antizapret-tcp" "vpn-tcp" "antizapret-udp" "vpn-udp" "vpn" "antizapret")
+
+# Для обхода проблемы с vnStat
+OVERRIDE_DIR="/etc/systemd/system/vnstat.service.d"
+OVERRIDE_FILE="$OVERRIDE_DIR/override.conf"
+SLEEP_LINE="ExecStartPre=/bin/sleep 10"
 
 # === Получение текущего порта ===
 if [ -f "$SERVICE_FILE" ]; then
@@ -75,7 +81,7 @@ git fetch origin && git reset --hard origin/main
 # Активация виртуального окружения
 source venv/bin/activate
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+    pip install -q -r requirements.txt > /dev/null
 fi
 
 # === Обновление systemd сервиса ===
@@ -229,8 +235,52 @@ else
     echo -e "${GREEN}Telegram bot already enabled.${RESET}"
 fi
 
-# === Перезагрузка сервисов ===
+# Проверка, установлен ли vnstat
+if ! command -v vnstat &> /dev/null; then
+    echo "📦 vnstat не найден, устанавливаем..."
+    sudo apt update && sudo apt install -y vnstat
+else
+    echo "✅ vnstat уже установлен"
+fi
+
+# Добавление интерфейсов
+for iface in "${INTERFACES[@]}"; do
+    if ! vnstat --iflist | grep -qw "$iface"; then
+        echo "Добавляем интерфейс $iface в vnstat..."
+        sudo vnstat -u -i "$iface"
+    else
+        echo "🔹 Интерфейс $iface уже есть"
+    fi
+done
+
+# Проверяем таймер
+if [ -f "$OVERRIDE_FILE" ]; then
+
+    if grep -q "$SLEEP_LINE" "$OVERRIDE_FILE"; then
+        echo "⏳ Задержка уже настроена — ничего делать не нужно."
+    else
+        echo "⚙️  Добавляем строку в существующий override.conf..."
+        echo -e "\n[Service]\n$SLEEP_LINE" | sudo tee -a "$OVERRIDE_FILE" >/dev/null
+    fi
+else
+    echo "📁 Создаём новый override.conf..."
+    sudo mkdir -p "$OVERRIDE_DIR"
+    echo -e "[Service]\n$SLEEP_LINE" | sudo tee "$OVERRIDE_FILE" >/dev/null
+fi
+
+# Перезагрузка systemd и запуск сервисов
+echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
+
+# Включаем автозапуск и сразу запускаем службу vnstat
+if ! systemctl is-enabled --quiet vnstat; then
+    echo "Включаем автозапуск vnstat..."
+    sudo systemctl enable --now vnstat
+else
+    echo "✅ vnstat уже включён, перезапускаем службу..."
+    sudo systemctl restart vnstat
+fi
+
 sudo systemctl restart StatusOpenVPN
 sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats

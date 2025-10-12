@@ -10,6 +10,7 @@ import string
 import psutil
 import socket
 import subprocess
+import json
 from tzlocal import get_localzone
 from flask_login import (
     LoginManager,
@@ -814,6 +815,32 @@ def update_system_info():
 # Запуск фоновой задачи
 threading.Thread(target=update_system_info, daemon=True).start()
 
+def get_vnstat_interfaces():
+    try:
+        result = subprocess.run(
+            ["/usr/bin/vnstat", "--json"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        data = json.loads(result.stdout)
+
+        interfaces = []
+        for iface in data.get('interfaces', []):
+            name = iface.get('name')
+            traffic = iface.get('traffic', {}).get('total', {})
+            rx = traffic.get('rx', 0)
+            tx = traffic.get('tx', 0)
+
+            # Добавляем только если есть трафик
+            if (rx + tx) > 0:
+                interfaces.append(name)
+
+        return interfaces
+
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        print(f"Ошибка при получении интерфейсов: {e}")
+        return []
 
 # @app.errorhandler(404)
 # def page_not_found(_):
@@ -832,7 +859,7 @@ def logout():
 @app.before_request
 def track_last_activity():
     if request.path.startswith("/api/"):
-        return  
+        return
 
     session.permanent = True
     session["last_activity"] = time.time()
@@ -871,9 +898,9 @@ def login():
             error_message = "Неправильный логин или пароль!"
 
     # Добавляем заголовок запрета индексации
-    resp = make_response(render_template(
-        "login.html", form=form, error_message=error_message
-    ))
+    resp = make_response(
+        render_template("login.html", form=form, error_message=error_message)
+    )
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
 
@@ -1111,6 +1138,120 @@ def ovpn_stats():
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {str(e)}"
         return render_template("ovpn_stats.html", error_message=error_message), 500
+
+
+@app.route("/api/bw")
+@login_required
+def api_bw():
+    q_iface = request.args.get("iface")
+    period = request.args.get("period", "day")  
+    vnstat_bin = os.environ.get("VNSTAT_BIN", "/usr/bin/vnstat")
+
+    # Получаем список интерфейсов
+    try:
+        proc = subprocess.run([vnstat_bin, "--json"], check=True, capture_output=True, text=True)
+        data = json.loads(proc.stdout)
+        interfaces = [iface["name"] for iface in data.get("interfaces", [])]
+    except subprocess.CalledProcessError:
+        interfaces = []
+    except json.JSONDecodeError:
+        interfaces = []
+
+    if not interfaces:
+        return jsonify({"error": "Нет интерфейсов vnstat", "iface": None}), 500
+
+    iface = q_iface if q_iface in interfaces else interfaces[0]
+
+    # Настройка периодов
+    if period == "hour":
+        vnstat_option = "f"  # 5-минутные интервалы
+        points = 12
+        interval_seconds = 300
+    elif period == "day":
+        vnstat_option = "h"  # почасовые
+        points = 24
+        interval_seconds = 3600
+    elif period == "week":
+        vnstat_option = "d"  # по дням
+        points = 7
+        interval_seconds = 86400
+    elif period == "month":
+        vnstat_option = "d"
+        points = 30
+        interval_seconds = 86400
+    else:
+        vnstat_option = "h"
+        points = 24
+        interval_seconds = 3600
+
+    # Получаем JSON от vnstat
+    try:
+        proc = subprocess.run([vnstat_bin, "--json", vnstat_option, "-i", iface],
+                              check=True, capture_output=True, text=True)
+        data = json.loads(proc.stdout)
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"vnstat вернул код ошибки: {e.returncode}", "iface": iface}), 500
+    except Exception as e:
+        return jsonify({"error": str(e), "iface": iface}), 500
+
+    # Извлекаем массив данных
+    traffic_data = []
+    for it in data.get("interfaces", []):
+        if it.get("name") == iface:
+            traffic = it.get("traffic") or {}
+            if vnstat_option == "f":
+                traffic_data = traffic.get("fiveminute") or []
+            elif vnstat_option == "h":
+                traffic_data = traffic.get("hour") or []
+            elif vnstat_option == "d":
+                traffic_data = traffic.get("day") or []
+            break
+
+    # Сортировка по дате
+    def sort_key(h):
+        d = h.get("date") or {}
+        t = h.get("time") or {}
+        return (
+            d.get("year", 0),
+            d.get("month", 0),
+            d.get("day", 0),
+            t.get("hour", 0),
+            t.get("minute", 0)
+        )
+
+    sorted_data = sorted(traffic_data, key=sort_key)
+    if points:
+        sorted_data = sorted_data[-points:]
+
+    labels, rx_mbps, tx_mbps = [], [], []
+
+    for m in sorted_data:
+        d = m.get("date") or {}
+        t = m.get("time") or {}
+        if vnstat_option == "f":
+            labels.append(f"{t.get('hour',0):02d}:{t.get('minute',0):02d}")
+        elif vnstat_option == "h":
+            labels.append(f"{t.get('hour',0):02d}:00")
+        else:  # daily
+            labels.append(f"{d.get('day',0):02d}.{d.get('month',0):02d}")
+
+        rx = int(m.get("rx", 0))
+        tx = int(m.get("tx", 0))
+        rx_mbps.append(round((rx * 8) / (interval_seconds * 1_000_000), 3))
+        tx_mbps.append(round((tx * 8) / (interval_seconds * 1_000_000), 3))
+
+    return jsonify({
+        "iface": iface,
+        "labels": labels,
+        "rx_mbps": rx_mbps,
+        "tx_mbps": tx_mbps
+    })
+
+
+@app.route("/api/interfaces")
+def api_interfaces():
+    interfaces = get_vnstat_interfaces()
+    return jsonify({"interfaces": interfaces})
 
 
 if __name__ == "__main__":

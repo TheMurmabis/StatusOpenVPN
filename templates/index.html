@@ -3,44 +3,34 @@
 
 {% block content %}
 <div class="container">
-    <h2 class="text-center">Добро пожаловать в панель мониторинга <a href="/ovpn"
-            class="fancy-link">OpenVPN</a> и <a href="/wg" class="fancy-link">WireGuard</a></h2>
-    <p class="text-center">Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и
-        WireGuard.</p>
-    <!-- <div class="row text-center">
-        <div class="col-md-6 mb-4">
-            <a href="/ovpn" class="card shadow-sm text-decoration-none">
-                <div class="card-body card-main">
-                    <h3 class="card-title">OpenVPN</h3>
-                    <p class="card-text">Просмотр статистики подключений OpenVPN, включая IP-адреса и объем трафика.</p>
-                    <button class="btn btn-primary mb-3">Перейти к статистике OpenVPN</button>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-6 mb-4">
-            <a href="/wg" class="card shadow-sm text-decoration-none">
-                <div class="card-body  card-main">
-                    <h3 class="card-title">WireGuard</h3>
-                    <p class="card-text">Просмотр статистики подключений WireGuard с подробной информацией о
-                        пользователях.</p>
-                    <button class="btn btn-primary mb-3">Перейти к статистике WireGuard</button>
-                </div>
-            </a>
-        </div>
-    </div> -->
+    <h2 class="text-center">
+        Добро пожаловать в панель мониторинга
+        <a href="/ovpn" class="fancy-link">OpenVPN</a> и
+        <a href="/wg" class="fancy-link">WireGuard</a>
+    </h2>
 
-    <!-- Информация о сервере -->
+    <p class="text-center">
+        Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и WireGuard.
+    </p>
+
     <div class="mt-3 p-3 border rounded" style="margin: auto;">
         <h4 class="text-center">Системные метрики:</h4>
-        <p class="text-center text-muted small">Сервер: <span class="text-success">{{server_ip}}</span>@{{ hostname}}
+        <p class="text-center text-muted small">
+            Сервер:
+            <span class="text-success">{{ server_ip }}</span>@{{ hostname }}
+        </p>
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Клиенты онлайн:</h5>
                         <p class="card-text" id="vpn_clients">
-                            <a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>: {{ system_info.vpn_clients['OpenVPN'] }} шт.<br>
-                            <a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>: {{ system_info.vpn_clients['WireGuard'] }} шт.
+                            <a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>:
+                            {{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}
+                            шт.<br>
+                            <a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>:
+                            {{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}
+                            шт.
                         </p>
                     </div>
                 </div>
@@ -65,8 +55,10 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Использование ОЗУ:</h5>
-                        <p class="card-text"><span id="memory_used">Загрузка...</span> MB / <span id="memory_total">{{
-                                system_info.memory_total }}</span> MB</p>
+                        <p class="card-text">
+                            <span id="memory_used">Загрузка...</span> MB /
+                            <span id="memory_total">{{ system_info.memory_total }}</span> MB
+                        </p>
                     </div>
                 </div>
             </div>
@@ -74,39 +66,74 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Использование диска:</h5>
-                        <p class="card-text"><span id="disk_used">Загрузка...</span> GB / <span id="disk_total">{{
-                                system_info.disk_total }}</span> GB</p>
+                        <p class="card-text">
+                            <span id="disk_used">Загрузка...</span> GB /
+                            <span id="disk_total">{{ system_info.disk_total }}</span> GB
+                        </p>
                     </div>
                 </div>
             </div>
             <div class="col-12 mb-3">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Сетевая загрузка:</h5>
-                        <div id="network_load">Загрузка...</div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Текущая сетевая загрузка:</h5>
+                            <a id="toggleChartBtn" class="btn btn-sm btn-outline-secondary " title="Показать график">
+                                <i class="bi bi-graph-up"></i>
+                            </a>
+                        </div>
+                        <div id="network_load" class="mt-2">Загрузка...</div>
                     </div>
                 </div>
             </div>
-        <h4 class="text-center mb-4">Статистика по интерфейсу: <span id="network_interface">Загрузка...</span></h4>
-            <div class="col-12 col-md-6 mb-3">
+            <div class="col-12 mb-3" id="bwChartContainer" style="display:none;">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Принятые данные:</h5>
-                        <p class="card-text"><span id="rx_bytes">Загрузка...</span></p>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div id="interface-filters" class="btn-group btn-group-sm" role="group"></div>
+                            <div id="period-filters" class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-secondary period" data-period="hour">Час</button>
+                                <button class="btn btn-outline-secondary period" data-period="day">Сутки</button>
+                                <button class="btn btn-outline-secondary period" data-period="week">Неделя</button>
+                                <button class="btn btn-outline-secondary period" data-period="month">Месяц</button>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="text-muted me-2">График интерфейса: </span>
+                            <code id="bwIface">—</code>
+                        </div>
+                        <canvas id="bwChart" height="120"></canvas>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-6 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Переданные данные:</h5>
-                        <p class="card-text"><span id="tx_bytes">Загрузка...</span></p>
+        </div>
+        <div class="mt-4">
+            <h4 class="text-center mb-4">
+                Статистика по интерфейсу: <span id="network_interface">Загрузка...</span>
+            </h4>
+            <div class="row">
+                <div class="col-12 col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Принятые данные:</h5>
+                            <p class="card-text"><span id="rx_bytes">Загрузка...</span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Переданные данные:</h5>
+                            <p class="card-text"><span id="tx_bytes">Загрузка...</span></p>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/main_page.js') }}"></script>
 
 {% endblock %}

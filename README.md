@@ -34,11 +34,11 @@
 
 
 <details>
-  <summary>Версия от 12.09.2025</summary>
+  <summary>Версия от 12.10.2025</summary>
 
-### TelegramBot
+### StatusOpenVPN
 
-1. Добавлена поддержка нескольких администраторов. Для этого в файле `.env` необходимо указать их ID через запятую.
+1. На главной странице добавлен график интерфейсов, построенный с использованием данных `vnstat`.График отображается только для интерфейсов, у которых имеются статистические данные.
 
 
 </details>
@@ -46,7 +46,20 @@
 
 ---
 
-⚠ **Внимание!** Телеграмм бот реализует функции скрипта client.sh версии от [19.05.2025](https://github.com/GubernievS/AntiZapret-VPN/blob/8b2dfbc1b4fb13daf5a5b337b8d341ccabb303e6/setup/root/antizapret/client.sh). 
+
+## Описание
+
+Этот проект представляет собой приложение на языке Python, разработанное с использованием фреймворка Flask. Оно предназначено для отображения статистики подключений клиентов к OpenVPN и WireGuard. 
+Основная цель приложения — визуализировать информацию о подключенных клиентах и их трафике в удобном формате.
+
+### Внешний вид StatusOpenVPN.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3071b3cc-fdb5-4db8-9a77-273d2ed1ec73">
+  <img src="https://github.com/user-attachments/assets/98c1c36c-91ee-4e17-8922-bc0ca8ffde8a">
+</picture>
+
+
+### Внешний вид TelegramBot.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/072ee8de-cbc5-4e73-b90a-2d671abd2bbf">
@@ -55,17 +68,6 @@
 
 Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
 
----
-
-## Описание
-
-Этот проект представляет собой приложение на языке Python, разработанное с использованием фреймворка Flask. Оно предназначено для отображения статистики подключений клиентов к OpenVPN и WireGuard. 
-Основная цель приложения — визуализировать информацию о подключенных клиентах и их трафике в удобном формате.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3071b3cc-fdb5-4db8-9a77-273d2ed1ec73">
-  <img src="https://github.com/user-attachments/assets/98c1c36c-91ee-4e17-8922-bc0ca8ffde8a">
-</picture>
 
 ### Основные функции
 - Отображение статистики подключений для OpenVPN и WireGuard.
