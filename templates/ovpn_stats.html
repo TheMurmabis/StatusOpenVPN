@@ -7,7 +7,7 @@
     <h2>Статистика клиентов OpenVPN</h2>
 </div>
 
-<div class="tabs">
+<div class="tabs mb-3">
     <a href="{{ url_for('ovpn') }}" class="tab {% if active_page == 'ovpn' %}active{% endif %}">Клиенты</a>
     <a href="{{ url_for('ovpn_history') }}" class="tab {% if active_page == 'history' %}active{% endif %}">История</a>
     <a href="{{ url_for('ovpn_stats') }}" class="tab {% if active_page == 'stats' %}active{% endif %}">Статистика</a>
@@ -18,37 +18,51 @@
     {{ error_message }}
 </div>
 {% else %}
-<div>
-    {% for month, stats in month_stats.items() %}
-    <br>
-    <div class="d-flex justify-content-start flex-wrap gap-3">
-        {% for client in stats %}
-        {% if client['client_name'] != 'UNDEF' %}
-        <div class="card client-card">
-            <div class="card-body">
-                <h5 class="card-title text-center">{{ client['client_name'] }}</h5>
-                <hr class="my-1">
-                <p class="card-text">
-                    Передано: {{ client['total_bytes_sent'] }}<br>
-                    Получено: {{ client['total_bytes_received'] }}<br>
-                    <span title="Дата и время последнего подключения клиента." class="text-center text-muted small">Был(а):</span>
-                    {% if client['last_connected'] %}
-                    <span title="Дата и время последнего подключения клиента." class="text-muted text-center small text-center connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
-                    {% else %}
-                    <span class="text-muted text-center small text-center" >Нет данных</span>
-                    {% endif %}
-                </p>
-            </div>
-        </div>
-        {% endif %}
+
+<div class="stats-container mx-auto">
+    <!-- Поле фильтрации -->
+    <div class="mb-3">
+        <input type="text" id="clientFilter" class="form-control" placeholder="Фильтр по имени клиента...">
+    </div>
+
+    <div class="table-responsive ovpn_table log_table w-100">
+        {% for month, stats in month_stats.items() %}
+        <table class="table client-table table-hover table-sm align-middle">
+            <thead>
+                <tr>
+                    <th scope="col" class="text-center">Клиент</th>
+                    <th scope="col" class="text-center">Передано</th>
+                    <th scope="col" class="text-center">Получено</th>
+                    <th scope="col" class="text-center">Месяц подключения</th>
+                    <th scope="col" class="text-center">Последнее подключение</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in stats %}
+                {% if client['client_name'] != 'UNDEF' %}
+                <tr>
+                    <td class="client-name text-center">{{ client['client_name'] }}</td>
+                    <td class="text-center">{{ client['total_bytes_sent'] }}</td>
+                    <td class="text-center">{{ client['total_bytes_received'] }}</td>
+                    <td class="text-center">{{ month }}</td>
+                    <td class="text-center">
+                        {% if client['last_connected'] %}
+                        <span class="connection-time"
+                            data-utc="{{ client['last_connected'] }}">Загрузка...</span>
+                        {% else %}
+                        <span>Нет данных</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
         {% endfor %}
     </div>
-    {% endfor %}
 </div>
-
-
 {% endif %}
 
-<script src="{{ url_for('static', filename='js/ovpn_history.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ovpn_stats.js') }}"></script>
 
 {% endblock %}

@@ -246,7 +246,9 @@ body.full-height {
         border-color: #272727 !important;
     }
 
-
+    .table-hover tbody tr:hover{
+        background-color: #23272b !important;
+    }
 }
 
 
@@ -284,7 +286,7 @@ header a {
 
 .table {
     table-layout: auto;
-    width: auto;
+    width: 100%;
     max-width: 100%;
 }
 
@@ -493,6 +495,7 @@ footer a {
 
 #bwChart {
     max-width: 100%;
+    height: 120px;
 }
 
 .btn:focus,

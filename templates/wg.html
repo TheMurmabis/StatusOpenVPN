@@ -42,18 +42,18 @@
                             </span>
                         </div>
                     </th>
-                    <th class="d-none d-sm-table-cell"></th>
-                    <th colspan="2" class="d-none d-sm-table-cell" title="Суточная статистика">Сегодня</th>
+                    <th></th>
+                    <th colspan="2" title="Суточная статистика">Сегодня</th>
                     <th colspan="2" title="Итоговая статистика">Всего</th>
                 </tr>
                 <tr>
                     <th>Статус</th>
                     <th>Клиент</th>
-                    <th class="d-none d-sm-table-cell">Реальный IP</th>
-                    <th class="d-none d-sm-table-cell">Локальный IP</th>
-                    <th class="d-none d-md-table-cell" style="width: 200px;">Рукопожатие</th>
-                    <th class="d-none d-sm-table-cell" title="Передано клиенту">Получено</th>
-                    <th class="d-none d-sm-table-cell" title="Получено от клиента">Передано</th>
+                    <th>Реальный IP</th>
+                    <th>Локальный IP</th>
+                    <th style="width: 200px;">Рукопожатие</th>
+                    <th title="Передано клиенту">Получено</th>
+                    <th title="Получено от клиента">Передано</th>
                     <th title="Передано клиенту">Получено</th>
                     <th title="Получено от клиента">Передано</th>
                 </tr>
@@ -71,8 +71,8 @@
                         </div>
                     </td>
                     <td title="Peer: {{ peer.masked_peer }}">{{ peer.client }}</td>
-                    <td class="d-none d-sm-table-cell">{{ peer.endpoint or 'N/A' }}</td>
-                    <td class="d-none d-sm-table-cell">
+                    <td>{{ peer.endpoint or 'N/A' }}</td>
+                    <td>
                         {% for ip in peer.visible_ips %}
                         <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
                         {% endfor %}
@@ -87,9 +87,9 @@
                         </a>
                         {% endif %}
                     </td>
-                    <td class="d-none d-sm-table-cell">{{ peer.latest_handshake or 'N/A' }}</td>
-                    <td class="d-none d-sm-table-cell">{{ peer.daily_received or '0.0' }}</td>
-                    <td class="d-none d-sm-table-cell">{{ peer.daily_sent or '0.0' }}</td>
+                    <td>{{ peer.latest_handshake or 'N/A' }}</td>
+                    <td>{{ peer.daily_received or '0.0' }}</td>
+                    <td>{{ peer.daily_sent or '0.0' }}</td>
                     <td>{{ peer.received or '0.0' }}</td>
                     <td>{{ peer.sent or '0.0' }}</td>
                 </tr>

@@ -89,9 +89,9 @@
             <div class="col-12 mb-3" id="bwChartContainer" style="display:none;">
                 <div class="card">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div id="interface-filters" class="btn-group btn-group-sm" role="group"></div>
-                            <div id="period-filters" class="btn-group btn-group-sm" role="group">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                            <div id="interface-filters" class="overflow-auto btn-group btn-group-sm" style="white-space: nowrap;" role="group"></div>
+                            <div id="period-filters" class="overflow-auto btn-group btn-group-sm" role="group">
                                 <button class="btn btn-outline-secondary period" data-period="hour">Час</button>
                                 <button class="btn btn-outline-secondary period" data-period="day">Сутки</button>
                                 <button class="btn btn-outline-secondary period" data-period="week">Неделя</button>
@@ -102,7 +102,7 @@
                             <span class="text-muted me-2">График интерфейса: </span>
                             <code id="bwIface">—</code>
                         </div>
-                        <canvas id="bwChart" height="120"></canvas>
+                        <canvas id="bwChart"></canvas>
                     </div>
                 </div>
             </div>

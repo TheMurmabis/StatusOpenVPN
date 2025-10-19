@@ -82,8 +82,8 @@ async function updateStats() {
                         </div>
                     </td>
                     <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
-                    <td class="d-none d-sm-table-cell">${peer.endpoint || 'N/A'}</td>
-                    <td class="d-none d-sm-table-cell">
+                    <td >${peer.endpoint || 'N/A'}</td>
+                    <td >
                         ${peer.visible_ips.map(ip => `<span>${ip}</span>`).join(', ')}
                         ${peer.hidden_ips && peer.hidden_ips.length > 0 ? `
                             <div class="hidden-ips" style="display:none;">
@@ -94,9 +94,9 @@ async function updateStats() {
                             </a>
                         ` : ''}
                     </td>
-                    <td class="d-none d-sm-table-cell">${peer.latest_handshake || 'N/A'}</td>
-                    <td class="d-none d-sm-table-cell">${peer.daily_received || '0.0'}</td>
-                    <td class="d-none d-sm-table-cell">${peer.daily_sent || '0.0'}</td>
+                    <td >${peer.latest_handshake || 'N/A'}</td>
+                    <td >${peer.daily_received || '0.0'}</td>
+                    <td >${peer.daily_sent || '0.0'}</td>
                     <td>${peer.received || '0.0'}</td>
                     <td>${peer.sent || '0.0'}</td>
                 `;

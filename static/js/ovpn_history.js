@@ -1,20 +1,29 @@
-function convertToUserTimezone() {
-    const timeCells = document.querySelectorAll('.connection-time');
-
-    timeCells.forEach(cell => {
-        const utcDateStr = cell.getAttribute('data-utc');
-        if (utcDateStr) {
-            const utcDate = new Date(utcDateStr);
-            const localDateString = utcDate.toLocaleString(undefined, {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            cell.textContent = localDateString;
-        }
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.connection-time[data-utc]').forEach(cell => {
+        const utcDate = new Date(cell.dataset.utc);
+        cell.textContent = utcDate.toLocaleString(undefined, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     });
-}
 
-document.addEventListener('DOMContentLoaded', convertToUserTimezone);
+    // Фильтр
+    const logFilter = document.getElementById('logFilter'); 
+
+    logFilter.addEventListener('input', () => {
+        const filterValue = logFilter.value.toLowerCase(); 
+
+        document.querySelectorAll('.log-row').forEach(row => {
+            const text = [
+                '.client-name', '.real-ip', '.local-ip', '.protocol'
+            ]
+                .map(sel => row.querySelector(sel)?.textContent.toLowerCase() || '')
+                .join(' ');
+
+            row.style.display = text.includes(filterValue) ? '' : 'none';
+        });
+    });
+});
