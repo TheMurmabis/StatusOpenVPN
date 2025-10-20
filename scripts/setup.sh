@@ -24,6 +24,7 @@ INTERFACES=("antizapret-tcp" "vpn-tcp" "antizapret-udp" "vpn-udp" "vpn" "antizap
 OVERRIDE_DIR="/etc/systemd/system/vnstat.service.d"
 OVERRIDE_FILE="$OVERRIDE_DIR/override.conf"
 SLEEP_LINE="ExecStartPre=/bin/sleep 10"
+changes_made=false # Для отслеживания изменений
 
 # Проверка версии Python и установка venv
 install_python_venv() {
@@ -279,35 +280,32 @@ fi
 
 # Проверка, установлен ли vnstat
 if ! command -v vnstat &> /dev/null; then
-    echo "📦 vnstat не найден, устанавливаем..."
+    echo "📦 vnstat not found, installing..."
     sudo apt update && sudo apt install -y vnstat
-else
-    echo "✅ vnstat уже установлен"
+    changes_made=true
 fi
 
 # Добавление интерфейсов
 for iface in "${INTERFACES[@]}"; do
     if ! vnstat --iflist | grep -qw "$iface"; then
-        echo "Добавляем интерфейс $iface в vnstat..."
+        echo "Adding interface $iface to vnstat..."
         sudo vnstat -u -i "$iface"
-    else
-        echo "🔹 Интерфейс $iface уже есть"
+        changes_made=true
     fi
 done
 
 # Проверяем таймер
 if [ -f "$OVERRIDE_FILE" ]; then
-
-    if grep -q "$SLEEP_LINE" "$OVERRIDE_FILE"; then
-        echo "⏳ Задержка уже настроена — ничего делать не нужно."
-    else
-        echo "⚙️  Добавляем строку в существующий override.conf..."
+    if ! grep -q "$SLEEP_LINE" "$OVERRIDE_FILE"; then
+        echo "⚙️  Adding delay line to existing override.conf..."
         echo -e "\n[Service]\n$SLEEP_LINE" | sudo tee -a "$OVERRIDE_FILE" >/dev/null
+        changes_made=true
     fi
 else
-    echo "📁 Создаём новый override.conf..."
+    echo "📁 Creating new override.conf..."
     sudo mkdir -p "$OVERRIDE_DIR"
     echo -e "[Service]\n$SLEEP_LINE" | sudo tee "$OVERRIDE_FILE" >/dev/null
+    changes_made=true
 fi
 
 # Перезагрузка systemd и запуск сервисов
@@ -316,10 +314,10 @@ sudo systemctl daemon-reload
 
 # Включаем автозапуск и сразу запускаем службу vnstat
 if ! systemctl is-enabled --quiet vnstat; then
-    echo "Включаем автозапуск vnstat..."
+    echo "Enabling vnstat autostart..."
     sudo systemctl enable --now vnstat
-else
-    echo "✅ vnstat уже включён, перезапускаем службу..."
+elif [ "$changes_made" = true ]; then
+    echo "Restarting vnstat service due to configuration changes..."
     sudo systemctl restart vnstat
 fi
 
