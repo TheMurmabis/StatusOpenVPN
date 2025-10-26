@@ -1086,43 +1086,54 @@ def ovpn_history():
 @login_required
 def ovpn_stats():
     try:
-        total_received, total_sent = 0, 0
-        current_month = datetime.now().strftime("%b. %Y")
+        sort_by = request.args.get("sort", "client_name")
+        order = request.args.get("order", "asc").lower()
 
-        # Определяем предыдущий месяц
+        # Разрешённые поля сортировки (ключ -> SQL)
+        allowed_sorts = {
+            "client_name": "client_name",
+            "total_bytes_sent": "SUM(total_bytes_sent)",
+            "total_bytes_received": "SUM(total_bytes_received)",
+            "last_connected": "MAX(last_connected)"
+        }
+
+        # Если параметр некорректный — сбрасываем на client_name
+        sort_column = allowed_sorts.get(sort_by, "client_name")
+        order = "DESC" if order == "desc" else "ASC"
+
+        current_month = datetime.now().strftime("%b. %Y")
         previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
         previous_month = previous_month_date.strftime("%b. %Y")
 
         month_stats = {}
+        total_received, total_sent = 0, 0
 
-        conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
-
-        for month in [current_month, previous_month]:
-            month_stats_reader = conn_logs.execute(
+        with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
+            for month in [current_month, previous_month]:
+                query = f"""
+                    SELECT client_name,
+                           SUM(total_bytes_sent),
+                           SUM(total_bytes_received),
+                           MAX(last_connected)
+                    FROM monthly_stats
+                    WHERE month = ?
+                    GROUP BY client_name
+                    ORDER BY {sort_column} {order}
                 """
-                SELECT client_name, 
-                       SUM(total_bytes_sent), 
-                       SUM(total_bytes_received),
-                       MAX(last_connected) 
-                FROM monthly_stats 
-                WHERE month = ? 
-                GROUP BY client_name
-                """,
-                (month,),
-            ).fetchall()
+                rows = conn.execute(query, (month,)).fetchall()
 
-            if month_stats_reader:  # Проверяем, есть ли данные
-                month_stats[month] = [
-                    {
-                        "client_name": stats[0],
-                        "total_bytes_received": format_bytes(stats[1]),
-                        "total_bytes_sent": format_bytes(stats[2]),
-                        "last_connected": stats[3],
-                    }
-                    for stats in month_stats_reader
-                ]
-
-        conn_logs.close()
+                if rows:
+                    stats_list = []
+                    for client_name, sent, received, last_connected in rows:
+                        total_received += received or 0
+                        total_sent += sent or 0
+                        stats_list.append({
+                            "client_name": client_name,
+                            "total_bytes_received": format_bytes(received),
+                            "total_bytes_sent": format_bytes(sent),
+                            "last_connected": last_connected,
+                        })
+                    month_stats[month] = stats_list
 
         return render_template(
             "ovpn_stats.html",
@@ -1133,10 +1144,12 @@ def ovpn_stats():
             month_stats=month_stats,
             current_month=current_month,
             previous_month=previous_month if previous_month in month_stats else None,
+            sort_by=sort_by,
+            order=order.lower(),
         )
 
     except Exception as e:
-        error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+        error_message = f"Произошла непредвиденная ошибка: {e}"
         return render_template("ovpn_stats.html", error_message=error_message), 500
 
 
@@ -1164,15 +1177,15 @@ def api_bw():
 
     # Настройка периодов
     if period == "hour":
-        vnstat_option = "f"  # 5-минутные интервалы
+        vnstat_option = "f"  # каждые 5 минут
         points = 12
         interval_seconds = 300
     elif period == "day":
-        vnstat_option = "h"  # почасовые
+        vnstat_option = "h" # по часам
         points = 24
         interval_seconds = 3600
     elif period == "week":
-        vnstat_option = "d"  # по дням
+        vnstat_option = "d"
         points = 7
         interval_seconds = 86400
     elif period == "month":
@@ -1223,28 +1236,49 @@ def api_bw():
     if points:
         sorted_data = sorted_data[-points:]
 
-    labels, rx_mbps, tx_mbps = [], [], []
+    labels, utc_labels, rx_mbps, tx_mbps = [], [], [], []
+
+    server_tz = datetime.now().astimezone().tzinfo # серверный локальный timezone
 
     for m in sorted_data:
         d = m.get("date") or {}
         t = m.get("time") or {}
+
+        year = int(d.get('year', 0))
+        month = int(d.get('month', 0))
+        day = int(d.get('day', 0))
+        hour = int(t.get('hour', 0))
+        minute = int(t.get('minute', 0))
+
         if vnstat_option == "f":
-            labels.append(f"{t.get('hour',0):02d}:{t.get('minute',0):02d}")
+            labels.append(f"{hour:02d}:{minute:02d}")
         elif vnstat_option == "h":
-            labels.append(f"{t.get('hour',0):02d}:00")
-        else:  # daily
-            labels.append(f"{d.get('day',0):02d}.{d.get('month',0):02d}")
+            labels.append(f"{hour:02d}:00")
+        else:
+            labels.append(f"{day:02d}.{month:02d}")
+
+        try:
+            local_dt = datetime(year, month, day, hour, minute, tzinfo=server_tz)
+        except Exception:
+            local_dt = datetime.now().astimezone(server_tz)
+
+        utc_iso = local_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        utc_labels.append(utc_iso)
 
         rx = int(m.get("rx", 0))
         tx = int(m.get("tx", 0))
         rx_mbps.append(round((rx * 8) / (interval_seconds * 1_000_000), 3))
         tx_mbps.append(round((tx * 8) / (interval_seconds * 1_000_000), 3))
 
+    server_time_utc = datetime.now(timezone.utc).isoformat()
+
     return jsonify({
         "iface": iface,
         "labels": labels,
+        "utc_labels": utc_labels,
         "rx_mbps": rx_mbps,
-        "tx_mbps": tx_mbps
+        "tx_mbps": tx_mbps,
+        "server_time": server_time_utc
     })
 
 

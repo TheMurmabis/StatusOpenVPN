@@ -87,9 +87,7 @@ function selectIface(iface, btn) {
     document.querySelectorAll('.iface').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedIface = iface;
-
     document.getElementById('bwIface').textContent = iface;
-
     updateGraph();
 }
 
@@ -128,31 +126,55 @@ async function updateGraph() {
     try {
         const res = await fetch(`/api/bw?iface=${selectedIface}&period=${selectedPeriod}`);
         const data = await res.json();
-        if (!data || !data.labels) return;
+        if (!data) return;
 
-        const ctx = document.getElementById('bwChart').getContext('2d');
+        const rawLabels = (data.utc_labels && data.utc_labels.length) ? data.utc_labels : (data.labels || []);
+        const xAxisTitle = (selectedPeriod === 'hour' || selectedPeriod === 'day') ? 'Время' : 'Дата';
+
+        // Преобразование UTC меток в локальное время
+        const labels = rawLabels.map(lab => {
+
+            const d = new Date(lab);
+            if (isNaN(d.getTime())) {
+                console.warn('Invalid UTC label:', lab);
+
+                return lab;
+            }
+            if (selectedPeriod === 'hour' || selectedPeriod === 'day') {
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+            }
+        });
+
+        const ctx = document.getElementById("bwChart").getContext("2d");
         const colors = getThemeColors();
 
+        const datasets = [
+            {
+                label: "Принято",
+                data: data.rx_mbps,
+                fill: true,
+                borderColor: colors.rx.border,
+                backgroundColor: colors.rx.fill,
+                tension: 0.2,
+                pointRadius: 2
+            },
+            {
+                label: "Передано",
+                data: data.tx_mbps,
+                fill: true,
+                borderColor: colors.tx.border,
+                backgroundColor: colors.tx.fill,
+                tension: 0.2,
+                pointRadius: 2
+            }
+        ];
+
         if (bwChartInstance) {
-            bwChartInstance.data.labels = data.labels;
-            bwChartInstance.data.datasets = [
-                {
-                    label: 'Принято',
-                    data: data.rx_mbps,
-                    fill: true,
-                    borderColor: colors.rx.border,
-                    backgroundColor: colors.rx.fill,
-                    tension: 0.2
-                },
-                {
-                    label: 'Передано',
-                    data: data.tx_mbps,
-                    fill: true,
-                    borderColor: colors.tx.border,
-                    backgroundColor: colors.tx.fill,
-                    tension: 0.2
-                }
-            ];
+            bwChartInstance.data.labels = labels;
+            bwChartInstance.data.datasets = datasets;
+            bwChartInstance.options.scales.x.title.text = xAxisTitle;
             bwChartInstance.options.scales.x.ticks.color = colors.text;
             bwChartInstance.options.scales.y.ticks.color = colors.text;
             bwChartInstance.options.scales.x.grid.color = colors.grid;
@@ -160,53 +182,33 @@ async function updateGraph() {
             bwChartInstance.update();
         } else {
             bwChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [
-                        {
-                            label: 'Принято',
-                            data: data.rx_mbps,
-                            fill: true,
-                            borderColor: colors.rx.border,
-                            backgroundColor: colors.rx.fill,
-                            tension: 0.2
-                        },
-                        {
-                            label: 'Передано',
-                            data: data.tx_mbps,
-                            fill: true,
-                            borderColor: colors.tx.border,
-                            backgroundColor: colors.tx.fill,
-                            tension: 0.2
-                        }
-                    ]
-                },
+                type: "line",
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    interaction: { mode: 'index', intersect: false },
+                    interaction: { mode: "index", intersect: false },
                     scales: {
                         y: {
-                            title: { display: true, text: 'Мбит/с' },
+                            title: { display: true, text: "Мбит/с" },
                             beginAtZero: true,
                             grid: { color: colors.grid },
                             ticks: { color: colors.text }
                         },
                         x: {
-                            title: { display: true, text: 'Время' },
+                            title: { display: true, text: xAxisTitle },
                             grid: { color: colors.grid },
                             ticks: { color: colors.text }
                         }
                     },
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: colors.text } }
+                        legend: { position: "bottom", labels: { color: colors.text, usePointStyle: false } }
                     }
                 }
             });
         }
     } catch (e) {
-        console.error('Ошибка при обновлении графика bw:', e);
+        console.error("Ошибка при обновлении графика bw:", e);
     }
 }
 

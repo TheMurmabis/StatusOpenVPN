@@ -30,13 +30,45 @@
         <table class="table client-table table-hover table-sm align-middle">
             <thead>
                 <tr>
-                    <th scope="col" class="text-center">Клиент</th>
-                    <th scope="col" class="text-center">Передано</th>
-                    <th scope="col" class="text-center">Получено</th>
-                    <th scope="col" class="text-center">Месяц подключения</th>
-                    <th scope="col" class="text-center">Последнее подключение</th>
+                  <th class="text-center">
+                    <a href="?sort=client_name&order={{ 'desc' if sort_by == 'client_name' and order == 'asc' else 'asc' }}">
+                      Клиент
+                      {% if sort_by == 'client_name' %}
+                        <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                      {% endif %}
+                    </a>
+                  </th>
+              
+                  <th class="text-center">
+                    <a href="?sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}">
+                      Передано
+                      {% if sort_by == 'total_bytes_sent' %}
+                        <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                      {% endif %}
+                    </a>
+                  </th>
+              
+                  <th class="text-center">
+                    <a href="?sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}">
+                      Получено
+                      {% if sort_by == 'total_bytes_received' %}
+                        <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                      {% endif %}
+                    </a>
+                  </th>
+              
+                  <th class="text-center">Месяц подключения</th>
+              
+                  <th class="text-center">
+                    <a href="?sort=last_connected&order={{ 'desc' if sort_by == 'last_connected' and order == 'asc' else 'asc' }}">
+                      Последнее подключение
+                      {% if sort_by == 'last_connected' %}
+                        <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                      {% endif %}
+                    </a>
+                  </th>
                 </tr>
-            </thead>
+              </thead>
             <tbody>
                 {% for client in stats %}
                 {% if client['client_name'] != 'UNDEF' %}
@@ -47,8 +79,7 @@
                     <td class="text-center">{{ month }}</td>
                     <td class="text-center">
                         {% if client['last_connected'] %}
-                        <span class="connection-time"
-                            data-utc="{{ client['last_connected'] }}">Загрузка...</span>
+                        <span class="connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
                         {% else %}
                         <span>Нет данных</span>
                         {% endif %}
