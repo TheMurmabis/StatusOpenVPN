@@ -1129,8 +1129,8 @@ def ovpn_stats():
                         total_sent += sent or 0
                         stats_list.append({
                             "client_name": client_name,
-                            "total_bytes_received": format_bytes(received),
-                            "total_bytes_sent": format_bytes(sent),
+                            "total_bytes_sent": format_bytes(received),
+                            "total_bytes_received": format_bytes(sent),
                             "last_connected": last_connected,
                         })
                     month_stats[month] = stats_list
