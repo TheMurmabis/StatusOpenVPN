@@ -192,8 +192,14 @@ if [[ -z "$SERVER_URL" ]]; then
 fi
 
 # === Telegram Bot (состояние сохраняется) ===
+if [[ "$BOT_ENABLED" -eq 1 ]]; then
+    DEFAULT_INSTALL_BOT="Y"
+else
+    DEFAULT_INSTALL_BOT="N"
+fi
+
 if [[ "$BOT_ENABLED" -ne 1 ]]; then
-    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i "$DEFAULT_INSTALL_BOT" INSTALL_BOT
     if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
         BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
         echo "Creating Telegram bot service..."
@@ -241,13 +247,16 @@ if ! command -v vnstat &> /dev/null; then
     echo "📦 vnstat not found, installing..."
     sudo apt update && sudo apt install -y vnstat
     changes_made=true
+else
+    echo "🔄 vnstat found, updating to the latest version..."
+    sudo apt update && sudo apt install --only-upgrade -y vnstat
 fi
 
 # Добавление интерфейсов
 for iface in "${INTERFACES[@]}"; do
     if ! vnstat --iflist | grep -qw "$iface"; then
         echo "Adding interface $iface to vnstat..."
-        sudo vnstat -u -i "$iface"
+        sudo vnstat --add -i "$iface"
         changes_made=true
     fi
 done

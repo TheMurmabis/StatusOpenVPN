@@ -283,13 +283,16 @@ if ! command -v vnstat &> /dev/null; then
     echo "📦 vnstat not found, installing..."
     sudo apt update && sudo apt install -y vnstat
     changes_made=true
+else
+    echo "🔄 vnstat found, updating to the latest version..."
+    sudo apt update && sudo apt install --only-upgrade -y vnstat
 fi
 
 # Добавление интерфейсов
 for iface in "${INTERFACES[@]}"; do
     if ! vnstat --iflist | grep -qw "$iface"; then
         echo "Adding interface $iface to vnstat..."
-        sudo vnstat -u -i "$iface"
+        sudo vnstat --add -i "$iface"
         changes_made=true
     fi
 done
