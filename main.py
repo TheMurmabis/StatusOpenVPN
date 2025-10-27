@@ -1092,8 +1092,8 @@ def ovpn_stats():
         # Разрешённые поля сортировки (ключ -> SQL)
         allowed_sorts = {
             "client_name": "client_name",
-            "total_bytes_sent": "SUM(total_bytes_sent)",
-            "total_bytes_received": "SUM(total_bytes_received)",
+            "total_bytes_sent": "SUM(total_bytes_received)",
+            "total_bytes_received": "SUM(total_bytes_sent)",
             "last_connected": "MAX(last_connected)"
         }
 
