@@ -290,10 +290,16 @@ fi
 
 # Добавление интерфейсов
 for iface in "${INTERFACES[@]}"; do
-    if ! vnstat --iflist | grep -qw "$iface"; then
-        echo "Adding interface $iface to vnstat..."
-        sudo vnstat --add -i "$iface"
-        changes_made=true
+    # Проверяем, существует ли интерфейс в системе
+    if ip link show "$iface" >/dev/null 2>&1; then
+        # Проверяем, есть ли интерфейс в vnstat
+        if ! sudo vnstat --iflist | grep -qw "$iface"; then
+            echo "Adding interface $iface to vnstat..."
+            sudo vnstat --add -i "$iface"
+            changes_made=true
+        fi
+    else
+        echo "Interface $iface does not exist. Skipping."
     fi
 done
 
