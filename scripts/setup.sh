@@ -71,11 +71,11 @@ else
     echo "Using default port $PORT."
 fi
 
-mkdir -p "$TARGET_DIR/src/databases"
 
 # === Клонирование проекта ===
 echo "Cloning repository into $TARGET_DIR..."
 git clone https://github.com/TheMurmabis/StatusOpenVPN.git $TARGET_DIR
+mkdir -p "$TARGET_DIR/src/databases"
 cd $TARGET_DIR
 
 # === Python окружение ===
