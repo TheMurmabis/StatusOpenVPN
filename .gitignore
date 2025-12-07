@@ -5,3 +5,4 @@ __pycache__
 *.db
 test.py
 .env
+setup
