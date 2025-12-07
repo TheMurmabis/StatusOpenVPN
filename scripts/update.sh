@@ -287,10 +287,10 @@ fi
 # Проверяем, есть ли файлы .db
 if compgen -G "$SRC/*.db" > /dev/null; then
     echo "Migrating database files..."
-    sudo systemctl stop wg_stats logs.timer my_flask_app 2>/dev/null
+    sudo systemctl stop wg_stats logs.timer StatusOpenVPN 2>/dev/null
     mkdir -p "$DST"
     mv "$SRC"/*.db "$DST"/ 2>/dev/null
-    sudo systemctl start wg_stats logs.timer my_flask_app 2>/dev/null
+    sudo systemctl start wg_stats logs.timer StatusOpenVPN 2>/dev/null
 fi
 
 # Перезагрузка systemd и запуск сервисов
