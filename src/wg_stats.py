@@ -9,7 +9,7 @@ import subprocess
 import schedule
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "wireguard_stats.db")
+DB_PATH = os.path.join(BASE_DIR, "databases" , "wireguard_stats.db")
 
 SAVE_TIME = "23:59"  # Время для фиксирования дневного трафика
 START_TIME = "00:00"  # Время для начала записи нового дня

@@ -10,6 +10,8 @@ RESET='\e[0m'
 
 # Переменные
 TARGET_DIR="/root/web"
+SRC="$TARGET_DIR/src"
+DST="$TARGET_DIR/src/databases"
 SETUP_FILE="$TARGET_DIR/setup"
 DEFAULT_PORT=1234
 ENV_FILE="$TARGET_DIR/src/.env"
@@ -279,6 +281,16 @@ else
     sudo mkdir -p "$OVERRIDE_DIR"
     echo -e "[Service]\n$SLEEP_LINE" | sudo tee "$OVERRIDE_FILE" >/dev/null
     changes_made=true
+fi
+
+
+# Проверяем, есть ли файлы .db
+if compgen -G "$SRC/*.db" > /dev/null; then
+    echo "Migrating database files..."
+    sudo systemctl stop wg_stats logs.timer my_flask_app 2>/dev/null
+    mkdir -p "$DST"
+    mv "$SRC"/*.db "$DST"/ 2>/dev/null
+    sudo systemctl start wg_stats logs.timer my_flask_app 2>/dev/null
 fi
 
 # Перезагрузка systemd и запуск сервисов

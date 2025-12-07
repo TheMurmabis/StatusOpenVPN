@@ -148,6 +148,7 @@ EOF
     nginx -t && systemctl reload nginx
 
     save_setup_var "HTTPS_ENABLED" "1"
+    save_setup_var "DOMAIN" "$DOMAIN"
     echo -e "${GREEN}HTTPS setup complete for $DOMAIN${RESET}"
 }
 

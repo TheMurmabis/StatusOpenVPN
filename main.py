@@ -11,6 +11,8 @@ import psutil
 import socket
 import subprocess
 import json
+
+from statistics import mean
 from tzlocal import get_localzone
 from flask_login import (
     LoginManager,
@@ -44,6 +46,21 @@ app.config.from_object(Config)
 bcrypt = Bcrypt(app)
 loginManager = LoginManager(app)
 loginManager.login_view = "login"
+
+# Переменная для хранения кэшированных данных
+cached_system_info = None
+last_fetch_time = 0
+CACHE_DURATION = 10  # обновление кэша каждые 10 секунд
+cpu_history = []
+ram_history = []
+MAX_CPU_HISTORY = 60 * 12  # хранить 12 часов с шагом 1 минута
+DB_SAVE_INTERVAL = 300  # запись в БД каждые 5 минут
+last_db_save = 0
+
+SAMPLE_INTERVAL = 10  # текущая частота сбора
+MAX_HISTORY_SECONDS = 7 * 24 * 3600  # сколько секунд хранить в памяти
+LIVE_POINTS = 60
+last_collect = 0
 
 
 # Функция для подлючения к базе данных SQLite
@@ -613,6 +630,141 @@ def read_csv(file_path, protocol):
 
 
 # ---------Метрики----------
+def ensure_db():
+    """Создает таблицу system_stats, если она не существует."""
+
+    conn = sqlite3.connect(app.config["SYSTEM_STATS_PATH"])
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS system_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME,
+            cpu_percent REAL,
+            ram_percent REAL
+        )
+    """
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def save_minute_average_to_db():
+    """Сохраняет средние значения CPU и RAM за последний интервал в БД."""
+    now = datetime.now()
+    cutoff = now - timedelta(seconds=DB_SAVE_INTERVAL)
+    to_avg = [p for p in cpu_history if p["timestamp"] >= cutoff]
+    if not to_avg:
+        return
+    cpu_avg = mean([p["cpu"] for p in to_avg])
+    ram_avg = mean([p["ram"] for p in to_avg])
+
+    try:
+        conn = sqlite3.connect(app.config["SYSTEM_STATS_PATH"])
+        cur = conn.cursor()
+        # записываем timestamp = now (local)
+        cur.execute(
+            "INSERT INTO system_stats (timestamp, cpu_percent, ram_percent) VALUES (?, ?, ?)",
+            (now.strftime("%Y-%m-%d %H:%M:%S"), round(cpu_avg, 3), round(ram_avg, 3)),
+        )
+
+        # Очищаем старые записи старше 7 дней
+        cutoff_db = now - timedelta(days=7)
+        cur.execute(
+            "DELETE FROM system_stats WHERE timestamp < ?",
+            (cutoff_db.strftime("%Y-%m-%d %H:%M:%S"),),
+        )
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("[DB ERROR] save_minute_average_to_db:", e)
+
+
+def group_rows(rows, interval="minute"):
+    """Группирует ряды по интервалу и усредняет значения CPU и RAM."""
+
+    grouped = {}
+
+    for r in rows:
+        ts = r["timestamp"]
+
+        if interval == "minute":
+            key = ts.replace(second=0, microsecond=0)
+
+        elif interval == "hour":
+            key = ts.replace(minute=0, second=0, microsecond=0)
+
+        elif interval == "day":
+            key = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        else:
+            key = ts
+
+        if key not in grouped:
+            grouped[key] = {"cpu": [], "ram": []}
+
+        grouped[key]["cpu"].append(r["cpu"])
+        grouped[key]["ram"].append(r["ram"])
+
+    # Усреднение
+    result = []
+    for key, values in grouped.items():
+        result.append(
+            {
+                "timestamp": key,
+                "cpu": sum(values["cpu"]) / len(values["cpu"]),
+                "ram": sum(values["ram"]) / len(values["ram"]),
+            }
+        )
+
+    return sorted(result, key=lambda x: x["timestamp"])
+
+
+def resample_to_n(data, n):
+    """Возвращает ровно n точек (если меньше — возвращает всё). Берёт равномерно распределённые индексы."""
+    if not data:
+        return []
+    if len(data) <= n:
+        return data
+    step = len(data) / n
+    out = []
+    for i in range(n):
+        idx = int(i * step)
+        if idx >= len(data):
+            idx = len(data) - 1
+        out.append(data[idx])
+    return out
+
+
+def update_system_info_loop():
+    global last_db_save, last_collect
+    ensure_db()
+
+    while True:
+        now = time.time()
+        if now - last_collect >= SAMPLE_INTERVAL:
+            # psutil: non-blocking
+            cpu = psutil.cpu_percent(interval=None)
+            ram = psutil.virtual_memory().percent
+            ts = datetime.now()
+            cpu_history.append({"timestamp": ts, "cpu": cpu, "ram": ram})
+            # trim by time (keep at most MAX_HISTORY_SECONDS seconds)
+            cutoff = datetime.now() - timedelta(seconds=MAX_HISTORY_SECONDS)
+            # remove from start while older than cutoff
+            while cpu_history and cpu_history[0]["timestamp"] < cutoff:
+                cpu_history.pop(0)
+            last_collect = now
+
+        # сохранить среднее в БД каждые DB_SAVE_INTERVAL
+        if now - last_db_save >= DB_SAVE_INTERVAL:
+            save_minute_average_to_db()
+            last_db_save = now
+
+        time.sleep(1)
+
+
 def get_default_interface():
     try:
         result = subprocess.run(
@@ -767,19 +919,13 @@ def count_online_clients(file_paths):
     return results
 
 
-# Переменная для хранения кэшированных данных
-cached_system_info = None
-last_fetch_time = 0
-CACHE_DURATION = 10  # Время кэширования в секундах
-
-
 def get_system_info():
     global cached_system_info
     return cached_system_info
 
 
 def update_system_info():
-    global cached_system_info, last_fetch_time
+    global cached_system_info, last_fetch_time, cpu_history, last_db_save
 
     file_paths = [
         ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
@@ -791,12 +937,23 @@ def update_system_info():
     while True:
         current_time = time.time()
         if not cached_system_info or (current_time - last_fetch_time >= CACHE_DURATION):
+            cpu_percent = psutil.cpu_percent(interval=1)
+            ram_percent = psutil.virtual_memory().percent
+            timestamp = datetime.now()
+
+            # Обновление live истории в памяти
+            cpu_history.append(
+                {"timestamp": timestamp, "cpu": cpu_percent, "ram": ram_percent}
+            )
+            if len(cpu_history) > MAX_CPU_HISTORY:
+                cpu_history.pop(0)  # удаляем старые записи
+
             interface = get_default_interface()
             network_stats = get_network_stats(interface) if interface else None
             vpn_clients = count_online_clients(file_paths)
 
             cached_system_info = {
-                "cpu_load": psutil.cpu_percent(interval=1),
+                "cpu_load": cpu_percent,
                 "memory_used": psutil.virtual_memory().used // (1024**2),
                 "memory_total": psutil.virtual_memory().total // (1024**2),
                 "disk_used": psutil.disk_usage("/").used // (1024**3),
@@ -808,29 +965,30 @@ def update_system_info():
                 "tx_bytes": format_bytes(network_stats["tx"]) if network_stats else 0,
                 "vpn_clients": vpn_clients,
             }
+
             last_fetch_time = current_time
+
         time.sleep(CACHE_DURATION)
 
 
 # Запуск фоновой задачи
 threading.Thread(target=update_system_info, daemon=True).start()
+threading.Thread(target=update_system_info_loop, daemon=True).start()
+
 
 def get_vnstat_interfaces():
     try:
         result = subprocess.run(
-            ["/usr/bin/vnstat", "--json"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["/usr/bin/vnstat", "--json"], capture_output=True, text=True, check=True
         )
         data = json.loads(result.stdout)
 
         interfaces = []
-        for iface in data.get('interfaces', []):
-            name = iface.get('name')
-            traffic = iface.get('traffic', {}).get('total', {})
-            rx = traffic.get('rx', 0)
-            tx = traffic.get('tx', 0)
+        for iface in data.get("interfaces", []):
+            name = iface.get("name")
+            traffic = iface.get("traffic", {}).get("total", {})
+            rx = traffic.get("rx", 0)
+            tx = traffic.get("tx", 0)
 
             # Добавляем только если есть трафик
             if (rx + tx) > 0:
@@ -841,6 +999,7 @@ def get_vnstat_interfaces():
     except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print(f"Ошибка при получении интерфейсов: {e}")
         return []
+
 
 # @app.errorhandler(404)
 # def page_not_found(_):
@@ -1094,7 +1253,7 @@ def ovpn_stats():
             "client_name": "client_name",
             "total_bytes_sent": "SUM(total_bytes_received)",
             "total_bytes_received": "SUM(total_bytes_sent)",
-            "last_connected": "MAX(last_connected)"
+            "last_connected": "MAX(last_connected)",
         }
 
         # Если параметр некорректный — сбрасываем на client_name
@@ -1127,12 +1286,14 @@ def ovpn_stats():
                     for client_name, sent, received, last_connected in rows:
                         total_received += received or 0
                         total_sent += sent or 0
-                        stats_list.append({
-                            "client_name": client_name,
-                            "total_bytes_sent": format_bytes(received),
-                            "total_bytes_received": format_bytes(sent),
-                            "last_connected": last_connected,
-                        })
+                        stats_list.append(
+                            {
+                                "client_name": client_name,
+                                "total_bytes_sent": format_bytes(received),
+                                "total_bytes_received": format_bytes(sent),
+                                "last_connected": last_connected,
+                            }
+                        )
                     month_stats[month] = stats_list
 
         return render_template(
@@ -1157,12 +1318,14 @@ def ovpn_stats():
 @login_required
 def api_bw():
     q_iface = request.args.get("iface")
-    period = request.args.get("period", "day")  
+    period = request.args.get("period", "day")
     vnstat_bin = os.environ.get("VNSTAT_BIN", "/usr/bin/vnstat")
 
     # Получаем список интерфейсов
     try:
-        proc = subprocess.run([vnstat_bin, "--json"], check=True, capture_output=True, text=True)
+        proc = subprocess.run(
+            [vnstat_bin, "--json"], check=True, capture_output=True, text=True
+        )
         data = json.loads(proc.stdout)
         interfaces = [iface["name"] for iface in data.get("interfaces", [])]
     except subprocess.CalledProcessError:
@@ -1181,7 +1344,7 @@ def api_bw():
         points = 12
         interval_seconds = 300
     elif period == "day":
-        vnstat_option = "h" # по часам
+        vnstat_option = "h"  # по часам
         points = 24
         interval_seconds = 3600
     elif period == "week":
@@ -1199,11 +1362,20 @@ def api_bw():
 
     # Получаем JSON от vnstat
     try:
-        proc = subprocess.run([vnstat_bin, "--json", vnstat_option, "-i", iface],
-                              check=True, capture_output=True, text=True)
+        proc = subprocess.run(
+            [vnstat_bin, "--json", vnstat_option, "-i", iface],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         data = json.loads(proc.stdout)
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"vnstat вернул код ошибки: {e.returncode}", "iface": iface}), 500
+        return (
+            jsonify(
+                {"error": f"vnstat вернул код ошибки: {e.returncode}", "iface": iface}
+            ),
+            500,
+        )
     except Exception as e:
         return jsonify({"error": str(e), "iface": iface}), 500
 
@@ -1229,7 +1401,7 @@ def api_bw():
             d.get("month", 0),
             d.get("day", 0),
             t.get("hour", 0),
-            t.get("minute", 0)
+            t.get("minute", 0),
         )
 
     sorted_data = sorted(traffic_data, key=sort_key)
@@ -1238,17 +1410,17 @@ def api_bw():
 
     labels, utc_labels, rx_mbps, tx_mbps = [], [], [], []
 
-    server_tz = datetime.now().astimezone().tzinfo # серверный локальный timezone
+    server_tz = datetime.now().astimezone().tzinfo  # серверный локальный timezone
 
     for m in sorted_data:
         d = m.get("date") or {}
         t = m.get("time") or {}
 
-        year = int(d.get('year', 0))
-        month = int(d.get('month', 0))
-        day = int(d.get('day', 0))
-        hour = int(t.get('hour', 0))
-        minute = int(t.get('minute', 0))
+        year = int(d.get("year", 0))
+        month = int(d.get("month", 0))
+        day = int(d.get("day", 0))
+        hour = int(t.get("hour", 0))
+        minute = int(t.get("minute", 0))
 
         if vnstat_option == "f":
             labels.append(f"{hour:02d}:{minute:02d}")
@@ -1272,20 +1444,125 @@ def api_bw():
 
     server_time_utc = datetime.now(timezone.utc).isoformat()
 
-    return jsonify({
-        "iface": iface,
-        "labels": labels,
-        "utc_labels": utc_labels,
-        "rx_mbps": rx_mbps,
-        "tx_mbps": tx_mbps,
-        "server_time": server_time_utc
-    })
+    return jsonify(
+        {
+            "iface": iface,
+            "labels": labels,
+            "utc_labels": utc_labels,
+            "rx_mbps": rx_mbps,
+            "tx_mbps": tx_mbps,
+            "server_time": server_time_utc,
+        }
+    )
 
 
 @app.route("/api/interfaces")
 def api_interfaces():
     interfaces = get_vnstat_interfaces()
     return jsonify({"interfaces": interfaces})
+
+
+@app.route("/api/cpu")
+def api_cpu():
+
+    period = request.args.get("period", "live")
+    now = datetime.now()
+
+    # Количество точек для каждого фильтра
+    targets = {
+        "live": LIVE_POINTS,  # 60 точек
+        "hour": 60,  # 60 минут
+        "day": 24,  # 24 часа
+        "week": 7,  # 7 дней
+        "month": 30,  # 30 дней
+    }
+    max_points = targets.get(period, LIVE_POINTS)
+
+    mem_rows = list(cpu_history)
+
+    # ----------------- LIVE -----------------
+    if period == "live":
+        # просто последние N точек без группировки
+        last = mem_rows[-LIVE_POINTS:] if len(mem_rows) > LIVE_POINTS else mem_rows
+
+        data = [
+            {"timestamp": r["timestamp"], "cpu": r["cpu"], "ram": r["ram"]}
+            for r in last
+        ]
+
+    # ----------------- Остальные периоды -----------------
+    else:
+        # Настройка интервала и среза
+        if period == "hour":
+            bucket = "minute"
+            cutoff = now - timedelta(hours=1)
+        elif period == "day":
+            bucket = "hour"
+            cutoff = now - timedelta(days=1)
+        elif period == "week":
+            bucket = "day"
+            cutoff = now - timedelta(days=7)
+        elif period == "month":
+            bucket = "day"
+            cutoff = now - timedelta(days=30)
+        else:
+            bucket = "minute"
+            cutoff = now - timedelta(hours=1)
+
+        mem_candidates = [
+            r for r in mem_rows if r["timestamp"] >= cutoff
+        ]  # Данные из памяти за период
+        need_db = True  # Если данных в памяти недостаточно, берём из БД
+        if need_db:
+            try:
+                conn = sqlite3.connect(app.config["SYSTEM_STATS_PATH"])
+                cur = conn.cursor()
+
+                cur.execute(
+                    """
+                    SELECT timestamp, cpu_percent, ram_percent
+                    FROM system_stats
+                    WHERE timestamp >= ?
+                    ORDER BY timestamp ASC
+                """,
+                    (cutoff.strftime("%Y-%m-%d %H:%M:%S"),),
+                )
+
+                rows = cur.fetchall()
+                conn.close()
+
+                source_rows = [
+                    {
+                        "timestamp": datetime.strptime(ts, "%Y-%m-%d %H:%M:%S"),
+                        "cpu": cpu,
+                        "ram": ram,
+                    }
+                    for ts, cpu, ram in rows
+                ]
+
+            except Exception as e:
+                print("[DB ERROR] api_cpu:", e)
+                source_rows = mem_candidates
+        else:
+            source_rows = mem_candidates
+
+        # Группировка по bucket (minute/hour/day)
+        grouped = group_rows(source_rows, interval=bucket)
+        data = resample_to_n(grouped, max_points)
+
+    utc_labels = [
+        d["timestamp"].astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for d in data
+    ]
+
+    return jsonify(
+        {
+            "utc_labels": utc_labels,
+            "cpu_percent": [round(d["cpu"], 2) for d in data],
+            "ram_percent": [round(d["ram"], 2) for d in data],
+            "period": period,
+        }
+    )
 
 
 if __name__ == "__main__":
