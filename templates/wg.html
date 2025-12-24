@@ -58,47 +58,61 @@
                     <th title="Получено от клиента">Передано</th>
                 </tr>
             </thead>
-            <tbody id="tbody-{{ interface.interface }}">
-                {% for peer in interface.peers %}
-                <tr class="{{ 'traffic-online ' if peer.online else 'traffic-offline wg_table' }}">
-                    <td>
-                        <div class="d-flex flex-column align-items-center">
-                            <span>
-                                <small class="{{ 'text-success' if peer.online else 'traffic-offline' }} fs-8">
-                                    {{ 'Онлайн' if peer.online else 'Офлайн' }}
-                                </small>
-                            </span>
-                        </div>
-                    </td>
-                    <td title="Peer: {{ peer.masked_peer }}">{{ peer.client }}</td>
-                    <td>{{ peer.endpoint or 'N/A' }}</td>
-                    <td>
-                        {% for ip in peer.visible_ips %}
-                        <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                        {% if peer.hidden_ips %}
-                        <div class="hidden-ips" style="display:none;">
-                            {% for ip in peer.hidden_ips %}
-                            <span>{{ ip }}</span>{% if not loop.last %}, {% endif %}
-                            {% endfor %}
-                        </div>
-                        <a href="#" class="btn btn-link p-0 small" onclick="toggleIps({{ loop.index }})">
-                            Показать все
-                        </a>
-                        {% endif %}
-                    </td>
-                    <td>{{ peer.latest_handshake or 'N/A' }}</td>
-                    <td>{{ peer.daily_received or '0.0' }}</td>
-                    <td>{{ peer.daily_sent or '0.0' }}</td>
-                    <td>{{ peer.received or '0.0' }}</td>
-                    <td>{{ peer.sent or '0.0' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
+            <tbody id="tbody-{{ interface.interface }}"></tbody>
         </table>
     </div>
     {% endfor %}
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const stats = {{ stats|tojson }};
+    
+    stats.forEach(interface => {
+        const tbody = document.getElementById(`tbody-${interface.interface}`);
+        if (!tbody) return;
+
+        let index = 0;
+        let onlineCount = 0;
+
+        function renderChunk() {
+            if (index >= interface.peers.length) return;
+
+            const peer = interface.peers[index];
+            const tr = document.createElement("tr");
+            tr.className = peer.online ? "traffic-online" : "traffic-offline wg_table";
+
+            if(peer.online) onlineCount++;
+
+            tr.innerHTML = `
+                <td>
+                    <small class="${peer.online ? 'text-success' : 'traffic-offline'} fs-8">
+                        ${peer.online ? 'Онлайн' : 'Офлайн'}
+                    </small>
+                </td>
+                <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
+                <td>${peer.endpoint || 'N/A'}</td>
+                <td>${peer.visible_ips.join(', ')}</td>
+                <td>${peer.latest_handshake || 'N/A'}</td>
+                <td>${peer.daily_received || '0.0'}</td>
+                <td>${peer.daily_sent || '0.0'}</td>
+                <td>${peer.received || '0.0'}</td>
+                <td>${peer.sent || '0.0'}</td>
+            `;
+
+            tbody.appendChild(tr);
+            document.getElementById(`online-count-${interface.interface}`).textContent = onlineCount;
+
+            index++;
+            setTimeout(renderChunk, 5); 
+        }
+
+        renderChunk();
+    });
+});
+</script>
+
+
 
 <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
 {% endblock %}
