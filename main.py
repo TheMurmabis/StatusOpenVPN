@@ -375,6 +375,29 @@ def parse_wireguard_output(output):
             peer_data["hidden_ips"] = allowed_ips[1:]
         elif line.startswith("latest handshake:"):
             handshake_time = line.split(": ")[1].strip()
+
+            if handshake_time.lower() == "now":
+                formatted_handshake_time = datetime.now()
+                peer_data["latest_handshake"] = "Now"
+                peer_data["online"] = True
+
+            elif any(
+                unit in handshake_time
+                for unit in ["мин", "час", "сек", "minute", "hour", "second", "day", "week"]
+            ):
+                formatted_handshake_time = parse_relative_time(handshake_time)
+                peer_data["latest_handshake"] = format_handshake_time(handshake_time)
+                peer_data["online"] = is_peer_online(formatted_handshake_time)
+
+            else:
+                formatted_handshake_time = datetime.strptime(
+                    handshake_time, "%Y-%m-%d %H:%M:%S"
+                )
+                peer_data["latest_handshake"] = format_handshake_time(handshake_time)
+                peer_data["online"] = is_peer_online(formatted_handshake_time)
+        
+        elif line.startswith("latest handshake:"):
+            handshake_time = line.split(": ")[1].strip()
             if any(
                 unit in handshake_time
                 for unit in ["мин", "час", "сек", "minute", "hour", "second"]
