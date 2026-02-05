@@ -5,11 +5,12 @@ function resetTimer() {
 
     if (!window.rememberMe) {  
         inactivityTimeout = setTimeout(function() {
-            fetch('/logout', {
+            const basePath = window.basePath || '';
+            fetch(basePath + '/logout', {
                 method: 'POST',
                 credentials: 'include'
             }).then(() => {
-                window.location.href = '/login';
+                window.location.href = basePath + '/login';
             });
         }, 5 * 60 * 1000); // 5 минут
     }

@@ -102,7 +102,8 @@ function initCpuChart() {
 function updateCpuChart(period = 'live') {
     if (!cpuChart) return;
     
-    fetch(`/api/cpu?period=${period}`)
+    const basePath = window.basePath || '';
+    fetch(`${basePath}/api/cpu?period=${period}`)
         .then(r => {
             if (!r.ok) throw new Error('Network response was not ok');
             return r.json();
@@ -198,7 +199,15 @@ function toggleCpuChartVisibility() {
 // Системная информация
 async function updateSystemInfo() {
     try {
-        const response = await fetch('/api/system_info');
+
+        let basePath = window.basePath || '';
+        if (!basePath) {
+            const path = window.location.pathname;
+            if (path.includes('/StatusOpenVPN')) {
+                basePath = '/StatusOpenVPN';
+            }
+        }
+        const response = await fetch(basePath + '/api/system_info');
         const data = await response.json();
         const cpuElement = document.getElementById('cpu_load');
         const memoryElement = document.getElementById('memory_used');
@@ -211,8 +220,8 @@ async function updateSystemInfo() {
         const vpnClientsElement = document.getElementById('vpn_clients');
         const openvpn = data.vpn_clients?.OpenVPN ?? 0;
         const wireguard = data.vpn_clients?.WireGuard ?? 0;
-        const vpnHtml = `<a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>: ${openvpn} шт.<br>
-                     <a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>: ${wireguard} шт.`;
+        const vpnHtml = `<a class="text-decoration-none" href="${basePath}/ovpn">&#128279; <b>OpenVPN</b></a>: ${openvpn} шт.<br>
+                     <a class="text-decoration-none" href="${basePath}/wg">&#128279; <b>WireGuard</b></a>: ${wireguard} шт.`;
 
         if (cpuElement.textContent !== data.cpu_load) cpuElement.textContent = data.cpu_load;
         if (memoryElement.textContent !== data.memory_used) memoryElement.textContent = data.memory_used;
@@ -251,7 +260,8 @@ const ifaceDisplayNames = {
 
 async function loadInterfaces() {
     try {
-        const res = await fetch('/api/interfaces');
+        const basePath = window.basePath || '';
+        const res = await fetch(basePath + '/api/interfaces');
         const data = await res.json();
         const container = document.getElementById('interface-filters');
         container.innerHTML = '';
@@ -316,7 +326,8 @@ async function updateGraph() {
     if (!selectedIface) return;
 
     try {
-        const res = await fetch(`/api/bw?iface=${selectedIface}&period=${selectedPeriod}`);
+        const basePath = window.basePath || '';
+        const res = await fetch(`${basePath}/api/bw?iface=${selectedIface}&period=${selectedPeriod}`);
         const data = await res.json();
         if (!data) return;
 
@@ -553,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateGraph();
         }
     });
-});
 
-setInterval(updateSystemInfo, 5000);
-updateSystemInfo();
+    updateSystemInfo();
+    setInterval(updateSystemInfo, 5000);
+});

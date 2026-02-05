@@ -5,8 +5,8 @@
 <div class="container">
   <h2 class="text-center">
     Добро пожаловать в панель мониторинга
-    <a href="/ovpn" class="fancy-link">OpenVPN</a> и
-    <a href="/wg" class="fancy-link">WireGuard</a>
+    <a href="{{ url_for('ovpn') }}" class="fancy-link">OpenVPN</a> и
+    <a href="{{ url_for('wg') }}" class="fancy-link">WireGuard</a>
   </h2>
 
   <p class="text-center">
@@ -25,10 +25,10 @@
           <div class="card-body">
             <h5 class="card-title">Клиенты онлайн:</h5>
             <p class="card-text" id="vpn_clients">
-              <a class="text-decoration-none" href="/ovpn">&#128279; <b>OpenVPN</b></a>:
+              <a class="text-decoration-none" href="{{ url_for('ovpn') }}">&#128279; <b>OpenVPN</b></a>:
               {{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}
               шт.<br>
-              <a class="text-decoration-none" href="/wg">&#128279; <b>WireGuard</b></a>:
+              <a class="text-decoration-none" href="{{ url_for('wg') }}">&#128279; <b>WireGuard</b></a>:
               {{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}
               шт.
             </p>

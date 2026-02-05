@@ -168,12 +168,21 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
     if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
        && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
         echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
-        SERVER_URL="https://$DOMAIN"
+        if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
+            echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
+            if sudo certbot renew --nginx --cert-name "$DOMAIN"; then
+                sudo systemctl reload nginx
+                echo -e "${GREEN}Certificate renewed.${RESET}"
+            else
+                echo -e "${RED}Certificate renewal failed.${RESET}"
+            fi
+        fi
+        SERVER_URL="https://$DOMAIN/StatusOpenVPN/"
     else
         if [[ -f "$SSL_SCRIPT" ]]; then
             if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
                 echo -e "${GREEN}HTTPS successfully enabled for: $DOMAIN${RESET}"
-                SERVER_URL="https://$DOMAIN"
+                SERVER_URL="https://$DOMAIN/StatusOpenVPN/"
             else
                 echo -e "${RED}SSL setup failed.${RESET}"
                 HTTPS_ENABLED=0

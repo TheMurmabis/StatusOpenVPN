@@ -40,8 +40,37 @@ from datetime import date, datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
 from collections import defaultdict
 
+
+class ScriptNameMiddleware:
+
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        # Получаем префикс из заголовка X-Script-Name
+        script_name = environ.get('HTTP_X_SCRIPT_NAME', '')
+        
+        # Если заголовок присутствует, устанавливаем SCRIPT_NAME
+        if script_name:
+            # Убираем завершающий слэш, если есть
+            script_name = script_name.rstrip('/')
+            environ['SCRIPT_NAME'] = script_name
+            
+            # Корректируем PATH_INFO, убирая префикс (если Nginx его не удалил)
+            # Это нужно на случай, если proxy_pass настроен без завершающего слэша
+            path_info = environ.get('PATH_INFO', '')
+            if path_info.startswith(script_name):
+                new_path = path_info[len(script_name):]
+                environ['PATH_INFO'] = new_path if new_path else '/'
+        
+        return self.app(environ, start_response)
+
+
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Применяем middleware для обработки префикса пути
+app.wsgi_app = ScriptNameMiddleware(app.wsgi_app)
 
 bcrypt = Bcrypt(app)
 loginManager = LoginManager(app)
@@ -1108,6 +1137,7 @@ def inject_info():
         "hostname": socket.gethostname(),
         "server_ip": get_external_ip(),
         "version": get_git_version(),
+        "base_path": request.script_root or "",
     }
 
 

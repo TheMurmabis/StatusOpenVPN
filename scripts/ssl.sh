@@ -77,6 +77,32 @@ update_service_ip() {
     fi
 }
 
+check_nginx_configs() {
+    local sites_available="/etc/nginx/sites-available"
+    STATUSOPENVPN_CONFIGS=()
+    OTHER_CONFIGS=()
+    DOMAIN_CONFIG=""
+    
+    # Проверяем все конфигурации кроме default
+    for config_file in "$sites_available"/*; do
+        [[ ! -f "$config_file" ]] && continue
+        local basename_config=$(basename "$config_file")
+        [[ "$basename_config" == "default" ]] && continue
+        
+        # Проверяем первую строку на наличие комментария StatusOpenVPN
+        local first_line=$(head -n 1 "$config_file" 2>/dev/null)
+        if [[ "$first_line" == "# Created by StatusOpenVPN" ]]; then
+            STATUSOPENVPN_CONFIGS+=("$config_file")
+            # Проверяем, содержит ли имя файла домен
+            if [[ "$basename_config" == "$DOMAIN" ]]; then
+                DOMAIN_CONFIG="$config_file"
+            fi
+        else
+            OTHER_CONFIGS+=("$config_file")
+        fi
+    done
+}
+
 install_nginx_certbot() {
     echo -e "${YELLOW}🔧 Setting up HTTPS for $DOMAIN...${RESET}"
 
@@ -121,7 +147,27 @@ install_nginx_certbot() {
         fi
     fi
 
-    cat > "$NGINX_CONF" <<EOF
+    # Проверяем существующие конфигурации
+    check_nginx_configs
+
+    local update_existing=false
+    local disable_default=false
+
+    # Обновить существующий конфиг StatusOpenVPN для домена или создать новый
+    if [[ -n "$DOMAIN_CONFIG" && ${#STATUSOPENVPN_CONFIGS[@]} -eq 1 && ${#OTHER_CONFIGS[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}Found existing StatusOpenVPN config for $DOMAIN. Updating it.${RESET}"
+        update_existing=true
+        disable_default=true
+    elif [[ ${#STATUSOPENVPN_CONFIGS[@]} -eq 0 && ${#OTHER_CONFIGS[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No existing configurations found. Creating new config.${RESET}"
+        disable_default=true
+    else
+        echo -e "${YELLOW}Creating/updating Nginx config for $DOMAIN.${RESET}"
+    fi
+
+    # Единая конфигурация: location всегда /StatusOpenVPN/
+    local config_content
+    config_content=$(cat <<EOF
 # Created by StatusOpenVPN
 server {
     listen 80;
@@ -135,21 +181,55 @@ server {
 
     ssl_certificate     $CERT_PATH;
     ssl_certificate_key $KEY_PATH;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
-    location / {
+    location /StatusOpenVPN/ {
         proxy_pass http://127.0.0.1:$FLASK_PORT;
+
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Script-Name /StatusOpenVPN;
+
+        proxy_redirect off;
     }
 }
 EOF
+    )
 
+    if [[ "$update_existing" == true ]]; then
+        echo "$config_content" > "$DOMAIN_CONFIG"
+        NGINX_CONF="$DOMAIN_CONFIG"
+    else
+        echo "$config_content" > "$NGINX_CONF"
+    fi
+
+    # Создаём или обновляем симлинк
     ln -sf "$NGINX_CONF" "$NGINX_LINK"
-    nginx -t && systemctl reload nginx
+    
+    # Отключаем default если нужно
+    if [[ "$disable_default" == true ]]; then
+        local default_link="/etc/nginx/sites-enabled/default"
+        if [[ -L "$default_link" ]]; then
+            rm -f "$default_link"
+            echo -e "${GREEN}Default site disabled.${RESET}"
+        fi
+    fi
+    
+    # Проверяем конфигурацию и перезагружаем nginx
+    if nginx -t; then
+        systemctl reload nginx
+        echo -e "${GREEN}Nginx configuration ${update_existing:+updated}${update_existing:-created} successfully.${RESET}"
+    else
+        echo -e "${RED}Nginx configuration test failed!${RESET}"
+        exit 1
+    fi
 
     save_setup_var "HTTPS_ENABLED" "1"
     save_setup_var "DOMAIN" "$DOMAIN"
-    echo -e "${GREEN}HTTPS setup complete for $DOMAIN${RESET}"
+    echo -e "${GREEN}HTTPS setup complete. Application available at: https://$DOMAIN/StatusOpenVPN/${RESET}"
 }
 
 remove_nginx_site() {
