@@ -196,6 +196,14 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
     fi
 fi
 
+# === Обновление /location в nginx ===
+if [[ "$HTTPS_ENABLED" -eq 1 ]] && [[ -n "$DOMAIN" ]]; then
+    NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
+    if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /StatusOpenVPN/" "$NGINX_CONF"; then
+        bash "$SSL_SCRIPT" -i "$DOMAIN"
+    fi
+fi
+
 EXTERNAL_IP=$(curl -4 -s ifconfig.me)
 
 if [[ -z "$SERVER_URL" ]]; then
