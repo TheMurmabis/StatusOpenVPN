@@ -34,16 +34,11 @@
 
 
 <details>
-  <summary>Версия от 07.12.2025</summary>
+  <summary>Версия от 05.02.2026</summary>
 
 ### StatusOpenVPN
 
-1. Главная страница:
-    * Исправлено отображение графика vnstat.
-    * Добавлено описание для интерфейсов.
-    * Добавлен график ЦП и ОЗУ. Данные на графике отображаются за неделю, а в режиме Live — в реальном времени.
-2. Скрипт `change_port.sh` исправлен: теперь учитывает настройки HTTPS и домена.
-3. Базы данных перенесены в директорию `/src/databases/`.
+1. Обновлен скрипт `ssl.sh` для корректного обновления конфигурации nginx. Доступ к приложению теперь осуществляется по адресу:  `https:<домен>/StatusOpenVPN/`.
 
 </details>
 
@@ -115,7 +110,7 @@
 4. Пароль администратора будет сгенерирован ***автоматический***.
 5. После завершения установки приложение будет доступно по адресу:
 
-|https://<домен><br>или<br>http://<IP_адрес_сервера>:[порт] |
+|https://<домен>/StatusOpenVPN/<br>или<br>http://<IP_адрес_сервера>:[порт] |
 |:----------------------------------------------------|
 
 
@@ -169,7 +164,7 @@ bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/
 
 - Нажмите `y` и укажите ваш домен (например, `example.com`).  
 - Скрипт автоматически установит Nginx + Certbot, проверит, что домен указывает на сервер, и настроит HTTPS.  
-- После успешного выполнения доступ будет по адресу: https://<домен>
+- После успешного выполнения доступ будет по адресу: https://<домен>/StatusOpenVPN/
 
     > **Примечание:** Для успешного получения сертификата нужно в Antizapret-VPN отключить резервные порты OpenVPN, т.е на запрос "Use TCP/UDP ports 80 and 443 as backup for OpenVPN connections? [y/n]:" ответить N.
 
@@ -189,6 +184,25 @@ cd /root/web/scripts
 
 После удаления доступ снова будет только по HTTP: http://<IP_адрес_сервера>:[порт].
 
+### 3. Ручная настройка 
+Если на одном домене несколько приложений, для корректной работы приложения необходимо добавить блок `location /StatusOpenVPN/`:
+
+```
+location /StatusOpenVPN/ {
+    proxy_pass http://127.0.0.1:<порт>;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Script-Name /StatusOpenVPN;
+
+    proxy_redirect off;
+}
+```
+Блок `location /StatusOpenVPN/` должен быть размещён внутри `server {}` в конфигурации nginx. Для применения изменений требуется перезагрузка nginx:
+
+```sudo nginx -t && sudo systemctl reload nginx```
 
 ## Конфигурационный файл setup
 
