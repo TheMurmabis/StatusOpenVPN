@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ server_ip }} | {% block title %}Dashboard{% endblock %} | StatusOpenVPN</title>
+    <title>{{ server_ip }} | {% block title %}Dashboard{% endblock %}{% if app_name %} | {{ app_name }}{% endif %}</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
@@ -30,6 +30,10 @@
                         <li class="nav-item">
                             <a href="{{ url_for('wg') }}"
                                 class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('settings') }}"
+                                class="link-dark nav-link {{ 'active' if active_page == 'settings' else '' }}">Настройки</a>
                         </li>
                     </ul>
                     <div class="ms-auto">
@@ -63,6 +67,10 @@
                         <a href="{{ url_for('wg') }}"
                             class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('settings') }}"
+                            class="link-dark nav-link {{ 'active' if active_page == 'settings' else '' }}">Настройки</a>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -81,7 +89,7 @@
         <div class="container text-center">
             <div class="mb-1">
                 <a href="https://github.com/TheMurmabis/StatusOpenVPN" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-reset">
-                    <i class="fab fa-github"></i> StatusOpenVPN [{{ version }}]</span>
+                    <i class="fab fa-github"></i> {% if app_name %} {{ app_name }}{% endif %} [{{ version }}]</span>
                 </a>
                 © 2025
             </div>
