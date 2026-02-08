@@ -270,12 +270,12 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
                 echo -e "${RED}Certificate renewal failed.${RESET}"
             fi
         fi
-        SERVER_URL="https://$DOMAIN/StatusOpenVPN/"
+        SERVER_URL="https://$DOMAIN/status/"
     else
         if [[ -f "$SSL_SCRIPT" ]]; then
             if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
                 echo -e "${GREEN}✅ HTTPS successfully enabled for: $DOMAIN${RESET}"
-                SERVER_URL="https://$DOMAIN/StatusOpenVPN/"
+                SERVER_URL="https://$DOMAIN/status/"
             else
                 echo -e "${RED}❌ SSL setup failed.${RESET}"
                 HTTPS_ENABLED=0

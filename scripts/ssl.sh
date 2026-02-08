@@ -165,7 +165,7 @@ install_nginx_certbot() {
         echo -e "${YELLOW}Creating/updating Nginx config for $DOMAIN.${RESET}"
     fi
 
-    # Единая конфигурация: location всегда /StatusOpenVPN/
+    # Единая конфигурация: location всегда /status/
     local config_content
     config_content=$(cat <<EOF
 # Created by StatusOpenVPN
@@ -184,14 +184,14 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    location /StatusOpenVPN/ {
+    location /status/ {
         proxy_pass http://127.0.0.1:$FLASK_PORT;
 
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Script-Name /StatusOpenVPN;
+        proxy_set_header X-Script-Name /status;
 
         proxy_redirect off;
     }
@@ -229,7 +229,7 @@ EOF
 
     save_setup_var "HTTPS_ENABLED" "1"
     save_setup_var "DOMAIN" "$DOMAIN"
-    echo -e "${GREEN}HTTPS setup complete. Application available at: https://$DOMAIN/StatusOpenVPN/${RESET}"
+    echo -e "${GREEN}HTTPS setup complete. Application available at: https://$DOMAIN/status/${RESET}"
 }
 
 remove_nginx_site() {

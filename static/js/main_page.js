@@ -203,8 +203,8 @@ async function updateSystemInfo() {
         let basePath = window.basePath || '';
         if (!basePath) {
             const path = window.location.pathname;
-            if (path.includes('/StatusOpenVPN')) {
-                basePath = '/StatusOpenVPN';
+            if (path.includes('/status')) {
+                basePath = '/status';
             }
         }
         const response = await fetch(basePath + '/api/system_info');

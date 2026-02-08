@@ -13,6 +13,7 @@ import subprocess
 import json
 
 from statistics import mean
+from threading import Lock
 from tzlocal import get_localzone
 from flask_login import (
     LoginManager,
@@ -90,6 +91,274 @@ SAMPLE_INTERVAL = 10  # текущая частота сбора
 MAX_HISTORY_SECONDS = 7 * 24 * 3600  # сколько секунд хранить в памяти
 LIVE_POINTS = 60
 last_collect = 0
+BOT_RESTART_LOCK = Lock()
+BOT_SERVICE_NAME = "telegram-bot"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, "src", ".env")
+SETTINGS_PATH = os.path.join(BASE_DIR, "src", "settings.json")
+LEGACY_ADMIN_INFO_PATH = os.path.join(BASE_DIR, "src", "telegram_admins.json")
+CLIENT_MAPPING_KEY = "CLIENT_MAPPING"
+
+
+def read_env_values():
+    values = {}
+    try:
+        with open(ENV_PATH, "r", encoding="utf-8") as env_file:
+            for line in env_file:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip()
+    except FileNotFoundError:
+        return values
+    return values
+
+
+def can_start_bot(env_values=None):
+    if env_values is None:
+        env_values = read_env_values()
+    bot_token = (env_values.get("BOT_TOKEN") or "").strip()
+    admin_id = (env_values.get("ADMIN_ID") or "").strip()
+    return bool(bot_token) and bool(parse_admin_ids(admin_id))
+
+
+def update_env_values(updates):
+    updates = {key: value for key, value in updates.items() if key}
+    if not updates:
+        return
+
+    updated_keys = set()
+    lines = []
+    try:
+        with open(ENV_PATH, "r", encoding="utf-8") as env_file:
+            lines = env_file.readlines()
+    except FileNotFoundError:
+        lines = []
+
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            new_lines.append(line)
+            continue
+        key, _ = line.split("=", 1)
+        key = key.strip()
+        if key in updates:
+            new_lines.append(f"{key}={updates[key]}\n")
+            updated_keys.add(key)
+        else:
+            new_lines.append(line)
+
+    for key, value in updates.items():
+        if key not in updated_keys:
+            new_lines.append(f"{key}={value}\n")
+
+    with open(ENV_PATH, "w", encoding="utf-8") as env_file:
+        env_file.writelines(new_lines)
+
+
+DEFAULT_SETTINGS = {
+    "app_name": "StatusOpenVPN",
+    "telegram_admins": {},
+    "bot_enabled": False,
+}
+
+
+def write_settings_data(settings_data):
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as settings_file:
+        json.dump(settings_data, settings_file, ensure_ascii=False, indent=4)
+        settings_file.write("\n")
+
+
+def read_settings():
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
+            data = json.load(settings_file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+
+    if not isinstance(data, dict):
+        data = {}
+
+    merged = DEFAULT_SETTINGS.copy()
+    merged.update(data)
+
+    telegram_admins = merged.get("telegram_admins")
+    if not isinstance(telegram_admins, dict):
+        telegram_admins = {}
+        merged["telegram_admins"] = telegram_admins
+
+    if not telegram_admins and os.path.exists(LEGACY_ADMIN_INFO_PATH):
+        try:
+            with open(LEGACY_ADMIN_INFO_PATH, "r", encoding="utf-8") as legacy_file:
+                legacy_data = json.load(legacy_file)
+            if isinstance(legacy_data, dict):
+                merged["telegram_admins"] = legacy_data
+                write_settings_data(merged)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+    return merged
+
+
+def write_settings(updated_settings):
+    current_settings = read_settings()
+    current_settings.update(updated_settings)
+    write_settings_data(current_settings)
+
+
+def read_admin_info():
+    data = read_settings().get("telegram_admins", {})
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def parse_admin_ids(admin_id_value):
+    placeholder = "<Enter your user ID>"
+    admin_ids = []
+    for item in admin_id_value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if item == placeholder:
+            continue
+        admin_ids.append(item)
+    return admin_ids
+
+
+def format_admin_ids(admin_ids):
+    return ",".join(admin_ids)
+
+
+def format_admin_display(admin_id, admin_info):
+    info = admin_info.get(admin_id, {})
+    display_name = (info.get("display_name") or "").strip()
+    username = (info.get("username") or "").strip()
+
+    if display_name and username:
+        return f"{display_name} (@{username})"
+    if display_name:
+        return display_name
+    if username:
+        return f"@{username}"
+    return f"ID: {admin_id}"
+
+
+def build_admin_display_list(admin_id_value, admin_info):
+    admin_ids = parse_admin_ids(admin_id_value)
+    return [
+        {"id": admin_id, "display": format_admin_display(admin_id, admin_info)}
+        for admin_id in admin_ids
+    ]
+
+
+def parse_client_mapping(env_values):
+    raw_value = (env_values.get(CLIENT_MAPPING_KEY) or "").strip()
+    if not raw_value:
+        return {}
+    mapping = {}
+    for item in raw_value.split(","):
+        item = item.strip()
+        if not item or ":" not in item:
+            continue
+        telegram_id, client_name = item.split(":", 1)
+        telegram_id = telegram_id.strip()
+        client_name = client_name.strip()
+        if not telegram_id or not client_name:
+            continue
+        mapping[telegram_id] = client_name
+    return mapping
+
+
+def build_client_mapping_list(env_values, admin_info):
+    mapping = parse_client_mapping(env_values)
+    mapping_list = []
+    for telegram_id, client_name in mapping.items():
+        display = format_admin_display(telegram_id, admin_info)
+        mapping_list.append(
+            {
+                "telegram_id": telegram_id,
+                "display": display,
+                "client_name": client_name,
+            }
+        )
+    mapping_list.sort(key=lambda item: item["client_name"].lower())
+    return mapping_list
+
+
+def build_available_admin_candidates(admin_info, admin_ids):
+    available = []
+    admin_id_set = set(admin_ids)
+    for admin_id in admin_info.keys():
+        if admin_id in admin_id_set:
+            continue
+        available.append(
+            {"id": admin_id, "display": format_admin_display(admin_id, admin_info)}
+        )
+    available.sort(key=lambda item: item["display"].lower())
+    return available
+
+
+def restart_telegram_bot():
+    with BOT_RESTART_LOCK:
+        if not os.path.exists("/etc/systemd/system/telegram-bot.service"):
+            return False, "Служба telegram-bot не создана"
+        try:
+            subprocess.run(
+                ["/bin/systemctl", "restart", BOT_SERVICE_NAME],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return True, None
+        except subprocess.CalledProcessError as exc:
+            try:
+                subprocess.run(
+                    ["/bin/systemctl", "reset-failed", f"{BOT_SERVICE_NAME}.service"],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            except Exception:
+                pass
+            return False, exc.stderr.strip() or "неизвестная ошибка"
+
+
+def stop_telegram_bot():
+    with BOT_RESTART_LOCK:
+        if not os.path.exists("/etc/systemd/system/telegram-bot.service"):
+            return False, "Служба telegram-bot не создана"
+        try:
+            subprocess.run(
+                ["/bin/systemctl", "stop", BOT_SERVICE_NAME],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return True, None
+        except subprocess.CalledProcessError as exc:
+            return False, exc.stderr.strip() or "неизвестная ошибка"
+
+
+def get_telegram_bot_status():
+    try:
+        result = subprocess.run(
+            ["/bin/systemctl", "is-active", BOT_SERVICE_NAME],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        status = result.stdout.strip()
+        return status == "active"
+    except Exception:
+        return False
 
 
 # Функция для подлючения к базе данных SQLite
@@ -1133,11 +1402,13 @@ def get_git_version():
 
 @app.context_processor
 def inject_info():
+    app_name = read_settings().get("app_name", "StatusOpenVPN")
     return {
         "hostname": socket.gethostname(),
         "server_ip": get_external_ip(),
         "version": get_git_version(),
         "base_path": request.script_root or "",
+        "app_name": app_name,
     }
 
 
@@ -1155,6 +1426,204 @@ def home():
         hostname=hostname,
         active_page="home",
     )
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    bot_message = None
+    bot_error = None
+    app_message = None
+    app_error = None
+
+    if request.method == "POST":
+        form_type = request.form.get("form_type")
+
+        if form_type == "bot":
+            bot_token = request.form.get("bot_token", "").strip()
+            admin_id = request.form.get("admin_id")
+            if admin_id is None:
+                admin_id = read_env_values().get("ADMIN_ID", "")
+            admin_id = admin_id.strip()
+            bot_enabled = request.form.get("bot_enabled") == "on"
+            update_env_values({"BOT_TOKEN": bot_token, "ADMIN_ID": admin_id})
+            write_settings({"bot_enabled": bot_enabled})
+
+            admin_ids = parse_admin_ids(admin_id)
+            should_start = bool(bot_enabled and bot_token)
+
+            if should_start:
+                restart_ok, restart_error = restart_telegram_bot()
+                if restart_ok:
+                    bot_message = "Настройки бота сохранены. Бот перезапущен."
+                else:
+                    bot_error = (
+                        "Настройки бота сохранены, но перезапуск не удался: "
+                        f"{restart_error}"
+                    )
+            else:
+                restart_ok, restart_error = stop_telegram_bot()
+                if restart_ok:
+                    if not bot_token:
+                        bot_message = (
+                            "Настройки бота сохранены. API токен бота пустой, бот остановлен."
+                        )
+                    else:
+                        bot_message = "Настройки бота сохранены. Бот остановлен."
+                else:
+                    bot_error = (
+                        "Настройки бота сохранены, но остановка не удалась: "
+                        f"{restart_error}"
+                    )
+
+        elif form_type == "app_name":
+            app_name = request.form.get("app_name", "").strip()
+            write_settings({"app_name": app_name})
+            if app_name:
+                app_message = "Название приложения обновлено."
+            else:
+                app_message = "Название приложения убрано."
+
+    env_values = read_env_values()
+    bot_token_value = env_values.get("BOT_TOKEN", "")
+    admin_id_value = env_values.get("ADMIN_ID", "")
+    current_app_name = read_settings().get("app_name", "StatusOpenVPN")
+    settings_data = read_settings()
+    admin_info = settings_data.get("telegram_admins", {})
+    admin_display_list = build_admin_display_list(admin_id_value, admin_info)
+    available_admins = build_available_admin_candidates(
+        admin_info, parse_admin_ids(admin_id_value)
+    )
+    client_mapping_list = build_client_mapping_list(env_values, admin_info)
+    bot_service_active = get_telegram_bot_status()
+    bot_enabled = bool(settings_data.get("bot_enabled", False)) or bot_service_active
+
+    return render_template(
+        "settings.html",
+        bot_token=bot_token_value,
+        admin_id=admin_id_value,
+        app_name=current_app_name,
+        admin_display_list=admin_display_list,
+        available_admins=available_admins,
+        client_mapping_list=client_mapping_list,
+        bot_service_active=bot_service_active,
+        bot_enabled=bot_enabled,
+        bot_message=bot_message,
+        bot_error=bot_error,
+        app_message=app_message,
+        app_error=app_error,
+        active_page="settings",
+    )
+
+
+@app.route("/api/admins/add", methods=["POST"])
+@login_required
+def api_admins_add():
+    payload = request.get_json(silent=True) or {}
+    telegram_id = str(payload.get("telegram_id", "")).strip()
+    if not telegram_id:
+        return jsonify({"success": False, "message": "ID не указан."}), 400
+
+    admin_info = read_admin_info()
+
+    env_values = read_env_values()
+    admin_id_value = env_values.get("ADMIN_ID", "")
+    admin_ids = parse_admin_ids(admin_id_value)
+    if telegram_id in admin_ids:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Администратор уже в списке.",
+                    "admins": build_admin_display_list(admin_id_value, admin_info),
+                    "available_admins": build_available_admin_candidates(
+                        admin_info, admin_ids
+                    ),
+                    "admin_id_value": admin_id_value,
+                    "bot_service_active": get_telegram_bot_status(),
+                }
+            ),
+            400,
+        )
+
+    admin_ids.append(telegram_id)
+    updated_admin_id_value = format_admin_ids(admin_ids)
+    update_env_values({"ADMIN_ID": updated_admin_id_value})
+
+    admin_display_list = build_admin_display_list(updated_admin_id_value, admin_info)
+    available_admins = build_available_admin_candidates(admin_info, admin_ids)
+    response = {
+        "success": True,
+        "message": "Администратор добавлен. Нажмите «Сохранить», чтобы применить изменения.",
+        "admins": admin_display_list,
+        "available_admins": available_admins,
+        "admin_id_value": updated_admin_id_value,
+        "bot_service_active": get_telegram_bot_status(),
+    }
+    return jsonify(response), 200
+
+
+@app.route("/api/admins/remove", methods=["POST"])
+@login_required
+def api_admins_remove():
+    payload = request.get_json(silent=True) or {}
+    telegram_id = str(payload.get("telegram_id", "")).strip()
+    if not telegram_id:
+        return jsonify({"success": False, "message": "ID не указан."}), 400
+
+    admin_info = read_admin_info()
+    env_values = read_env_values()
+    admin_id_value = env_values.get("ADMIN_ID", "")
+    admin_ids = parse_admin_ids(admin_id_value)
+    if telegram_id not in admin_ids:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Администратор не найден в списке.",
+                    "admins": build_admin_display_list(admin_id_value, admin_info),
+                    "available_admins": build_available_admin_candidates(
+                        admin_info, admin_ids
+                    ),
+                    "admin_id_value": admin_id_value,
+                    "bot_service_active": get_telegram_bot_status(),
+                }
+            ),
+            400,
+        )
+
+    if len(admin_ids) <= 1:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Нельзя удалить последнего администратора.",
+                    "admins": build_admin_display_list(admin_id_value, admin_info),
+                    "available_admins": build_available_admin_candidates(
+                        admin_info, admin_ids
+                    ),
+                    "admin_id_value": admin_id_value,
+                    "bot_service_active": get_telegram_bot_status(),
+                }
+            ),
+            400,
+        )
+
+    admin_ids = [admin_id for admin_id in admin_ids if admin_id != telegram_id]
+    updated_admin_id_value = format_admin_ids(admin_ids)
+    update_env_values({"ADMIN_ID": updated_admin_id_value})
+
+    admin_display_list = build_admin_display_list(updated_admin_id_value, admin_info)
+    available_admins = build_available_admin_candidates(admin_info, admin_ids)
+    response = {
+        "success": True,
+        "message": "Администратор удалён. Нажмите «Сохранить», чтобы применить изменения.",
+        "admins": admin_display_list,
+        "available_admins": available_admins,
+        "admin_id_value": updated_admin_id_value,
+        "bot_service_active": get_telegram_bot_status(),
+    }
+    return jsonify(response), 200
 
 
 @app.route("/api/system_info")

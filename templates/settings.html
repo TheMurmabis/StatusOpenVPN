@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h2>Настройки</h2>
+</div>
+
+<div class="container">
+
+  <!-- Раздел Название приложения -->
+  <div class="mb-4 p-3 border rounded">
+
+    {% if app_message %}
+    <div class="alert alert-success" role="alert">{{ app_message }}</div>
+    {% endif %}
+    {% if app_error %}
+    <div class="alert alert-danger" role="alert">{{ app_error }}</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="form_type" value="app_name" />
+
+      <div class="d-flex gap-2 align-items-end mb-2">
+        <div class="flex-grow-1">
+          <label for="app_name" class="form-label">Название приложения</label>
+          <input type="text" class="form-control" id="app_name" name="app_name" placeholder="Введите название приложения"
+            value="{{ app_name }}" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          Сохранить
+        </button>
+      </div>
+
+      <div class="form-text">
+        Это название будет отображаться в заголовке браузера.
+        Оставьте пустым, чтобы убрать название.
+      </div>
+    </form>
+  </div>
+
+  <!-- Раздел Telegram-бот -->
+  <div class="mb-4 p-3 border rounded">
+
+    <h4 class="mb-1">Настройки Telegram-бота</h4>
+    <p class="text-muted small mb-4">
+      Укажите токен бота. Список администраторов берётся из файла .env.
+      Запуск и остановка применяются после сохранения.
+    </p>
+
+    {% if bot_message %}
+    <div class="alert alert-success" role="alert">{{ bot_message }}</div>
+    {% endif %}
+    {% if bot_error %}
+    <div class="alert alert-danger" role="alert">{{ bot_error }}</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off" id="botSettingsForm">
+      <input type="hidden" name="form_type" value="bot" />
+      <input type="hidden" id="admin_id" name="admin_id" value="{{ admin_id }}" />
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="small text-muted">Служба бота:</span>
+          <span class="dot {% if bot_service_active %}on{% else %}off{% endif %}"></span>
+          <span class="fw-medium">
+            {% if bot_service_active %}Активна{% else %}Не активна{% endif %}
+          </span>
+          <div class="form-check form-switch m-0" title="Включить/выключить бота">
+            <input class="form-check-input" type="checkbox" id="bot_enabled" name="bot_enabled" {% if bot_enabled
+              %}checked{% endif %} {% if not bot_token and not bot_service_active %}disabled{% endif %}>
+            <label class="form-check-label ms-2" for="bot_enabled">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- API токен -->
+      <div class="form-floating mb-4">
+        <input type="text" class="form-control" id="bot_token" name="bot_token" placeholder="API Token"
+          value="{{ bot_token }}" />
+        <label for="bot_token">API токен бота</label>
+      </div>
+
+      {% if not bot_token and not bot_service_active %}
+      <div class="form-text mb-3">
+        Запуск недоступен: заполните API токен бота.
+      </div>
+      {% endif %}
+
+      <div class="row g-3 mb-4">
+        <!-- Администраторы -->
+        <div class="col-12 col-lg-6">
+          <div class="border rounded p-3 h-100">
+            <label class="form-label">Администраторы</label>
+
+            <div class="input-group mb-2" id="adminAddBlock">
+              <input class="form-control" id="adminAddInput" name="adminAddInput" data-list-id="adminCandidates"
+                placeholder="{% if available_admins %}Начните ввод имени или ID{% else %}Введите ID пользователя{% endif %}">
+              <button type="button" class="btn btn-outline-primary ms-2" id="adminAddButton">
+                Добавить
+              </button>
+            </div>
+
+            <datalist id="adminCandidates">
+              {% if available_admins %}
+              {% for user in available_admins %}
+              <option value="{{ user.id }}">{{ user.display }}</option>
+              {% endfor %}
+              {% endif %}
+            </datalist>
+
+            <div id="adminAlert" class="mb-2"></div>
+
+            <ul class="list-group mb-2" id="adminList">
+              {% if admin_display_list %}
+              {% for admin in admin_display_list %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ admin.display }}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger js-remove-admin" data-admin-id="{{ admin.id }}">
+                  ✕
+                </button>
+              </li>
+              {% endfor %}
+              {% else %}
+              <li class="list-group-item text-muted">
+                Администраторы не добавлены.
+              </li>
+              {% endif %}
+            </ul>
+
+            <div class="form-text">
+              Данные берутся из ADMIN_ID в файле .env.
+            </div>
+          </div>
+        </div>
+
+        <!-- Пользователи -->
+        <div class="col-12 col-lg-6">
+          <div class="border rounded p-3 h-100">
+            <label class="form-label">Пользователи</label>
+            <ul class="list-group mb-2">
+              {% if client_mapping_list %}
+              {% for item in client_mapping_list %}
+              <li class="list-group-item py-2">
+                {{ item.display }} — {{ item.client_name }}
+              </li>
+              {% endfor %}
+              {% else %}
+              <li class="list-group-item text-muted">
+                Привязки не заданы.
+              </li>
+              {% endif %}
+            </ul>
+            <div class="form-text">
+              Данные берутся из переменной CLIENT_MAPPING, который задаётся через Telegram-бот командой /client.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Сохранение -->
+      <div class="d-flex justify-content-end pt-3">
+        <button type="submit" class="btn btn-primary px-4" id="botSaveButton"
+          data-bot-active="{{ 'true' if bot_service_active else 'false' }}">
+          Сохранить
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/settings_page.js') }}"></script>
+{% endblock %}
