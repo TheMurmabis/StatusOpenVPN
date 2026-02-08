@@ -323,7 +323,7 @@ elif [ "$changes_made" = true ]; then
     sudo systemctl restart vnstat
 fi
 
-sudo systemctl restart StatusOpenVPN
+sudo systemctl restart StatusOpenVPN telegram-bot
 sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats
 sudo systemctl enable --now logs.timer
