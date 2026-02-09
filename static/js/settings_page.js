@@ -163,9 +163,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!input || !toggle) return;
 
   toggle.addEventListener("click", () => {
-    const isHidden = input.type === "password";
+    const isHidden = input.classList.contains("masked");
 
-    input.type = isHidden ? "text" : "password";
+    input.classList.toggle("masked", !isHidden);
     icon.classList.toggle("fa-eye", !isHidden);
     icon.classList.toggle("fa-eye-slash", isHidden);
   });

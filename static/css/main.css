@@ -242,15 +242,16 @@ body.full-height {
         border: 1px solid #343a40 !important;
     }
 
-    #toggleChartBtn, #toggleCpuChartBtn {
+    #toggleChartBtn,
+    #toggleCpuChartBtn {
         border-color: #272727 !important;
     }
 
-    .table-hover tbody tr:hover{
+    .table-hover tbody tr:hover {
         background-color: #23272b !important;
     }
 
-    .list-group-item{
+    .list-group-item {
         color: #d3d3d3;
         background-color: #23272b !important;
     }
@@ -509,21 +510,24 @@ footer a {
     box-shadow: none !important;
 }
 
-#toggleChartBtn, #toggleCpuChartBtn {
+#toggleChartBtn,
+#toggleCpuChartBtn {
     border-color: #d3d3d3;
 }
 
-#toggleChartBtn.active, #toggleCpuChartBtn.active {
+#toggleChartBtn.active,
+#toggleCpuChartBtn.active {
     color: white;
     background-color: #2c3034 !important;
 }
 
-#toggleChartBtn:hover, #toggleCpuChartBtn:hover {
+#toggleChartBtn:hover,
+#toggleCpuChartBtn:hover {
     color: white;
     background-color: #2c3034;
 }
 
-.btn-outline-secondary.active{
+.btn-outline-secondary.active {
     background-color: #2c3034;
 }
 
@@ -532,7 +536,17 @@ footer a {
     height: 0.65em;
     border-radius: 50%;
     display: inline-block;
-  }
-  .dot.on { background: #28a745; }
-  .dot.off { background: #dc3545; }
-  
+}
+
+.dot.on {
+    background: #28a745;
+}
+
+.dot.off {
+    background: #dc3545;
+}
+
+.masked {
+    -webkit-text-security: disc;
+
+}
