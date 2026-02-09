@@ -7,6 +7,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminIdInput = document.getElementById("admin_id");
   const botStatusIndicator = document.getElementById("botStatusIndicator");
   const adminCandidatesListId = adminAddInput?.dataset?.listId;
+  const input = document.getElementById("bot_token");
+  const toggle = document.getElementById("toggleToken");
+  const icon = document.getElementById("toggleTokenIcon");
 
   const showAlert = (type, message) => {
     if (!adminAlert) return;
@@ -155,4 +158,16 @@ document.addEventListener("DOMContentLoaded", () => {
       adminAddInput.removeAttribute("list");
     }
   });
+
+  // Функции для показа/скрытия токена
+  if (!input || !toggle) return;
+
+  toggle.addEventListener("click", () => {
+    const isHidden = input.type === "password";
+
+    input.type = isHidden ? "text" : "password";
+    icon.classList.toggle("fa-eye", !isHidden);
+    icon.classList.toggle("fa-eye-slash", isHidden);
+  });
+
 });

@@ -43,8 +43,8 @@ ITEMS_PER_PAGE = 5
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 CLIENT_MAPPING_KEY = "CLIENT_MAPPING"
-DEFAULT_CPU_ALERT_THRESHOLD = 90
-DEFAULT_MEMORY_ALERT_THRESHOLD = 60
+DEFAULT_CPU_ALERT_THRESHOLD = 80
+DEFAULT_MEMORY_ALERT_THRESHOLD = 80
 LOAD_CHECK_INTERVAL = 60
 LOAD_ALERT_COOLDOWN = 30 * 60
 
