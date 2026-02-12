@@ -85,7 +85,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      const response = await fetch("/api/admins/add", {
+      const basePath = window.basePath || '';
+      const response = await fetch(`${basePath}/api/admins/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ telegram_id: value }),
@@ -120,7 +121,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       target.setAttribute("disabled", "disabled");
-      const response = await fetch("/api/admins/remove", {
+      const basePath = window.basePath || '';
+      const response = await fetch(`${basePath}/api/admins/remove`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ telegram_id: adminId }),
