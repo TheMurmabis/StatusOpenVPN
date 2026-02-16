@@ -61,16 +61,16 @@
 
 ### Внешний вид StatusOpenVPN.
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3071b3cc-fdb5-4db8-9a77-273d2ed1ec73">
-  <img src="https://github.com/user-attachments/assets/98c1c36c-91ee-4e17-8922-bc0ca8ffde8a">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/c40b08c2-fc2b-433c-b0f9-80d74052dc85">
+  <img alt="image" src="https://github.com/user-attachments/assets/b1c763fb-4bb6-41b6-b9fc-684f2ecef6cf" />
 </picture>
 
 
 ### Внешний вид TelegramBot.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/072ee8de-cbc5-4e73-b90a-2d671abd2bbf">
-  <img src="https://github.com/user-attachments/assets/8eff640b-f420-4503-8313-a36cfbbd088f">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/c01baed5-07f5-460b-8dd7-a94b486b9c66">
+  <img width="420" height="233" alt="image" src="https://github.com/user-attachments/assets/69e1d5fc-0b70-4ad2-9a27-1515bd626399" />
 </picture>
 
 Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
