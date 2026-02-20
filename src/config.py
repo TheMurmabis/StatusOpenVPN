@@ -12,6 +12,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=5)
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
     SESSION_REFRESH_EACH_REQUEST = False
+    SESSION_COOKIE_NAME = 'status_sid'
 
 class DevelopmentConfig(Config):
     DEBUG = True
