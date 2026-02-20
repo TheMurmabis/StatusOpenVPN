@@ -11,6 +11,7 @@ class Config:
     SYSTEM_STATS_PATH = os.path.join(BASE_DIR, "databases", "system_stats.db")
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=5)
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
+    REMEMBER_COOKIE_NAME = 'status_rid'
     SESSION_REFRESH_EACH_REQUEST = False
     SESSION_COOKIE_NAME = 'status_sid'
 
