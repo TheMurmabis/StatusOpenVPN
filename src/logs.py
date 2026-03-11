@@ -82,7 +82,6 @@ def ensure_column_exists():
             conn.commit()
 
 
-
 def mask_ip(ip_address):
     if not ip_address:
         return "0.0.0.0"  # значение по умолчанию
@@ -131,6 +130,13 @@ def format_duration(start_time):
         return f"{seconds} сек."
 
 
+def normalize_real_address(addr):
+    # OpenVPN 2.7: udp4:IP:PORT или tcp4:IP:PORT
+    if addr.startswith(("udp4:", "tcp4:", "tcp4-server:", "udp6:", "tcp6:")):
+        addr = addr.split(":", 1)[1]
+    return addr
+
+
 def parse_log_file(log_file, protocol):
     """Читает и парсит файл лога."""
     logs = []
@@ -150,6 +156,7 @@ def parse_log_file(log_file, protocol):
             if row[0] == "CLIENT_LIST":
                 parse_count += 1
                 client_name = row[1]
+                real_address = normalize_real_address(row[2])
                 received = int(row[5])
                 sent = int(row[6])
                 total_received += received
@@ -159,7 +166,7 @@ def parse_log_file(log_file, protocol):
                 logs.append(
                     {
                         "client_name": client_name,
-                        "real_ip": mask_ip(row[2]),
+                        "real_ip": mask_ip(real_address),
                         "local_ip": row[3],
                         "bytes_received": received,
                         "connected_since": format_date(row[7]),
@@ -287,12 +294,16 @@ def save_monthly_stats(logs):
             )
             existing_log = cursor.fetchone()
 
-
-
-
             if existing_log:
-                existing_bytes_received, existing_bytes_sent, existing_connections, existing_last_connected = existing_log 
-                last_connected = max(existing_last_connected or "", data["last_connected"].isoformat())
+                (
+                    existing_bytes_received,
+                    existing_bytes_sent,
+                    existing_connections,
+                    existing_last_connected,
+                ) = existing_log
+                last_connected = max(
+                    existing_last_connected or "", data["last_connected"].isoformat()
+                )
 
                 cursor.execute(
                     """
@@ -411,4 +422,3 @@ def process_logs():
 
 if __name__ == "__main__":
     process_logs()
-    

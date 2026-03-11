@@ -32,9 +32,16 @@
 
 # Установка и настройка 
 
+<details>
+  <summary>Версия от 11.03.2026</summary>
+
+### StatusOpenVPN
+1. Добавлена поддержка формата логов OpenVPN 2.7.0
+
+</details>
 
 <details>
-  <summary>Версия от 08.02.2026</summary>
+  <summary>Что нового?</summary>
 
 ### StatusOpenVPN
 

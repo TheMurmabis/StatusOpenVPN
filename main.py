@@ -693,7 +693,7 @@ def parse_wireguard_output(output):
                 )
                 peer_data["latest_handshake"] = format_handshake_time(handshake_time)
                 peer_data["online"] = is_peer_online(formatted_handshake_time)
-        
+
         elif line.startswith("latest handshake:"):
             handshake_time = line.split(": ")[1].strip()
             if any(
@@ -875,6 +875,13 @@ def format_duration(start_time):
 client_cache = defaultdict(lambda: {"received": 0, "sent": 0, "timestamp": None})
 
 
+# OpenVPN 2.7: udp4:IP:PORT
+def normalize_real_address(addr):
+    if addr.startswith(("udp4:", "tcp4:", "tcp4-server:", "udp6:", "tcp6:")):
+        addr = addr.split(":", 1)[1]
+    return addr
+
+
 # Чтение данных из CSV и обработка
 def read_csv(file_path, protocol):
     data = []
@@ -891,6 +898,7 @@ def read_csv(file_path, protocol):
         for row in reader:
             if row[0] == "CLIENT_LIST":
                 client_name = row[1]
+                real_address = normalize_real_address(row[2])
                 received = int(row[5])
                 sent = int(row[6])
                 total_received += received
@@ -935,7 +943,7 @@ def read_csv(file_path, protocol):
                 data.append(
                     [
                         client_name,
-                        mask_ip(row[2]),
+                        mask_ip(real_address),
                         row[3],
                         format_bytes(received),
                         format_bytes(sent),
