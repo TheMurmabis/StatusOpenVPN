@@ -10,8 +10,10 @@ usage() {
   echo "Usage: $0 [OPTIONS] [DOMAIN]"
   echo
   echo "Options:"
-  echo "  -i [DOMAIN]   Install Nginx + Certbot and configure HTTPS"
+  echo "  -i [DOMAIN]   Install Nginx + Certbot and configure HTTPS (domain optional)"
   echo "  -r [DOMAIN]   Remove Nginx configuration for domain"
+  echo
+  echo "Without domain: use self-signed certificate for access by IP (e.g. https://SERVER_IP/status/)"
   exit 1
 }
 
@@ -32,19 +34,35 @@ case "$ACTION" in
     *) echo -e "${RED}Unknown option: $ACTION${RESET}"; usage ;;
 esac
 
+# Для -i домен опционален (без домена — самоподписанный сертификат по IP)
 if [[ -z "$DOMAIN" ]]; then
-    read -rp "Enter your domain: " DOMAIN
-    if [[ -z "$DOMAIN" ]]; then
-        echo -e "${RED}No domain provided. Exiting.${RESET}"
-        exit 1
-    fi
+    read -rp "Enter your domain (or leave blank for IP-only with self-signed certificate): " DOMAIN
 fi
 
-EMAIL="admin@$DOMAIN"
-CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
-NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
-NGINX_LINK="/etc/nginx/sites-enabled/$DOMAIN"
+NO_DOMAIN=false
+if [[ -z "$DOMAIN" ]]; then
+    if [[ "$ACTION" == "-r" ]]; then
+        echo -e "${RED}For -r specify domain or use: $0 -r statusopenvpn-ip${RESET}"
+        exit 1
+    fi
+    NO_DOMAIN=true
+elif [[ "$DOMAIN" == "statusopenvpn-ip" ]]; then
+    NO_DOMAIN=true
+fi
+
+if [[ "$NO_DOMAIN" == true ]]; then
+    SITE_ID="statusopenvpn-ip"
+    CERT_PATH="/etc/nginx/ssl/selfsigned.crt"
+    KEY_PATH="/etc/nginx/ssl/selfsigned.key"
+    NGINX_CONF="/etc/nginx/sites-available/$SITE_ID"
+    NGINX_LINK="/etc/nginx/sites-enabled/$SITE_ID"
+else
+    EMAIL="admin@$DOMAIN"
+    CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+    NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
+    NGINX_LINK="/etc/nginx/sites-enabled/$DOMAIN"
+fi
 SETUP_FILE="/root/web/setup"
 
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
@@ -104,8 +122,81 @@ check_nginx_configs() {
 }
 
 install_nginx_certbot() {
-    echo -e "${YELLOW}🔧 Setting up HTTPS for $DOMAIN...${RESET}"
+    apt update
+    apt install -y nginx openssl
+    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
+    if [[ "$NO_DOMAIN" == true ]]; then
+        # Режим без домена: самоподписанный сертификат для доступа по IP
+        echo -e "${YELLOW}🔧 Setting up HTTPS (IP-only, self-signed certificate)...${RESET}"
+        mkdir -p /etc/nginx/ssl
+        if [[ ! -f "$CERT_PATH" ]] || [[ ! -f "$KEY_PATH" ]]; then
+            echo -e "${YELLOW}Generating self-signed certificate (valid 365 days)...${RESET}"
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout "$KEY_PATH" \
+                -out "$CERT_PATH" \
+                -subj "/O=StatusOpenVPN/CN=$SERVER_IP" \
+                -addext "subjectAltName = IP:$SERVER_IP"
+            chmod 644 "$CERT_PATH"
+            chmod 600 "$KEY_PATH"
+            echo -e "${GREEN}Self-signed certificate created.${RESET}"
+        else
+            echo -e "${GREEN}Using existing self-signed certificate.${RESET}"
+        fi
+        local config_content
+        config_content=$(cat <<'EOFIP'
+# Created by StatusOpenVPN
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/ssl/selfsigned.crt;
+    ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location /status/ {
+        proxy_pass http://127.0.0.1:FLASK_PORT_PLACEHOLDER;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Script-Name /status;
+
+        proxy_redirect off;
+    }
+}
+EOFIP
+        )
+        config_content="${config_content//FLASK_PORT_PLACEHOLDER/$FLASK_PORT}"
+        echo "$config_content" > "$NGINX_CONF"
+        ln -sf "$NGINX_CONF" "$NGINX_LINK"
+        rm -f /etc/nginx/sites-enabled/default
+        if nginx -t; then
+            systemctl reload nginx
+            echo -e "${GREEN}Nginx configuration created successfully.${RESET}"
+        else
+            echo -e "${RED}Nginx configuration test failed!${RESET}"
+            exit 1
+        fi
+        save_setup_var "HTTPS_ENABLED" "1"
+        save_setup_var "DOMAIN" ""
+        SERVER_IP=$(curl -s http://checkip.amazonaws.com 2>/dev/null || hostname -I | awk '{print $1}')
+        echo -e "${GREEN}HTTPS setup complete. Application available at: https://$SERVER_IP/status/${RESET}"
+        echo -e "${YELLOW}Browser will show a security warning (self-signed cert) — this is normal.${RESET}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}🔧 Setting up HTTPS for $DOMAIN...${RESET}"
     SERVER_IP=$(curl -s http://checkip.amazonaws.com)
     DOMAIN_IP=$(getent ahostsv4 "$DOMAIN" | awk '{print $1}' | head -n1)
     if [[ "$SERVER_IP" != "$DOMAIN_IP" ]]; then
@@ -114,9 +205,7 @@ install_nginx_certbot() {
     fi
     echo -e "${GREEN}Domain resolves correctly.${RESET}"
 
-    apt update
-    apt install -y nginx certbot python3-certbot-nginx
-    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+    apt install -y certbot python3-certbot-nginx
 
     if certbot certificates | grep -q "Domains: $DOMAIN"; then
         DAYS_LEFT=$(certbot certificates 2>/dev/null | awk -v domain="$DOMAIN" '

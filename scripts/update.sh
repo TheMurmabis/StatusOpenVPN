@@ -147,11 +147,15 @@ if [[ "$HTTPS_ENABLED" -ne 1 ]]; then
     fi
 fi
 
-# Если HTTPS выбран, запрашиваем домен и проверяем его
+# Если HTTPS выбран, запрашиваем домен (или IP-only) и проверяем
 if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
     while true; do
         if [[ -z "$DOMAIN" ]]; then
-            read -e -p "Enter your domain (example.com): " DOMAIN
+            read -e -p "Enter your domain (example.com), or leave blank for IP-only (self-signed): " DOMAIN
+        fi
+        if [[ -z "$DOMAIN" ]]; then
+            save_setup_var "DOMAIN" ""
+            break
         fi
         if check_domain_ip "$DOMAIN"; then
             save_setup_var "DOMAIN" "$DOMAIN"
@@ -162,45 +166,79 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
         fi
     done
 
-    CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-    NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
-
-    if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
-       && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
-        echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
-        if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
-            echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
-            if sudo certbot renew --nginx --cert-name "$DOMAIN"; then
-                sudo systemctl reload nginx
-                echo -e "${GREEN}Certificate renewed.${RESET}"
+    if [[ -z "$DOMAIN" ]]; then
+        # Режим HTTPS по IP (самоподписанный сертификат)
+        CERT_PATH="/etc/nginx/ssl/selfsigned.crt"
+        NGINX_CONF="/etc/nginx/sites-enabled/statusopenvpn-ip"
+        if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
+           && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
+            echo -e "${YELLOW}HTTPS already enabled for IP (self-signed).${RESET}"
+            SERVER_URL="https://$(get_server_ip)/status/"
+        else
+            if [[ -f "$SSL_SCRIPT" ]]; then
+                if echo "" | bash "$SSL_SCRIPT" -i; then
+                    echo -e "${GREEN}HTTPS (IP-only) successfully enabled.${RESET}"
+                    SERVER_URL="https://$(get_server_ip)/status/"
+                else
+                    echo -e "${RED}SSL setup failed.${RESET}"
+                    HTTPS_ENABLED=0
+                    save_setup_var "HTTPS_ENABLED" "0"
+                fi
             else
-                echo -e "${RED}Certificate renewal failed.${RESET}"
-            fi
-        fi
-        SERVER_URL="https://$DOMAIN/status/"
-    else
-        if [[ -f "$SSL_SCRIPT" ]]; then
-            if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
-                echo -e "${GREEN}HTTPS successfully enabled for: $DOMAIN${RESET}"
-                SERVER_URL="https://$DOMAIN/status/"
-            else
-                echo -e "${RED}SSL setup failed.${RESET}"
+                echo -e "${RED}SSL script not found.${RESET}"
                 HTTPS_ENABLED=0
                 save_setup_var "HTTPS_ENABLED" "0"
             fi
+        fi
+    else
+        # Режим HTTPS по домену (Let's Encrypt)
+        CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+        NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
+
+        if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
+           && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
+            echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
+            if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
+                echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
+                if sudo certbot renew --nginx --cert-name "$DOMAIN"; then
+                    sudo systemctl reload nginx
+                    echo -e "${GREEN}Certificate renewed.${RESET}"
+                else
+                    echo -e "${RED}Certificate renewal failed.${RESET}"
+                fi
+            fi
+            SERVER_URL="https://$DOMAIN/status/"
         else
-            echo -e "${RED}SSL script not found.${RESET}"
-            HTTPS_ENABLED=0
-            save_setup_var "HTTPS_ENABLED" "0"
+            if [[ -f "$SSL_SCRIPT" ]]; then
+                if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
+                    echo -e "${GREEN}HTTPS successfully enabled for: $DOMAIN${RESET}"
+                    SERVER_URL="https://$DOMAIN/status/"
+                else
+                    echo -e "${RED}SSL setup failed.${RESET}"
+                    HTTPS_ENABLED=0
+                    save_setup_var "HTTPS_ENABLED" "0"
+                fi
+            else
+                echo -e "${RED}SSL script not found.${RESET}"
+                HTTPS_ENABLED=0
+                save_setup_var "HTTPS_ENABLED" "0"
+            fi
         fi
     fi
 fi
 
 # === Обновление /location в nginx ===
-if [[ "$HTTPS_ENABLED" -eq 1 ]] && [[ -n "$DOMAIN" ]]; then
-    NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
-    if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /status/" "$NGINX_CONF"; then
-        bash "$SSL_SCRIPT" -i "$DOMAIN"
+if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
+    if [[ -n "$DOMAIN" ]]; then
+        NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
+        if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /status/" "$NGINX_CONF"; then
+            bash "$SSL_SCRIPT" -i "$DOMAIN"
+        fi
+    else
+        NGINX_CONF="/etc/nginx/sites-available/statusopenvpn-ip"
+        if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /status/" "$NGINX_CONF"; then
+            echo "" | bash "$SSL_SCRIPT" -i
+        fi
     fi
 fi
 
