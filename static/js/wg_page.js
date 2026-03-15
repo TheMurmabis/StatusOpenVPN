@@ -242,7 +242,7 @@ async function executePeerToggle(toggle, peer, iface, clientName, enable) {
     toggle.disabled = true;
 
     try {
-        const response = await fetch("/api/wg/peer/toggle", {
+        const response = await fetch("${basePath}/api/wg/peer/toggle", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
