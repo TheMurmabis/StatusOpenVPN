@@ -87,7 +87,7 @@ function stopAutoRefresh() {
 
 async function updateStats() {
     try {
-        const response = await fetch("/api/wg/stats", {
+        const response = await fetch("${basePath}/api/wg/stats", {
             method: "GET",
             headers: {
                 "X-No-Session-Refresh": "true",
