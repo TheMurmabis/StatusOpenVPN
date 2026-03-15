@@ -1948,7 +1948,7 @@ def toggle_wg_peer():
             [
                 "/usr/bin/bash",
                 "-c",
-                f"wg syncconf {interface} <(wg-quick strip {interface})",
+                f"wg syncconf {interface} <(/usr/bin/wg-quick strip {interface})",
             ],
             check=True,
         )
