@@ -1946,7 +1946,7 @@ def toggle_wg_peer():
 
         subprocess.run(
             [
-                "bash",
+                "/usr/bin/bash",
                 "-c",
                 f"wg syncconf {interface} <(wg-quick strip {interface})",
             ],
