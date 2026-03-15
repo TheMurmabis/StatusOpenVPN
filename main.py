@@ -2159,13 +2159,8 @@ def ovpn_history():
         hide_ovpn_ip = read_settings().get("hide_ovpn_ip", True)
 
         def format_ip(ip):
-            if not hide_ovpn_ip:
-                return mask_ip(ip)
-            ip_clean = ip.split(":")[0] if ip else ""
-            parts = ip_clean.split(".")
-            if len(parts) == 4:
-                return f"{parts[0]}.***.***.{parts[3]}"
-            return ip_clean
+            real_ip = normalize_real_address(ip)
+            return mask_ip(real_ip, hide=hide_ovpn_ip)
 
         logs = [
             {
