@@ -1096,7 +1096,7 @@ def read_csv(file_path, protocol):
                 data.append(
                     [
                         client_name,
-                        mask_ip(real_address),
+                        real_address,
                         row[3],
                         format_bytes(received),
                         format_bytes(sent),
