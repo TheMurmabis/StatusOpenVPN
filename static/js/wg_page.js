@@ -87,7 +87,7 @@ function stopAutoRefresh() {
 
 async function updateStats() {
     try {
-        const response = await fetch("${basePath}/api/wg/stats", {
+        const response = await fetch(`${basePath}/api/wg/stats`, {
             method: "GET",
             headers: {
                 "X-No-Session-Refresh": "true",
@@ -242,7 +242,7 @@ async function executePeerToggle(toggle, peer, iface, clientName, enable) {
     toggle.disabled = true;
 
     try {
-        const response = await fetch("${basePath}/api/wg/peer/toggle", {
+        const response = await fetch(`${basePath}/api/wg/peer/toggle`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
