@@ -10,6 +10,7 @@ import string
 import psutil
 import socket
 import subprocess
+import shutil
 import json
 
 from statistics import mean
@@ -1944,13 +1945,21 @@ def toggle_wg_peer():
         if not success:
             return jsonify({"error": "Пир не найден в конфигурации"}), 404
 
+        wg_quick = shutil.which("wg-quick") or "/usr/bin/wg-quick"
+        wg_bin = shutil.which("wg") or "/usr/bin/wg"
+        if not os.path.isfile(wg_quick):
+            return jsonify({"error": "wg-quick не найден. Установите wireguard-tools."}), 500
+        if not os.path.isfile(wg_bin):
+            return jsonify({"error": "wg не найден. Установите wireguard-tools."}), 500
+
         subprocess.run(
             [
-                "/usr/bin/bash",
+                "/bin/bash",
                 "-c",
-                f"wg syncconf {interface} <(/usr/bin/wg-quick strip {interface})",
+                f"{wg_bin} syncconf {interface} <({wg_quick} strip {interface})",
             ],
             check=True,
+            env={**os.environ, "PATH": "/usr/bin:/bin"},
         )
 
         client_name = data.get("client_name", peer[:8] + "...")

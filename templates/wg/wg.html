@@ -47,7 +47,7 @@
                                 interface.interface|capitalize }}
                             </span>
                             <span class="badge bg-dark">
-                                <strong> {{ interface.peers | selectattr('online') | list | length }}</strong>
+                                <strong id="online-count-{{ interface.interface }}">{{ interface.peers | selectattr('online') | list | length }}</strong>
                                 / <strong>{{ interface.peers | length }}</strong>
                             </span>
                         </div>
@@ -123,7 +123,8 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
 
             tbody.appendChild(tr);
-            document.getElementById(`online-count-${interface.interface}`).textContent = onlineCount;
+            const countEl = document.getElementById(`online-count-${interface.interface}`);
+            if (countEl) countEl.textContent = onlineCount;
 
             index++;
             setTimeout(renderChunk, 5); 
