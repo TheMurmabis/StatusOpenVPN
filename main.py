@@ -977,23 +977,6 @@ def format_date(date_string):
     return utc_date.isoformat()
 
 
-# Форматируем IP-адрес (без маскирования)
-# def mask_ip(ip_address):
-#     if not ip_address:
-#         return "0.0.0.0"
-
-#     ip = ip_address.split(":")[0]
-#     parts = ip.split(".")
-
-#     if len(parts) == 4:
-#         try:
-#             parts = [str(int(part)) for part in parts]
-#             return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
-#         except ValueError:
-#             return ip
-
-#     return ip_address
-
 
 def mask_ip(ip_address, hide=True):
     """Маскирует реальный IP-адрес если hide=True."""
@@ -1013,8 +996,8 @@ def mask_ip(ip_address, hide=True):
         try:
             parts = [str(int(part)) for part in parts]
             if hide:
-                return f"{parts[0]}.***.***.{parts[3]}{port}"
-            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}{port}"
+                return f"{parts[0]}.***.***.{parts[3]}"
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
         except ValueError:
             return ip_address
 
