@@ -1,7 +1,7 @@
 let clientChart = null;
 let selectedClient = null;
 let selectedChartPeriod = 'month';
-const OVPN_STORAGE_KEY = 'ovpnStats.selectedClient';
+const WG_STORAGE_KEY = 'wgStats.selectedClient';
 
 function getThemeColors() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -33,9 +33,6 @@ function humanizeBytes(bytes) {
 function formatLabel(dateStr, period) {
     const d = new Date(dateStr + 'T00:00:00');
     if (isNaN(d.getTime())) return dateStr;
-    if (period === 'day') {
-        return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-    }
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 }
 
@@ -45,7 +42,7 @@ async function updateClientChart() {
     const basePath = window.basePath || '';
     try {
         const res = await fetch(
-            `${basePath}/api/ovpn/client_chart?client=${encodeURIComponent(selectedClient)}&period=${selectedChartPeriod}`
+            `${basePath}/api/wg/client_chart?client=${encodeURIComponent(selectedClient)}&period=${selectedChartPeriod}`
         );
         const data = await res.json();
         if (data.error) {
@@ -142,7 +139,7 @@ function selectClient(clientName) {
 
     if (selectedClient === clientName) {
         selectedClient = null;
-        try { localStorage.removeItem(OVPN_STORAGE_KEY); } catch (e) {}
+        try { localStorage.removeItem(WG_STORAGE_KEY); } catch (e) {}
         container.style.display = 'none';
         document.querySelectorAll('.client-table tbody tr').forEach(r => r.classList.remove('table-active'));
         if (clientChart) {
@@ -153,7 +150,7 @@ function selectClient(clientName) {
     }
 
     selectedClient = clientName;
-    try { localStorage.setItem(OVPN_STORAGE_KEY, clientName); } catch (e) {}
+    try { localStorage.setItem(WG_STORAGE_KEY, clientName); } catch (e) {}
     nameEl.textContent = clientName;
     container.style.display = 'block';
 
@@ -173,17 +170,6 @@ function selectClient(clientName) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.connection-time[data-utc]').forEach(cell => {
-        const utcDate = new Date(cell.dataset.utc);
-        cell.textContent = utcDate.toLocaleString(undefined, {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    });
-
     const clientFilter = document.getElementById('clientFilter');
     if (clientFilter) {
         clientFilter.addEventListener('input', function () {
@@ -201,33 +187,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Инициализация периода графика по активной кнопке
+    // Инициализация периода по активной кнопке
     const activePeriodBtn = document.querySelector('.chart-period.active');
     if (activePeriodBtn && activePeriodBtn.dataset.period) {
         selectedChartPeriod = activePeriodBtn.dataset.period;
     }
 
-    // Обработчики переключения периода (кнопки около фильтра)
+    // Обновляем только локальное состояние периода (для графика) — таблица перезагрузится сама
     document.querySelectorAll('.chart-period').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            // таблица и так перезагрузится через переход по ссылке,
-            // но для сохранения периода на графике обновляем локальное состояние
+        btn.addEventListener('click', function () {
             selectedChartPeriod = this.dataset.period || selectedChartPeriod;
         });
     });
 
-    // Восстановление последнего выбранного клиента после перезагрузки/смены периода
+    // Восстановление ранее выбранного клиента после перезагрузки/смены периода
     try {
-        const savedClient = localStorage.getItem(OVPN_STORAGE_KEY);
+        const savedClient = localStorage.getItem(WG_STORAGE_KEY);
         if (savedClient) {
             const row = document.querySelector(`.client-table tbody tr[data-client="${savedClient}"]`);
             if (row) {
-                // selectedClient ещё null, поэтому selectClient просто откроет график
                 selectClient(savedClient);
             }
         }
     } catch (e) {
-        console.warn('Не удалось восстановить выбранного клиента OVPN:', e);
+        console.warn('Не удалось восстановить выбранного клиента WG:', e);
     }
 
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

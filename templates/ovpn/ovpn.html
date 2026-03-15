@@ -21,12 +21,6 @@
 
 <div>
     <div class="control-panel">
-        <div class="control-item" title="Показать реальные IP">
-            <label class="form-check-label" for="show-ip-checkbox">
-                <input type="checkbox" id="show-ip-checkbox" class="form-check-input">
-                Показать IP
-            </label>
-        </div>
         <div class="control-item" title="Показать скорость">
             <label class="form-check-label" for="show-columns-checkbox">
                 <input type="checkbox" id="show-columns-checkbox" class="form-check-input">
@@ -120,9 +114,12 @@
                 <tr class="text-center log-row">
                     <td class="text-center">{{ client[0] }}</td>
                     {% set ip_segments = client[1].split(':')[0].split('.') %}
-                    <td class="text-center real-ip-cell" data-real-ip="{{ client[1] }}"
-                        data-masked-ip="{{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}">
+                    <td class="text-center">
+                        {% if hide_ip %}
                         {{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}
+                        {% else %}
+                        {{ client[1] }}
+                        {% endif %}
                     </td>
                     <td class="text-center">{{ client[2] }}</td>
                     <td class="text-center">{{ client[3] }}</td>

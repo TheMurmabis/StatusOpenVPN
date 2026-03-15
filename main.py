@@ -36,6 +36,7 @@ from flask import (
 
 from src.forms import LoginForm
 from src.config import Config
+from src.tg_bot.audit import log_action, get_logs, get_logs_count
 from flask_bcrypt import Bcrypt
 from datetime import date, datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
@@ -163,6 +164,8 @@ DEFAULT_SETTINGS = {
     "app_name": "StatusOpenVPN",
     "telegram_admins": {},
     "bot_enabled": False,
+    "hide_ovpn_ip": True,
+    "hide_wg_ip": True,
 }
 
 
@@ -592,6 +595,150 @@ def read_wg_config(file_path):
     return client_mapping
 
 
+def get_disabled_wg_peers():
+    """Получает отключённых пиров из конфигурационных файлов WireGuard.
+    Отключённые пиры имеют строки, закомментированные префиксом '#~ '."""
+    configs = {
+        "vpn": "/etc/wireguard/vpn.conf",
+        "antizapret": "/etc/wireguard/antizapret.conf",
+    }
+    result = {}
+
+    for interface, config_path in configs.items():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            continue
+
+        disabled = []
+        i = 0
+        while i < len(lines):
+            s = lines[i].strip()
+
+            if s.startswith("# Client ="):
+                client_name = s.split("=", 1)[1].strip()
+                for j in range(i + 1, min(i + 3, len(lines))):
+                    if lines[j].strip().startswith("#~ [Peer]"):
+                        public_key = None
+                        allowed_ips = []
+                        for k in range(j + 1, min(j + 10, len(lines))):
+                            ks = lines[k].strip()
+                            if ks.startswith("#~ PublicKey ="):
+                                public_key = ks.split("=", 1)[1].strip()
+                            elif ks.startswith("#~ AllowedIPs ="):
+                                allowed_ips = [
+                                    ip.strip()
+                                    for ip in ks.split("=", 1)[1].strip().split(",")
+                                ]
+                            elif not ks.startswith("#~") and ks != "":
+                                break
+
+                        if public_key:
+                            masked = public_key[:4] + "..." + public_key[-4:]
+                            disabled.append(
+                                {
+                                    "peer": public_key,
+                                    "masked_peer": masked,
+                                    "client": client_name,
+                                    "enabled": False,
+                                    "online": False,
+                                    "endpoint": "N/A",
+                                    "visible_ips": allowed_ips[:1],
+                                    "hidden_ips": allowed_ips[1:],
+                                    "latest_handshake": None,
+                                    "daily_received": "0 B",
+                                    "daily_sent": "0 B",
+                                    "received": "0 B",
+                                    "sent": "0 B",
+                                    "received_bytes": 0,
+                                    "sent_bytes": 0,
+                                    "daily_traffic_percentage": 0,
+                                    "received_percentage": 0,
+                                    "sent_percentage": 0,
+                                    "allowed_ips": allowed_ips,
+                                }
+                            )
+                        break
+            i += 1
+
+        if disabled:
+            result[interface] = disabled
+
+    return result
+
+
+def toggle_peer_config(config_path, public_key, enable):
+    """Включает или отключает пир в конфигурационном файле WireGuard.
+    Отключение добавляет префикс '#~ ' к строкам блока [Peer].
+    Включение удаляет этот префикс."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    key_line_idx = None
+    for i, line in enumerate(lines):
+        s = line.strip()
+        clean = s.replace("#~ ", "", 1) if s.startswith("#~ ") else s
+        if clean.startswith("PublicKey =") and public_key in clean:
+            key_line_idx = i
+            break
+
+    if key_line_idx is None:
+        return False
+
+    block_start = key_line_idx
+    for i in range(key_line_idx - 1, -1, -1):
+        s = lines[i].strip()
+        if s.startswith("# Client ="):
+            block_start = i
+            break
+        elif s.startswith("[Peer]") or s.startswith("#~ [Peer]"):
+            block_start = i
+            if i > 0 and lines[i - 1].strip().startswith("# Client ="):
+                block_start = i - 1
+            break
+        elif s == "":
+            continue
+        elif s.startswith("[Interface]"):
+            block_start = i + 1
+            break
+
+    block_end = key_line_idx + 1
+    for i in range(key_line_idx + 1, len(lines)):
+        s = lines[i].strip()
+        if s.startswith("# Client =") or s.startswith("[Interface]"):
+            block_end = i
+            break
+        if s.startswith("[Peer]") or s.startswith("#~ [Peer]"):
+            block_end = i
+            break
+        block_end = i + 1
+
+    new_lines = lines[:block_start]
+
+    for i in range(block_start, block_end):
+        line = lines[i]
+        s = line.strip()
+
+        if enable:
+            if s.startswith("#~ "):
+                new_lines.append(line.replace("#~ ", "", 1))
+            else:
+                new_lines.append(line)
+        else:
+            if s == "" or s.startswith("#"):
+                new_lines.append(line)
+            else:
+                new_lines.append("#~ " + line.lstrip())
+
+    new_lines.extend(lines[block_end:])
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+    return True
+
+
 def get_daily_stats_map():
     """Получение ежедневной статистики WG"""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -613,7 +760,7 @@ def humanize_bytes(num, suffix="B"):
     return f"{num:.1f} P{suffix}"
 
 
-def parse_wireguard_output(output):
+def parse_wireguard_output(output, hide_ip=True):
     """Парсинг вывода команды wg show."""
     stats = []
     lines = output.strip().splitlines()
@@ -665,7 +812,7 @@ def parse_wireguard_output(output):
                 peer_data["daily_traffic_percentage"] = 0
             interface_data["peers"].append(peer_data)
         elif line.startswith("endpoint:"):
-            peer_data["endpoint"] = mask_ip(line.split(": ")[1].strip())
+            peer_data["endpoint"] = mask_ip(line.split(": ")[1].strip(), hide=hide_ip)
         elif line.startswith("allowed ips:"):
             allowed_ips = line.split(": ")[1].split(", ")
             peer_data["allowed_ips"] = allowed_ips
@@ -693,7 +840,7 @@ def parse_wireguard_output(output):
                 )
                 peer_data["latest_handshake"] = format_handshake_time(handshake_time)
                 peer_data["online"] = is_peer_online(formatted_handshake_time)
-
+        
         elif line.startswith("latest handshake:"):
             handshake_time = line.split(": ")[1].strip()
             if any(
@@ -830,20 +977,46 @@ def format_date(date_string):
     return utc_date.isoformat()
 
 
-# Маскируем IP-адрес
-def mask_ip(ip_address):
-    if not ip_address:
-        return "0.0.0.0"  # Значение по умолчанию
+# Форматируем IP-адрес (без маскирования)
+# def mask_ip(ip_address):
+#     if not ip_address:
+#         return "0.0.0.0"
 
-    ip = ip_address.split(":")[0]
+#     ip = ip_address.split(":")[0]
+#     parts = ip.split(".")
+
+#     if len(parts) == 4:
+#         try:
+#             parts = [str(int(part)) for part in parts]
+#             return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+#         except ValueError:
+#             return ip
+
+#     return ip_address
+
+
+def mask_ip(ip_address, hide=True):
+    """Маскирует реальный IP-адрес если hide=True."""
+    if not ip_address:
+        return "0.0.0.0"
+
+    port = ""
+    if ":" in ip_address:
+        ip, port = ip_address.rsplit(":", 1)
+        port = f":{port}"
+    else:
+        ip = ip_address
+
     parts = ip.split(".")
 
     if len(parts) == 4:
         try:
             parts = [str(int(part)) for part in parts]
-            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+            if hide:
+                return f"{parts[0]}.***.***.{parts[3]}{port}"
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}{port}"
         except ValueError:
-            return ip
+            return ip_address
 
     return ip_address
 
@@ -874,13 +1047,10 @@ def format_duration(start_time):
 
 client_cache = defaultdict(lambda: {"received": 0, "sent": 0, "timestamp": None})
 
-
-# OpenVPN 2.7: udp4:IP:PORT
 def normalize_real_address(addr):
     if addr.startswith(("udp4:", "tcp4:", "tcp4-server:", "udp6:", "tcp6:")):
         addr = addr.split(":", 1)[1]
     return addr
-
 
 # Чтение данных из CSV и обработка
 def read_csv(file_path, protocol):
@@ -1380,6 +1550,11 @@ def login():
             # Просто указываем, должна ли сессия быть "долгой"
             session.permanent = form.remember_me.data
 
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+            if client_ip and "," in client_ip:
+                client_ip = client_ip.split(",")[0].strip()
+            log_action("web", user["username"], user["username"], "web_login", "", client_ip or "")
+
             next_page = request.args.get("next")
             return redirect(next_page or url_for("home"))
         else:
@@ -1439,31 +1614,88 @@ def home():
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    bot_message = None
-    bot_error = None
     app_message = None
     app_error = None
+    ip_message = None
+
+    if request.method == "POST":
+        form_type = request.form.get("form_type")
+
+        if form_type == "app_name":
+            app_name = request.form.get("app_name", "").strip()
+            write_settings({"app_name": app_name})
+            if app_name:
+                app_message = "Название приложения обновлено."
+            else:
+                app_message = "Название приложения убрано."
+
+        elif form_type == "ip_settings":
+            hide_ovpn_ip = request.form.get("hide_ovpn_ip") == "on"
+            hide_wg_ip = request.form.get("hide_wg_ip") == "on"
+            write_settings({"hide_ovpn_ip": hide_ovpn_ip, "hide_wg_ip": hide_wg_ip})
+            ip_message = "Настройки отображения IP сохранены."
+
+    settings_data = read_settings()
+    current_app_name = settings_data.get("app_name", "StatusOpenVPN")
+    hide_ovpn_ip = settings_data.get("hide_ovpn_ip", True)
+    hide_wg_ip = settings_data.get("hide_wg_ip", True)
+
+    return render_template(
+        "settings/settings.html",
+        app_name=current_app_name,
+        hide_ovpn_ip=hide_ovpn_ip,
+        hide_wg_ip=hide_wg_ip,
+        app_message=app_message,
+        app_error=app_error,
+        ip_message=ip_message,
+        active_page="settings",
+    )
+
+
+@app.route("/settings/telegram", methods=["GET", "POST"])
+@login_required
+def settings_telegram():
+    bot_message = None
+    bot_error = None
 
     if request.method == "POST":
         form_type = request.form.get("form_type")
 
         if form_type == "bot":
+            old_env = read_env_values()
+            old_token = old_env.get("BOT_TOKEN", "")
+            old_admin_id = old_env.get("ADMIN_ID", "")
+            old_settings = read_settings()
+            old_bot_enabled = bool(old_settings.get("bot_enabled", False)) or get_telegram_bot_status()
+
             bot_token = request.form.get("bot_token", "").strip()
             admin_id = request.form.get("admin_id")
             if admin_id is None:
-                admin_id = read_env_values().get("ADMIN_ID", "")
+                admin_id = old_admin_id
             admin_id = admin_id.strip()
             bot_enabled = request.form.get("bot_enabled") == "on"
             update_env_values({"BOT_TOKEN": bot_token, "ADMIN_ID": admin_id})
             write_settings({"bot_enabled": bot_enabled})
 
-            admin_ids = parse_admin_ids(admin_id)
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+            if client_ip and "," in client_ip:
+                client_ip = client_ip.split(",")[0].strip()
+
+            if bot_token != old_token:
+                token_changed = "изменён" if bot_token else "удалён"
+                log_action("web", current_user.username, current_user.username, "bot_token_change", token_changed, client_ip or "")
+
+            if admin_id != old_admin_id:
+                log_action("web", current_user.username, current_user.username, "bot_admins_change", f"{old_admin_id} → {admin_id}", client_ip or "")
+
             should_start = bool(bot_enabled and bot_token)
 
             if should_start:
                 restart_ok, restart_error = restart_telegram_bot()
                 if restart_ok:
                     bot_message = "Настройки бота сохранены. Бот перезапущен."
+                    if not old_bot_enabled:
+                        log_action("web", current_user.username, current_user.username, "bot_toggle", "включён", client_ip or "")
                 else:
                     bot_error = (
                         "Настройки бота сохранены, но перезапуск не удался: "
@@ -1478,24 +1710,17 @@ def settings():
                         )
                     else:
                         bot_message = "Настройки бота сохранены. Бот остановлен."
+                    if old_bot_enabled:
+                        log_action("web", current_user.username, current_user.username, "bot_toggle", "отключён", client_ip or "")
                 else:
                     bot_error = (
                         "Настройки бота сохранены, но остановка не удалась: "
                         f"{restart_error}"
                     )
 
-        elif form_type == "app_name":
-            app_name = request.form.get("app_name", "").strip()
-            write_settings({"app_name": app_name})
-            if app_name:
-                app_message = "Название приложения обновлено."
-            else:
-                app_message = "Название приложения убрано."
-
     env_values = read_env_values()
     bot_token_value = env_values.get("BOT_TOKEN", "")
     admin_id_value = env_values.get("ADMIN_ID", "")
-    current_app_name = read_settings().get("app_name", "StatusOpenVPN")
     settings_data = read_settings()
     admin_info = settings_data.get("telegram_admins", {})
     admin_display_list = build_admin_display_list(admin_id_value, admin_info)
@@ -1507,10 +1732,9 @@ def settings():
     bot_enabled = bool(settings_data.get("bot_enabled", False)) or bot_service_active
 
     return render_template(
-        "settings.html",
+        "settings/telegram.html",
         bot_token=bot_token_value,
         admin_id=admin_id_value,
-        app_name=current_app_name,
         admin_display_list=admin_display_list,
         available_admins=available_admins,
         client_mapping_list=client_mapping_list,
@@ -1518,9 +1742,49 @@ def settings():
         bot_enabled=bot_enabled,
         bot_message=bot_message,
         bot_error=bot_error,
-        app_message=app_message,
-        app_error=app_error,
-        active_page="settings",
+        active_page="settings_telegram",
+    )
+
+
+@app.route("/settings/audit")
+@login_required
+def settings_audit():
+    page = request.args.get("page", 1, type=int)
+    action_filter = request.args.get("action", None)
+    per_page = 20
+
+    if action_filter == "all":
+        action_filter = None
+
+    total = get_logs_count(action_filter)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * per_page
+
+    logs = get_logs(limit=per_page, offset=offset, action_filter=action_filter)
+
+    action_labels = {
+        "client_create": "Создание клиента",
+        "client_delete": "Удаление клиента",
+        "files_recreate": "Пересоздание файлов",
+        "server_reboot": "Перезагрузка сервера",
+        "web_login": "Вход в панель",
+        "peer_toggle": "Переключение WG пира",
+        "bot_token_change": "Изменение токена бота",
+        "bot_admins_change": "Изменение админов бота",
+        "bot_toggle": "Вкл/выкл бота",
+        "request_approve": "Привязка клиента",
+        "request_reject": "Отклонение запроса",
+    }
+
+    return render_template(
+        "settings/audit.html",
+        logs=logs,
+        page=page,
+        total_pages=total_pages,
+        action_filter=action_filter or "all",
+        action_labels=action_labels,
+        active_page="settings_audit",
     )
 
 
@@ -1645,19 +1909,148 @@ def api_system_info():
 @login_required
 def wg():
     """Маршрут клиентов WireGuard"""
-    stats = parse_wireguard_output(get_wireguard_stats())
+    hide_wg_ip = read_settings().get("hide_wg_ip", True)
+    stats = parse_wireguard_output(get_wireguard_stats(), hide_ip=hide_wg_ip)
+    disabled_peers = get_disabled_wg_peers()
+    for interface_data in stats:
+        for peer in interface_data.get("peers", []):
+            peer["enabled"] = True
+        iface = interface_data.get("interface")
+        if iface in disabled_peers:
+            interface_data.setdefault("peers", []).extend(disabled_peers[iface])
 
-    return render_template("wg.html", stats=stats, active_page="wg")
+    return render_template("wg/wg.html", stats=stats, active_section="wg", active_page="wg_clients")
 
 
 @app.route("/api/wg/stats")
 @login_required
 def api_wg_stats():
     try:
-        stats = parse_wireguard_output(get_wireguard_stats())
+        hide_wg_ip = read_settings().get("hide_wg_ip", True)
+        stats = parse_wireguard_output(get_wireguard_stats(), hide_ip=hide_wg_ip)
+        disabled_peers = get_disabled_wg_peers()
+        for interface_data in stats:
+            for peer in interface_data.get("peers", []):
+                peer["enabled"] = True
+            iface = interface_data.get("interface")
+            if iface in disabled_peers:
+                interface_data.setdefault("peers", []).extend(disabled_peers[iface])
         return jsonify(stats)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wg/peer/toggle", methods=["POST"])
+@login_required
+def toggle_wg_peer():
+    data = request.get_json()
+    peer = data.get("peer")
+    interface = data.get("interface")
+    enable = data.get("enable")
+
+    if not peer or not interface or enable is None:
+        return jsonify({"error": "Отсутствуют обязательные параметры"}), 400
+
+    config_path = f"/etc/wireguard/{interface}.conf"
+
+    if not os.path.exists(config_path):
+        return jsonify({"error": "Конфигурация не найдена"}), 404
+
+    try:
+        success = toggle_peer_config(config_path, peer, enable)
+        if not success:
+            return jsonify({"error": "Пир не найден в конфигурации"}), 404
+
+        subprocess.run(
+            [
+                "bash",
+                "-c",
+                f"wg syncconf {interface} <(wg-quick strip {interface})",
+            ],
+            check=True,
+        )
+
+        client_name = data.get("client_name", peer[:8] + "...")
+        action_str = "включён" if enable else "отключён"
+        log_action("web", current_user.username, current_user.username, "peer_toggle", f"{client_name} ({action_str})")
+
+        return jsonify({"success": True, "enabled": enable})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/wg/stats")
+@login_required
+def wg_stats():
+    try:
+        sort_by = request.args.get("sort", "client")
+        order = request.args.get("order", "asc").lower()
+        period = request.args.get("period", "month")
+
+        allowed_sorts = {
+            "client": "client",
+            "total_sent": "SUM(sent)",
+            "total_received": "SUM(received)",
+        }
+
+        sort_column = allowed_sorts.get(sort_by, "client")
+        order_sql = "DESC" if order == "desc" else "ASC"
+
+        now = datetime.now()
+        if period == "day":
+            date_from = now.strftime("%Y-%m-%d")
+        elif period == "week":
+            date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        elif period == "year":
+            date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+        else:
+            period = "month"
+            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        stats_list = []
+        total_received, total_sent = 0, 0
+
+        with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
+            query = f"""
+                SELECT client,
+                       SUM(received) as total_received,
+                       SUM(sent) as total_sent
+                FROM wg_daily_stats
+                WHERE date >= ?
+                GROUP BY client
+                ORDER BY {sort_column} {order_sql}
+            """
+            rows = conn.execute(query, (date_from,)).fetchall()
+
+            for row in rows:
+                client, received, sent = row
+                received = received or 0
+                sent = sent or 0
+                total_received += received
+                total_sent += sent
+                stats_list.append(
+                    {
+                        "client": client,
+                        "total_received": format_bytes(received),
+                        "total_sent": format_bytes(sent),
+                    }
+                )
+
+        return render_template(
+            "wg/wg_stats.html",
+            total_received=format_bytes(total_received),
+            total_sent=format_bytes(total_sent),
+            active_section="wg",
+            active_page="wg_stats",
+            stats=stats_list,
+            period=period,
+            sort_by=sort_by,
+            order=order_sql.lower(),
+        )
+
+    except Exception as e:
+        error_message = f"Произошла непредвиденная ошибка: {e}"
+        return render_template("wg/wg_stats.html", error_message=error_message), 500
 
 
 @app.route("/ovpn")
@@ -1708,8 +2101,9 @@ def ovpn():
             clients.sort(key=lambda x: x[9], reverse=reverse_order)
 
         total_clients = len(clients)
+        hide_ovpn_ip = read_settings().get("hide_ovpn_ip", True)
         return render_template(
-            "ovpn.html",
+            "ovpn/ovpn.html",
             clients=clients,
             total_clients_str=pluralize_clients(total_clients),
             total_received=format_bytes(total_received),
@@ -1719,6 +2113,7 @@ def ovpn():
             errors=errors,
             sort_by=sort_by,
             order=order,
+            hide_ip=hide_ovpn_ip,
         )
 
     except ZoneInfoNotFoundError:
@@ -1728,47 +2123,73 @@ def ovpn():
             "Попробуйте установить правильный часовой пояс "
             "с помощью команды: sudo dpkg-reconfigure tzdata"
         )
-        return render_template("ovpn.html", error_message=error_message), 500
+        return render_template("ovpn/ovpn.html", error_message=error_message), 500
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {str(e)}"
-        return render_template("ovpn.html", error_message=error_message), 500
+        return render_template("ovpn/ovpn.html", error_message=error_message), 500
 
 
 @app.route("/ovpn/history")
 @login_required
 def ovpn_history():
     try:
-        logs = []
+        page = request.args.get("page", 1, type=int)
+        per_page = 20
+
         conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
-        logs_reader = conn_logs.execute("SELECT * from connection_logs").fetchall()
+        
+        total_count = conn_logs.execute(
+            "SELECT COUNT(*) FROM connection_logs WHERE client_name != 'UNDEF'"
+        ).fetchone()[0]
+        
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * per_page
+
+        logs_reader = conn_logs.execute(
+            """SELECT * FROM connection_logs 
+               WHERE client_name != 'UNDEF'
+               ORDER BY connected_since DESC 
+               LIMIT ? OFFSET ?""",
+            (per_page, offset),
+        ).fetchall()
         conn_logs.close()
 
-        logs = sorted(
-            [
-                {
-                    "client_name": row[1],
-                    "real_ip": mask_ip(row[3]),
-                    "local_ip": row[2],
-                    "connection_since": row[4],
-                    "protocol": row[7],
-                }
-                for row in logs_reader
-            ],
-            key=lambda x: x["connection_since"],
-            reverse=True,  # Сортировка по убыванию
-        )
+        hide_ovpn_ip = read_settings().get("hide_ovpn_ip", True)
+
+        def format_ip(ip):
+            if not hide_ovpn_ip:
+                return mask_ip(ip)
+            ip_clean = ip.split(":")[0] if ip else ""
+            parts = ip_clean.split(".")
+            if len(parts) == 4:
+                return f"{parts[0]}.***.***.{parts[3]}"
+            return ip_clean
+
+        logs = [
+            {
+                "client_name": row[1],
+                "real_ip": format_ip(row[3]),
+                "local_ip": row[2],
+                "connection_since": row[4],
+                "protocol": row[7],
+            }
+            for row in logs_reader
+        ]
 
         return render_template(
-            "ovpn_history.html",
+            "ovpn/ovpn_history.html",
             active_section="ovpn",
             active_page="history",
             logs=logs,
+            page=page,
+            total_pages=total_pages,
         )
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {str(e)}"
-        return render_template("ovpn_history.html", error_message=error_message), 500
+        return render_template("ovpn/ovpn_history.html", error_message=error_message), 500
 
 
 @app.route("/ovpn/stats")
@@ -1777,8 +2198,8 @@ def ovpn_stats():
     try:
         sort_by = request.args.get("sort", "client_name")
         order = request.args.get("order", "asc").lower()
+        period = request.args.get("period", "month")
 
-        # Разрешённые поля сортировки (ключ -> SQL)
         allowed_sorts = {
             "client_name": "client_name",
             "total_bytes_sent": "SUM(total_bytes_received)",
@@ -1786,62 +2207,165 @@ def ovpn_stats():
             "last_connected": "MAX(last_connected)",
         }
 
-        # Если параметр некорректный — сбрасываем на client_name
         sort_column = allowed_sorts.get(sort_by, "client_name")
-        order = "DESC" if order == "desc" else "ASC"
+        order_sql = "DESC" if order == "desc" else "ASC"
 
-        current_month = datetime.now().strftime("%b. %Y")
-        previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
-        previous_month = previous_month_date.strftime("%b. %Y")
+        now = datetime.now()
+        if period == "day":
+            date_from = now.strftime("%Y-%m-%d")
+        elif period == "week":
+            date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        elif period == "year":
+            date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+        else:
+            period = "month"
+            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        month_stats = {}
+        stats_list = []
         total_received, total_sent = 0, 0
 
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
-            for month in [current_month, previous_month]:
-                query = f"""
-                    SELECT client_name,
-                           SUM(total_bytes_sent),
-                           SUM(total_bytes_received),
-                           MAX(last_connected)
-                    FROM monthly_stats
-                    WHERE month = ?
-                    GROUP BY client_name
-                    ORDER BY {sort_column} {order}
-                """
-                rows = conn.execute(query, (month,)).fetchall()
+            query = f"""
+                SELECT client_name,
+                       SUM(total_bytes_sent),
+                       SUM(total_bytes_received),
+                       MAX(last_connected)
+                FROM monthly_stats
+                WHERE month >= ?
+                GROUP BY client_name
+                ORDER BY {sort_column} {order_sql}
+            """
+            rows = conn.execute(query, (date_from,)).fetchall()
 
-                if rows:
-                    stats_list = []
-                    for client_name, sent, received, last_connected in rows:
-                        total_received += received or 0
-                        total_sent += sent or 0
-                        stats_list.append(
-                            {
-                                "client_name": client_name,
-                                "total_bytes_sent": format_bytes(received),
-                                "total_bytes_received": format_bytes(sent),
-                                "last_connected": last_connected,
-                            }
-                        )
-                    month_stats[month] = stats_list
+            for client_name, sent, received, last_connected in rows:
+                total_received += received or 0
+                total_sent += sent or 0
+                stats_list.append(
+                    {
+                        "client_name": client_name,
+                        "total_bytes_sent": format_bytes(received),
+                        "total_bytes_received": format_bytes(sent),
+                        "last_connected": last_connected,
+                    }
+                )
 
         return render_template(
-            "ovpn_stats.html",
+            "ovpn/ovpn_stats.html",
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
             active_section="ovpn",
             active_page="stats",
-            month_stats=month_stats,
-            current_month=current_month,
-            previous_month=previous_month if previous_month in month_stats else None,
+            stats=stats_list,
+            period=period,
             sort_by=sort_by,
-            order=order.lower(),
+            order=order_sql.lower(),
         )
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {e}"
-        return render_template("ovpn_stats.html", error_message=error_message), 500
+        return render_template("ovpn/ovpn_stats.html", error_message=error_message), 500
+
+
+@app.route("/api/ovpn/client_chart")
+@login_required
+def api_ovpn_client_chart():
+    client_name = request.args.get("client")
+    period = request.args.get("period", "month")
+    if not client_name:
+        return jsonify({"error": "client parameter required"}), 400
+
+    now = datetime.now()
+    if period == "day":
+        date_from = now.strftime("%Y-%m-%d")
+    elif period == "week":
+        date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    elif period == "year":
+        date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    else:
+        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    try:
+        with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
+            rows = conn.execute(
+                """
+                SELECT month,
+                       SUM(total_bytes_received) as rx,
+                       SUM(total_bytes_sent) as tx
+                FROM monthly_stats
+                WHERE client_name = ? AND month >= ?
+                GROUP BY month
+                ORDER BY month ASC
+                """,
+                (client_name, date_from),
+            ).fetchall()
+
+        labels = []
+        rx_data = []
+        tx_data = []
+        for month_val, rx, tx in rows:
+            labels.append(month_val)
+            rx_data.append(rx or 0)
+            tx_data.append(tx or 0)
+
+        return jsonify({
+            "client": client_name,
+            "labels": labels,
+            "rx_bytes": rx_data,
+            "tx_bytes": tx_data,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wg/client_chart")
+@login_required
+def api_wg_client_chart():
+    client_name = request.args.get("client")
+    period = request.args.get("period", "month")
+    if not client_name:
+        return jsonify({"error": "client parameter required"}), 400
+
+    now = datetime.now()
+    if period == "day":
+        date_from = now.strftime("%Y-%m-%d")
+    elif period == "week":
+        date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    elif period == "year":
+        date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    else:
+        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    try:
+        with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
+            rows = conn.execute(
+                """
+                SELECT date,
+                       SUM(received) as rx,
+                       SUM(sent) as tx
+                FROM wg_daily_stats
+                WHERE client = ? AND date >= ?
+                GROUP BY date
+                ORDER BY date ASC
+                """,
+                (client_name, date_from),
+            ).fetchall()
+
+        labels = []
+        rx_data = []
+        tx_data = []
+        for date_val, rx, tx in rows:
+            labels.append(date_val)
+            rx_data.append(rx or 0)
+            tx_data.append(tx or 0)
+
+        return jsonify({
+            "client": client_name,
+            "labels": labels,
+            "rx_bytes": rx_data,
+            "tx_bytes": tx_data,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/bw")

@@ -29,7 +29,7 @@
                         </li>
                         <li class="nav-item">
                             <a href="{{ url_for('wg') }}"
-                                class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
+                                class="link-dark nav-link {{ 'active' if active_section == 'wg' else '' }}">WireGuard</a>
                         </li>
                         <li class="nav-item">
                             <a href="{{ url_for('settings') }}"
@@ -65,7 +65,7 @@
                     </li>
                     <li class="nav-item">
                         <a href="{{ url_for('wg') }}"
-                            class="link-dark nav-link {{ 'active' if active_page == 'wg' else '' }}">WireGuard</a>
+                            class="link-dark nav-link {{ 'active' if active_section == 'wg' else '' }}">WireGuard</a>
                     </li>
                     <li class="nav-item">
                         <a href="{{ url_for('settings') }}"
@@ -91,7 +91,7 @@
                 <a href="https://github.com/TheMurmabis/StatusOpenVPN" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-reset">
                     <i class="fab fa-github"></i> {% if app_name %} {{ app_name }}{% endif %} [{{ version }}]</span>
                 </a>
-                © 2025
+                © 2026
             </div>
             <div class="small text-muted">
                 Сервер: <span class="text-success">{{ server_ip }}</span>@{{ hostname }}

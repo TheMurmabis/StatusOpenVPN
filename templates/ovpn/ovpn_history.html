@@ -36,7 +36,6 @@
         </thead>
         <tbody>
             {% for log in logs %}
-            {% if log['client_name'] != 'UNDEF' %}
             <tr class="log-row">
                 <td class="text-center client-name">{{ log['client_name'] }}</td>
                 <td class="text-center real-ip">{{ log['real_ip'] }}</td>
@@ -45,12 +44,36 @@
                     log['connection_since'] }}</td>
                 <td class="text-center protocol">{{ log['protocol'] }}</td>
             </tr>
-            {% endif %}
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+{% if total_pages > 1 %}
+<nav aria-label="Навигация по страницам" class="mt-3">
+    <ul class="pagination justify-content-center mb-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page - 1 }}">«</a>
+        </li>
+        {% for p in range(1, total_pages + 1) %}
+        {% if p == page or (p >= page - 2 and p <= page + 2) or p == 1 or p == total_pages %}
+        {% if p == page - 2 and p > 2 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+        </li>
+        {% if p == page + 2 and p < total_pages - 1 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page + 1 }}">»</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
 
 {% endif %}
 

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h2>Настройки</h2>
+</div>
+
+<div class="tabs mb-3">
+  <a href="{{ url_for('settings') }}" class="tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+  <a href="{{ url_for('settings_telegram') }}" class="tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+  <a href="{{ url_for('settings_audit') }}" class="tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+</div>
+
+<div class="container">
+
+  <!-- Раздел Название приложения -->
+  <div class="mb-4 p-3 border rounded">
+
+    {% if app_message %}
+    <div class="alert alert-success" role="alert">{{ app_message }}</div>
+    {% endif %}
+    {% if app_error %}
+    <div class="alert alert-danger" role="alert">{{ app_error }}</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="form_type" value="app_name" />
+
+      <div class="d-flex gap-2 align-items-end mb-2">
+        <div class="flex-grow-1">
+          <label for="app_name" class="form-label">Название приложения</label>
+          <input type="text" class="form-control" id="app_name" name="app_name" placeholder="Введите название приложения"
+            value="{{ app_name }}" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          Сохранить
+        </button>
+      </div>
+
+      <div class="form-text">
+        Это название будет отображаться в заголовке браузера.
+        Оставьте пустым, чтобы убрать название.
+      </div>
+    </form>
+  </div>
+
+  <!-- Раздел Отображение IP-адресов -->
+  <div class="mb-4 p-3 border rounded">
+    <label class="form-label">Отображение IP-адресов</label>
+    <p class="text-muted small mb-3">
+      Управление отображением реальных IP-адресов клиентов. Реальные IP-адреса клиентов будут маскироваться.
+    </p>
+
+    {% if ip_message %}
+    <div class="alert alert-success" role="alert">{{ ip_message }}</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="form_type" value="ip_settings" />
+
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="hide_ovpn_ip" name="hide_ovpn_ip" {% if hide_ovpn_ip %}checked{% endif %}>
+          <label class="form-check-label" for="hide_ovpn_ip">
+            OpenVPN
+            <small class="text-muted d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="hide_wg_ip" name="hide_wg_ip" {% if hide_wg_ip %}checked{% endif %}>
+          <label class="form-check-label" for="hide_wg_ip">
+            WireGuard
+            <small class="text-muted d-block">Скрывать реальные IP в таблице клиентов WireGuard</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">
+          Сохранить
+        </button>
+      </div>
+    </form>
+  </div>
+
+
+</div>
+
+{% endblock %}

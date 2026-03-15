@@ -16,7 +16,17 @@
             <span class="slider round"></span>
             <span title="Скрывать оффлайн клиентов">Только онлайн</span>
         </label>
+        <label class="switch d-flex align-items-center gap-2 mb-0">
+            <input type="checkbox" id="disabled-only-toggle">
+            <span class="slider round"></span>
+            <span title="Показать только отключённых клиентов">Только отключённые</span>
+        </label>
     </div>
+</div>
+
+<div class="tabs mb-3">
+    <a href="{{ url_for('wg') }}" class="tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
+    <a href="{{ url_for('wg_stats') }}" class="tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
 </div>
 <div id="no-active-clients" class="card text-center shadow-sm my-4">
     <div class="card-body">
@@ -30,7 +40,7 @@
         <table class="table align-middle text-center">
             <thead>
                 <tr>
-                    <th colspan="4" class="text-start fs-5 align-middle">
+                    <th colspan="5" class="text-start fs-5 align-middle">
                         <div class="d-flex align-items-center flex-wrap">
                             <span class="me-2">
                                 Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
@@ -47,6 +57,7 @@
                     <th colspan="2" title="Итоговая статистика">Всего</th>
                 </tr>
                 <tr>
+                    <th></th>
                     <th>Статус</th>
                     <th>Клиент</th>
                     <th>Реальный IP</th>
@@ -61,6 +72,9 @@
             <tbody id="tbody-{{ interface.interface }}"></tbody>
         </table>
     </div>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#confirmDisableModal">
+        Показать модальное окно
+      </button>
     {% endfor %}
 </div>
 
@@ -80,19 +94,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const peer = interface.peers[index];
             const tr = document.createElement("tr");
-            tr.className = peer.online ? "traffic-online" : "traffic-offline wg_table";
+            const isEnabled = peer.enabled !== false;
+            tr.className = !isEnabled ? "traffic-disabled wg_table" : (peer.online ? "traffic-online" : "traffic-offline wg_table");
 
-            if(peer.online) onlineCount++;
+            if(peer.online && isEnabled) onlineCount++;
 
             tr.innerHTML = `
                 <td>
-                    <small class="${peer.online ? 'text-success' : 'traffic-offline'} fs-8">
-                        ${peer.online ? 'Онлайн' : 'Офлайн'}
+                    <label class="switch mb-0">
+                        <input type="checkbox" class="peer-toggle"
+                               data-peer="${peer.peer}"
+                               data-interface="${interface.interface}"
+                               data-client="${peer.client || 'Unknown'}"
+                               ${isEnabled ? 'checked' : ''}>
+                        <span class="slider round"></span>
+                    </label>
+                </td>
+                <td>
+                    <small class="${!isEnabled ? 'text-muted' : (peer.online ? 'text-success' : 'traffic-offline')} fs-8">
+                        ${!isEnabled ? 'Отключён' : (peer.online ? 'Онлайн' : 'Офлайн')}
                     </small>
                 </td>
                 <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
                 <td>${peer.endpoint || 'N/A'}</td>
-                <td>${peer.visible_ips.join(', ')}</td>
+                <td>${peer.visible_ips ? peer.visible_ips.join(', ') : ''}</td>
                 <td>${peer.latest_handshake || 'N/A'}</td>
                 <td>${peer.daily_received || '0.0'}</td>
                 <td>${peer.daily_sent || '0.0'}</td>
@@ -113,6 +138,26 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 
+
+<!-- Модальное окно подтверждения отключения -->
+<div class="modal fade" id="confirmDisableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Отключение клиента</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?</p>
+                <p class="text-muted mb-0">Клиент будет отключён от VPN. Вы сможете включить его обратно в любой момент.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirmDisableBtn">Отключить</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
 {% endblock %}

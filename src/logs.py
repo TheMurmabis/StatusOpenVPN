@@ -2,7 +2,7 @@ import os
 import sqlite3
 import csv
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from tzlocal import get_localzone
 
 # Пути к файлам логов OpenVPN
@@ -180,35 +180,24 @@ def parse_log_file(log_file, protocol):
 
 
 def save_monthly_stats(logs):
-    """Сохраняет суммарные данные в таблицу monthly_stats, добавляя разницу или полный трафик при переподключении."""
+    """Сохраняет суммарные данные в таблицу monthly_stats с дневной гранулярностью и годовым хранением."""
 
-    current_month = datetime.today().strftime("%b. %Y")
-
-    # previous_month_date = datetime.now().replace(day=1) - timedelta(days=1)
-    # previous_month = previous_month_date.strftime("%b. %Y")
+    current_date = datetime.today().strftime("%Y-%m-%d")
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
 
-        # Удаляем старые данные (оставляем только текущий месяц)
-        cursor.execute("DELETE FROM monthly_stats WHERE month != ?", (current_month,))
+        one_year_ago = (datetime.today() - timedelta(days=365)).strftime("%Y-%m-%d")
+        cursor.execute(
+            "DELETE FROM monthly_stats WHERE month < ? OR length(month) != 10",
+            (one_year_ago,),
+        )
 
         aggregated_data = {}
-
-        cursor.execute(
-            """
-            INSERT INTO monthly_stats (client_name, ip_address, month, total_bytes_received, total_bytes_sent, total_connections)
-            SELECT client_name, ip_address, ?, 0, 0, 0 FROM monthly_stats
-            WHERE month != ? AND (client_name, ip_address) NOT IN 
-            (SELECT client_name, ip_address FROM monthly_stats WHERE month = ?)
-            """,
-            (current_month, current_month, current_month),
-        )
 
         for log in logs:
             try:
                 connected_since = datetime.fromisoformat(log["connected_since"])
-                month = connected_since.strftime("%b. %Y")
             except (ValueError, TypeError):
                 continue
 
@@ -229,26 +218,18 @@ def save_monthly_stats(logs):
 
             if last_state:
                 last_connected_since, last_bytes_received, last_bytes_sent = last_state
-                last_connected_month = datetime.fromisoformat(
-                    last_connected_since
-                ).strftime("%b. %Y")
 
-                if last_connected_month != current_month:
-                    diff_received = new_bytes_received
-                    diff_sent = new_bytes_sent
-
-                elif last_connected_since != log["connected_since"]:
+                if last_connected_since != log["connected_since"]:
                     diff_received = new_bytes_received
                     diff_sent = new_bytes_sent
                 else:
                     diff_received = max(0, new_bytes_received - last_bytes_received)
                     diff_sent = max(0, new_bytes_sent - last_bytes_sent)
-
             else:
                 diff_received = new_bytes_received
                 diff_sent = new_bytes_sent
 
-            key = (client_name, ip_address, month)
+            key = (client_name, ip_address, current_date)
             if key not in aggregated_data:
                 aggregated_data[key] = {
                     "total_bytes_received": 0,
@@ -260,7 +241,6 @@ def save_monthly_stats(logs):
             aggregated_data[key]["total_bytes_sent"] += diff_sent
             aggregated_data[key]["total_connections"] += 1
 
-            # Обновляем время последнего подключения
             aggregated_data[key]["last_connected"] = max(
                 aggregated_data[key].get("last_connected", connected_since),
                 connected_since,
@@ -284,13 +264,13 @@ def save_monthly_stats(logs):
                 ),
             )
 
-        for (client_name, ip_address, month), data in aggregated_data.items():
+        for (client_name, ip_address, date), data in aggregated_data.items():
             cursor.execute(
                 """
                 SELECT total_bytes_received, total_bytes_sent, total_connections, last_connected 
                 FROM monthly_stats WHERE client_name = ? AND ip_address = ? AND month = ?
                 """,
-                (client_name, ip_address, month),
+                (client_name, ip_address, date),
             )
             existing_log = cursor.fetchone()
 
@@ -321,7 +301,7 @@ def save_monthly_stats(logs):
                         last_connected,
                         client_name,
                         ip_address,
-                        month,
+                        date,
                     ),
                 )
             else:
@@ -333,7 +313,7 @@ def save_monthly_stats(logs):
                     (
                         client_name,
                         ip_address,
-                        month,
+                        date,
                         data["total_bytes_received"],
                         data["total_bytes_sent"],
                         data["total_connections"],

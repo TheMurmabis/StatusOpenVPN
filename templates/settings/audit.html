@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h2>Настройки</h2>
+</div>
+
+<div class="tabs mb-3">
+  <a href="{{ url_for('settings') }}" class="tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+  <a href="{{ url_for('settings_telegram') }}" class="tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+  <a href="{{ url_for('settings_audit') }}" class="tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+</div>
+
+<div class="container">
+  <div class="mb-4 p-3 border rounded">
+    <h4 class="mb-3">Журнал действий</h4>
+
+    <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+      <select class="form-select form-select-sm" onchange="location=this.value;">
+        <option value="?action=all" {% if not action_filter or action_filter=='all' %}selected{% endif %} disabled selected>Выберите действие</option>
+        {% for action_key, action_name in action_labels.items() %}
+        <option value="?action={{ action_key }}" {% if action_filter==action_key %}selected{% endif %}>{{ action_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if logs %}
+    <div class="table-responsive ovpn_table small">
+      <table class="table table-hover table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Источник</th>
+            <th>Администратор</th>
+            <th>Действие</th>
+            <th>Детали</th>
+            <th>IP-адрес</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="text-nowrap">
+              <span class="log-time" data-utc="{{ log.timestamp }}">{{ log.timestamp[:16].replace('T', ' ') }}</span>
+            </td>
+            <td>
+              {% if log.source == 'bot' %}
+              <span class="badge bg-info">Бот</span>
+              {% else %}
+              <span class="badge bg-secondary">Веб</span>
+              {% endif %}
+            </td>
+            <td>{{ log.admin_name }}</td>
+            <td>
+              {% if log.action == 'client_create' %}
+              <span class="badge bg-success">Создание</span>
+              {% elif log.action == 'client_delete' %}
+              <span class="badge bg-danger">Удаление</span>
+              {% elif log.action == 'files_recreate' %}
+              <span class="badge bg-warning">Пересоздание</span>
+              {% elif log.action == 'server_reboot' %}
+              <span class="badge bg-danger">Перезагрузка</span>
+              {% elif log.action == 'web_login' %}
+              <span class="badge bg-primary">Вход</span>
+              {% elif log.action == 'peer_toggle' %}
+              <span class="badge bg-secondary">Клиент WG</span>
+              {% elif log.action == 'bot_toggle' %}
+              <span class="badge bg-info">Телеграм</span>
+              {% elif log.action == 'request_approve' %}
+              <span class="badge bg-success">Одобрено</span>
+              {% elif log.action == 'request_reject' %}
+              <span class="badge bg-danger">Отклонено</span>
+              {% else %}
+              {{ log.action }}
+              {% endif %}
+            </td>
+            <td>{{ log.details or '—' }}</td>
+            <td>{{ log.ip_address or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Пагинация -->
+    {% if total_pages > 1 %}
+    <nav aria-label="Навигация по страницам">
+      <ul class="pagination justify-content-center mb-0">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="?page={{ page - 1 }}&action={{ action_filter }}">«</a>
+        </li>
+        {% for p in range(1, total_pages + 1) %}
+        {% if p == page or (p >= page - 2 and p <= page + 2) or p == 1 or p == total_pages %}
+        {% if p == page - 2 and p > 2 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="?page={{ p }}&action={{ action_filter }}">{{ p }}</a>
+        </li>
+        {% if p == page + 2 and p < total_pages - 1 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="?page={{ page + 1 }}&action={{ action_filter }}">»</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center text-muted py-4">
+      <p class="mb-0">Записей пока нет.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.log-time[data-utc]').forEach(cell => {
+    const utcDate = new Date(cell.dataset.utc);
+    cell.textContent = utcDate.toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  });
+});
+</script>
+
+{% endblock %}

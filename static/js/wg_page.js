@@ -1,9 +1,13 @@
 let autoRefreshEnabled = false;
 let refreshInterval = null;
 
+// Данные для модального окна подтверждения отключения
+let pendingToggle = null;
+
 document.addEventListener("DOMContentLoaded", () => {
     const autoRefreshToggle = document.getElementById("auto-refresh-toggle");
     const onlineOnlyToggle = document.getElementById("online-only-toggle");
+    const disabledOnlyToggle = document.getElementById("disabled-only-toggle");
 
     autoRefreshEnabled = localStorage.getItem("autoRefreshEnabled") === "true";
     autoRefreshToggle.checked = autoRefreshEnabled;
@@ -17,18 +21,51 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     onlineOnlyToggle.checked = localStorage.getItem("showOnlineOnly") === "true";
+    disabledOnlyToggle.checked = localStorage.getItem("showDisabledOnly") === "true";
 
-    // Применяем фильтр сразу при загрузке, чтобы убрать моргание
-    updateStats().then(() => {
-        applyOnlineFilter();
-        document.getElementById("wg-stats-container").style.visibility = "visible";
+    // Взаимная блокировка: «Только онлайн» и «Только отключённые» несовместимы
+    onlineOnlyToggle.addEventListener("change", async () => {
+        if (onlineOnlyToggle.checked) {
+            disabledOnlyToggle.checked = false;
+            localStorage.setItem("showDisabledOnly", "false");
+        }
+        localStorage.setItem("showOnlineOnly", onlineOnlyToggle.checked);
+        await updateStats();
+        applyFilters();
     });
 
-    // Слушаем изменения чекбокса
-    onlineOnlyToggle.addEventListener("change", async () => {
-        localStorage.setItem("showOnlineOnly", onlineOnlyToggle.checked);
-        await updateStats(); // обновляем данные
-        applyOnlineFilter(); // применяем фильтр
+    disabledOnlyToggle.addEventListener("change", async () => {
+        if (disabledOnlyToggle.checked) {
+            onlineOnlyToggle.checked = false;
+            localStorage.setItem("showOnlineOnly", "false");
+        }
+        localStorage.setItem("showDisabledOnly", disabledOnlyToggle.checked);
+        await updateStats();
+        applyFilters();
+    });
+
+    // Кнопка подтверждения в модальном окне
+    document.getElementById("confirmDisableBtn").addEventListener("click", () => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById("confirmDisableModal"));
+        modal.hide();
+
+        if (pendingToggle) {
+            executePeerToggle(pendingToggle.element, pendingToggle.peer, pendingToggle.iface, pendingToggle.clientName, false);
+            pendingToggle = null;
+        }
+    });
+
+    // Отмена модального окна — возвращаем toggle
+    document.getElementById("confirmDisableModal").addEventListener("hidden.bs.modal", () => {
+        if (pendingToggle) {
+            pendingToggle.element.checked = true;
+            pendingToggle = null;
+        }
+    });
+
+    updateStats().then(() => {
+        applyFilters();
+        document.getElementById("wg-stats-container").style.visibility = "visible";
     });
 });
 
@@ -36,9 +73,9 @@ function startAutoRefresh() {
     stopAutoRefresh();
     refreshInterval = setInterval(async () => {
         await updateStats();
-        applyOnlineFilter();
+        applyFilters();
     }, 3000);
-    updateStats().then(applyOnlineFilter);
+    updateStats().then(applyFilters);
 }
 
 function stopAutoRefresh() {
@@ -50,8 +87,7 @@ function stopAutoRefresh() {
 
 async function updateStats() {
     try {
-        const basePath = window.basePath || '';
-        const response = await fetch(`${basePath}/api/wg/stats`, {
+        const response = await fetch("/api/wg/stats", {
             method: "GET",
             headers: {
                 "X-No-Session-Refresh": "true",
@@ -63,29 +99,40 @@ async function updateStats() {
 
         const data = await response.json();
 
-        data.forEach(interface => {
-            const tbody = document.getElementById(`tbody-${interface.interface}`);
+        data.forEach(iface => {
+            const tbody = document.getElementById(`tbody-${iface.interface}`);
             if (!tbody) return;
 
             tbody.innerHTML = "";
 
-            interface.peers.forEach((peer, index) => {
+            iface.peers.forEach((peer, index) => {
                 const tr = document.createElement("tr");
-                tr.className = peer.online ? "traffic-online" : "traffic-offline wg_table";
+                const isEnabled = peer.enabled !== false;
+                tr.className = !isEnabled ? "traffic-disabled wg_table" : (peer.online ? "traffic-online" : "traffic-offline wg_table");
 
                 tr.innerHTML = `
                     <td>
+                        <label class="switch mb-0">
+                            <input type="checkbox" class="peer-toggle"
+                                   data-peer="${peer.peer}"
+                                   data-interface="${iface.interface}"
+                                   data-client="${peer.client || 'Unknown'}"
+                                   ${isEnabled ? 'checked' : ''}>
+                            <span class="slider round"></span>
+                        </label>
+                    </td>
+                    <td>
                         <div class="d-flex flex-column align-items-center">
                             <span>
-                            <small class="${peer.online ? 'text-success' : 'traffic-offline'}">
-                                ${peer.online ? 'Онлайн' : 'Офлайн'}
+                            <small class="${!isEnabled ? 'text-muted' : (peer.online ? 'text-success' : 'traffic-offline')}">
+                                ${!isEnabled ? 'Отключён' : (peer.online ? 'Онлайн' : 'Офлайн')}
                             </small>
                         </div>
                     </td>
                     <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
-                    <td >${peer.endpoint || 'N/A'}</td>
-                    <td >
-                        ${peer.visible_ips.map(ip => `<span>${ip}</span>`).join(', ')}
+                    <td>${peer.endpoint || 'N/A'}</td>
+                    <td>
+                        ${(peer.visible_ips || []).map(ip => `<span>${ip}</span>`).join(', ')}
                         ${peer.hidden_ips && peer.hidden_ips.length > 0 ? `
                             <div class="hidden-ips" style="display:none;">
                                 ${peer.hidden_ips.map(ip => `<span>${ip}</span>`).join(', ')}
@@ -95,9 +142,9 @@ async function updateStats() {
                             </a>
                         ` : ''}
                     </td>
-                    <td >${peer.latest_handshake || 'N/A'}</td>
-                    <td >${peer.daily_received || '0.0'}</td>
-                    <td >${peer.daily_sent || '0.0'}</td>
+                    <td>${peer.latest_handshake || 'N/A'}</td>
+                    <td>${peer.daily_received || '0.0'}</td>
+                    <td>${peer.daily_sent || '0.0'}</td>
                     <td>${peer.received || '0.0'}</td>
                     <td>${peer.sent || '0.0'}</td>
                 `;
@@ -111,40 +158,44 @@ async function updateStats() {
 }
 
 
-function applyOnlineFilter() {
-    const onlineOnlyToggle = document.getElementById("online-only-toggle");
-    const showOnlyOnline = onlineOnlyToggle.checked;
+function applyFilters() {
+    const showOnlyOnline = document.getElementById("online-only-toggle").checked;
+    const showOnlyDisabled = document.getElementById("disabled-only-toggle").checked;
     const tables = document.querySelectorAll("#wg-stats-container .table-responsive");
     const noClientsCard = document.getElementById("no-active-clients");
 
-    let anyOnlineClients = false;
+    let anyVisibleClients = false;
 
     tables.forEach(table => {
         const rows = table.querySelectorAll("tbody tr");
         let onlineCount = 0;
         let totalCount = rows.length;
+        let visibleCount = 0;
 
         rows.forEach(row => {
             const isOnline = row.classList.contains("traffic-online");
-            if (showOnlyOnline && !isOnline) row.style.display = "none";
-            else row.style.display = "";
+            const isDisabled = row.classList.contains("traffic-disabled");
             if (isOnline) onlineCount++;
+
+            let visible = true;
+            if (showOnlyOnline && !isOnline) visible = false;
+            if (showOnlyDisabled && !isDisabled) visible = false;
+
+            row.style.display = visible ? "" : "none";
+            if (visible) visibleCount++;
         });
 
-        // Обновляем бейдж
         const badge = table.querySelector(".badge");
         if (badge) {
             badge.innerHTML = `<strong>${onlineCount}</strong> / <strong>${totalCount}</strong>`;
         }
 
-        // Скрываем интерфейс без онлайн-клиентов
-        table.style.display = showOnlyOnline && onlineCount === 0 ? "none" : "";
+        table.style.display = visibleCount === 0 && (showOnlyOnline || showOnlyDisabled) ? "none" : "";
 
-        if (onlineCount > 0) anyOnlineClients = true;
+        if (visibleCount > 0) anyVisibleClients = true;
     });
 
-    // Показ плашки «Нет активных подключений»
-    if (showOnlyOnline && !anyOnlineClients) {
+    if ((showOnlyOnline || showOnlyDisabled) && !anyVisibleClients) {
         noClientsCard.classList.add("show");
     } else {
         noClientsCard.classList.remove("show");
@@ -162,4 +213,55 @@ function toggleIps(index) {
             }
         }
     });
+}
+
+// Переключение включён/отключён для пира
+document.addEventListener("change", async (e) => {
+    if (!e.target.classList.contains("peer-toggle")) return;
+
+    const toggle = e.target;
+    const peer = toggle.dataset.peer;
+    const iface = toggle.dataset.interface;
+    const clientName = toggle.dataset.client;
+    const enable = toggle.checked;
+
+    if (!enable) {
+        // Отключение — показываем подтверждение
+        pendingToggle = { element: toggle, peer, iface, clientName };
+        document.getElementById("confirmClientName").textContent = clientName;
+        const modal = new bootstrap.Modal(document.getElementById("confirmDisableModal"));
+        modal.show();
+        return;
+    }
+
+    // Включение — сразу выполняем
+    executePeerToggle(toggle, peer, iface, clientName, true);
+});
+
+async function executePeerToggle(toggle, peer, iface, clientName, enable) {
+    toggle.disabled = true;
+
+    try {
+        const response = await fetch("/api/wg/peer/toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ peer, interface: iface, enable, client_name: clientName }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || "Ошибка переключения");
+        }
+
+        setTimeout(async () => {
+            await updateStats();
+            applyFilters();
+            toggle.disabled = false;
+        }, 1500);
+    } catch (error) {
+        console.error("Ошибка переключения пира:", error);
+        toggle.checked = !enable;
+        toggle.disabled = false;
+    }
 }

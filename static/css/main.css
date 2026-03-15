@@ -91,6 +91,19 @@ body.full-height {
         color: #d3d3d3;
     }
 
+    .form-select {
+        color: #d3d3d3;
+        background-color: #181a1b;
+        border: 1px solid #272727;
+    }
+
+    .form-select:focus {
+        color: #d3d3d3;
+        background-color: #181a1b;
+        border-color: #272727;
+        box-shadow: none;
+    }
+
     label {
         color: #d3d3d3
     }
@@ -151,6 +164,12 @@ body.full-height {
         background-color: #ffda75;
         color: #000 !important;
         border-color: #e6c45a;
+    }
+
+    .btn:focus:not(:focus-visible),
+    .page-link:focus:not(:focus-visible) {
+        outline: none;
+        box-shadow: none;
     }
 
     .card {
@@ -233,6 +252,11 @@ body.full-height {
         color: #474747 !important;
     }
 
+    .traffic-disabled {
+        opacity: 0.5;
+        background-color: #1a1a1a;
+    }
+
     .ovpn_table td {
         color: #d3d3d3;
     }
@@ -255,6 +279,50 @@ body.full-height {
         color: #d3d3d3;
         background-color: #23272b !important;
     }
+
+    .client-table tbody tr.table-active {
+        background-color: rgba(67, 97, 238, 0.2) !important;
+    }
+
+    .modal-content {
+        background-color: #181a1b;
+        color: #d3d3d3;
+    }
+
+    .modal .btn-close {
+        filter: invert(1);
+    }
+
+    .pagination {
+        background-color: #0f0f0f;
+        border-radius: 0.25rem;
+        padding: 0.25rem;
+    }
+
+    .pagination .page-item .page-link {
+        color: #d3d3d3 !important;
+        background-color: #181a1b !important;
+        border: 1px solid #272727 !important;
+    }
+
+    .pagination .page-item.disabled .page-link {
+        color: #777 !important;
+        background-color: #181a1b !important;
+        border-color: #272727 !important;
+    }
+
+    .pagination .page-item.active .page-link {
+        color: #fff;
+        background-color: #2c3034 !important;
+        border-color: #2c3034 !important;
+    }
+
+    .pagination .page-link:hover {
+        background-color: #272727;
+        border-color: #2c3034;
+        color: #fff;
+    }
+
 }
 
 
@@ -450,6 +518,11 @@ footer a {
     color: #ccc;
 }
 
+.traffic-disabled {
+    opacity: 0.5;
+    background-color: #f8f8f8;
+}
+
 .login-wrapper {
     max-width: 360px;
     width: 100%;
@@ -548,5 +621,45 @@ footer a {
 
 .masked {
     -webkit-text-security: disc;
+}
 
+.client-table tbody tr.table-active {
+    background-color: rgba(67, 97, 238, 0.12);
+}
+
+#clientChart {
+    max-width: 100%;
+}
+
+#clientChartContainer .card-body {
+    min-height: 280px;
+}
+
+.pagination {
+    border-radius: 0.25rem;
+    padding: 0.25rem;
+}
+
+.pagination .page-item .page-link {
+    color: #0a0a0a; /* тёмный текст */
+    background-color: #ffffff; /* белый фон кнопок */
+    border: 1px solid #dee2e6; /* стандартная граница */
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #6c757d; 
+    background-color: #ffffff;
+    border-color: #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    color: #ffffff; 
+    background-color: #2c3034;
+
+}
+
+.pagination .page-link:hover {
+    background-color: #e9ecef; 
+    border-color: #adb5bd;
+    color: #0a0a0a;
 }

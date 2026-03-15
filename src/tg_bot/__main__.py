@@ -1,15 +1,8 @@
-"""Точка входа в Telegram bot для службы."""
+"""Точка входа для запуска Telegram-бота"""
 
 import asyncio
-import os
-import sys
 
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_root = os.path.dirname(_script_dir)
-if _root not in sys.path:
-    sys.path.insert(0, _root)
-
-from src.tg_bot.bot import (
+from .bot import (
     get_bot,
     get_dispatcher,
     notify_admin_server_online,
@@ -21,9 +14,8 @@ from src.tg_bot.bot import (
 
 
 async def main():
-    """Главная функция для запуска бота."""
-
-    print("✅ Бот успешно запущен!")
+    """Запустить бота в режиме long polling."""
+    print("✅ Telegram bot starting...")
     bot = get_bot()
     dp = get_dispatcher()
     try:
@@ -34,7 +26,7 @@ async def main():
         asyncio.create_task(monitor_server_load())
         await dp.start_polling(bot)
     except KeyboardInterrupt:
-        print("\n🛑 Бот остановлен!")
+        print("\n🛑 Bot stopped")
 
 
 if __name__ == "__main__":

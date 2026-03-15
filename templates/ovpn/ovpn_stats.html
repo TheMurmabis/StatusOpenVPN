@@ -19,48 +19,90 @@
 </div>
 {% else %}
 
-<div class="stats-container mx-auto">
-    <!-- Поле фильтрации -->
-    <div class="mb-3">
-        <input type="text" id="clientFilter" class="form-control" placeholder="Фильтр по имени клиента...">
-    </div>
+<div class="d-flex align-items-center gap-2 mb-3">
 
+  <input type="text" id="clientFilter" class="form-control form-control-sm flex-grow-1"
+    placeholder="🔎 Фильтр по имени клиента...">
+  <div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
+    <a href="?period=week&sort={{ sort_by }}&order={{ order }}"
+      data-period="week"
+      class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+      Неделя
+    </a>
+    <a href="?period=month&sort={{ sort_by }}&order={{ order }}"
+      data-period="month"
+      class="btn chart-period {% if period == 'month' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+      Месяц
+    </a>
+    <a href="?period=year&sort={{ sort_by }}&order={{ order }}"
+      data-period="year"
+      class="btn chart-period {% if period == 'year' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+      Год
+    </a>
+  </div>
+
+  <a class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="collapse" href="#statsHint"
+    role="button" aria-expanded="false" aria-controls="statsHint" title="Подсказка">
+    <i class="bi bi-question-circle"></i>
+  </a>
+
+</div>
+
+<div class="collapse mb-3" id="statsHint">
+  <div class="alert alert-info py-2 px-3 small mb-0">
+    <ul class="mb-0 ps-3">
+      <li>значения в таблице суммированы за выбранный период (Неделя / Месяц / Год);</li>
+      <li>для детального графика по клиенту кликните по его строке в таблице;</li>
+      <li>поле поиска фильтрует клиентов по части имени.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="col-12 mb-3" id="clientChartContainer" style="display: none;">
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title mb-2">Трафик клиента: <code id="chartClientName">—</code></h5>
+      <div class="mt-2">
+        <canvas id="clientChart" height="250"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div>
     <div class="table-responsive ovpn_table log_table w-100">
-        {% for month, stats in month_stats.items() %}
         <table class="table client-table table-hover table-sm align-middle">
             <thead>
                 <tr>
                   <th class="text-center">
-                    <a href="?sort=client_name&order={{ 'desc' if sort_by == 'client_name' and order == 'asc' else 'asc' }}">
+                    <a href="?period={{ period }}&sort=client_name&order={{ 'desc' if sort_by == 'client_name' and order == 'asc' else 'asc' }}">
                       Клиент
                       {% if sort_by == 'client_name' %}
                         <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                       {% endif %}
                     </a>
                   </th>
-              
+
                   <th class="text-center">
-                    <a href="?sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}">
+                    <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}">
                       Передано
                       {% if sort_by == 'total_bytes_sent' %}
                         <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                       {% endif %}
                     </a>
                   </th>
-              
+
                   <th class="text-center">
-                    <a href="?sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}">
+                    <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}">
                       Получено
                       {% if sort_by == 'total_bytes_received' %}
                         <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                       {% endif %}
                     </a>
                   </th>
-              
-                  <th class="text-center">Месяц подключения</th>
-              
+
                   <th class="text-center">
-                    <a href="?sort=last_connected&order={{ 'desc' if sort_by == 'last_connected' and order == 'asc' else 'asc' }}">
+                    <a href="?period={{ period }}&sort=last_connected&order={{ 'desc' if sort_by == 'last_connected' and order == 'asc' else 'asc' }}">
                       Последнее подключение
                       {% if sort_by == 'last_connected' %}
                         <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
@@ -68,15 +110,14 @@
                     </a>
                   </th>
                 </tr>
-              </thead>
+            </thead>
             <tbody>
                 {% for client in stats %}
                 {% if client['client_name'] != 'UNDEF' %}
-                <tr>
+                <tr data-client="{{ client['client_name'] }}" style="cursor: pointer;">
                     <td class="client-name text-center">{{ client['client_name'] }}</td>
                     <td class="text-center">{{ client['total_bytes_sent'] }}</td>
                     <td class="text-center">{{ client['total_bytes_received'] }}</td>
-                    <td class="text-center">{{ month }}</td>
                     <td class="text-center">
                         {% if client['last_connected'] %}
                         <span class="connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
@@ -88,12 +129,20 @@
                 {% endif %}
                 {% endfor %}
             </tbody>
+            <tfoot>
+                <tr class="table-dark text-left">
+                    <td class="text-center">Итого</td>
+                    <td class="text-center">{{ total_sent }}</td>
+                    <td class="text-center">{{ total_received }}</td>
+                    <td class="text-center">—</td>
+                </tr>
+            </tfoot>
         </table>
-        {% endfor %}
     </div>
 </div>
 {% endif %}
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/ovpn_stats.js') }}"></script>
 
 {% endblock %}
