@@ -361,7 +361,11 @@ elif [ "$changes_made" = true ]; then
     sudo systemctl restart vnstat
 fi
 
-sudo systemctl restart StatusOpenVPN telegram-bot
+sudo systemctl restart StatusOpenVPN
+if systemctl cat telegram-bot &>/dev/null; then
+    echo "Restarting telegram-bot service..."
+    sudo systemctl restart telegram-bot
+fi
 sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats
 sudo systemctl enable --now logs.timer
