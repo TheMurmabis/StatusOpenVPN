@@ -35,7 +35,6 @@
             <th>Администратор</th>
             <th>Действие</th>
             <th>Детали</th>
-            <th>IP-адрес</th>
           </tr>
         </thead>
         <tbody>
@@ -75,8 +74,12 @@
               {{ log.action }}
               {% endif %}
             </td>
-            <td>{{ log.details or '—' }}</td>
-            <td>{{ log.ip_address or '—' }}</td>
+            <td>
+              {{ log.details or '—' }}
+              {% if log.ip_address %}
+              <div class="text-muted small mt-1">IP: {{ log.ip_address }}</div>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

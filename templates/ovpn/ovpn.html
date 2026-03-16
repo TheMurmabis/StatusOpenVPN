@@ -100,7 +100,7 @@
                     <th class="text-center">
                         <a
                             href="{{ url_for('ovpn', sort='protocol', order='asc' if sort_by != 'protocol' or order == 'desc' else 'desc') }}">
-                            Протокол
+                            Протокол (порт)
                             {% if sort_by == 'protocol' %}
                             <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                             {% endif %}
@@ -113,12 +113,13 @@
                 {% for client in clients if client[0] != 'UNDEF' %}
                 <tr class="text-center log-row">
                     <td class="text-center">{{ client[0] }}</td>
-                    {% set ip_segments = client[1].split(':')[0].split('.') %}
+                    {% set ip_without_port = client[1].split(':')[0] %}
+                    {% set ip_segments = ip_without_port.split('.') %}
                     <td class="text-center">
                         {% if hide_ip %}
                         {{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}
                         {% else %}
-                        {{ client[1] }}
+                        {{ ip_without_port }}
                         {% endif %}
                     </td>
                     <td class="text-center">{{ client[2] }}</td>
@@ -128,7 +129,14 @@
                     <td class="text-center speed-column hidden">{{ client[6] }}</td>
                     <td class="text-center connection-time" data-utc="{{ client[7] }}">{{ client[7] }}</td>
                     <td class="text-center">{{ client[8] }}</td>
-                    <td class="text-center">{{ client[9] }}</td>
+                    {% set port = client[1].split(':')[1] if ':' in client[1] else '' %}
+                    <td class="text-center">
+                        {% if port %}
+                        {{ client[9] }} ({{ port }})
+                        {% else %}
+                        {{ client[9] }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 <tr class="table-dark text-left">
