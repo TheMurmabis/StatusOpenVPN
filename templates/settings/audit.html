@@ -75,9 +75,17 @@
               {% endif %}
             </td>
             <td>
-              {{ log.details or '—' }}
+              {% if log.details %}
+                {{ log.details }}
+              {% endif %}
+
               {% if log.ip_address %}
-              <div class="text-muted small mt-1">IP: {{ log.ip_address }}</div>
+                {% if log.details %}<br>{% endif %}
+                IP: {{ log.ip_address }}
+              {% endif %}
+
+              {% if not log.details and not log.ip_address %}
+                —
               {% endif %}
             </td>
           </tr>
