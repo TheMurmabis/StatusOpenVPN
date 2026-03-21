@@ -2,6 +2,17 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.2.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.2.2) - 21.03.2026
+
+### StatusOpenVPN
+
+**Исправлено/улучшено:**
+
+1. На странице **«Статистика OpenVPN»** исправлено отображение итогов.
+2. На странице **«Журнал»** добавлена подсказка.
+
+---
+
 ## [v1.2.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.2.1) - 16.03.2026
 
 ### StatusOpenVPN
