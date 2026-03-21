@@ -1,5 +1,6 @@
 *venv
 /logs
+/test
 /.pylintrc
 __pycache__
 *.db

@@ -2189,8 +2189,8 @@ def ovpn_stats():
 
         allowed_sorts = {
             "client_name": "client_name",
-            "total_bytes_sent": "SUM(total_bytes_received)",
-            "total_bytes_received": "SUM(total_bytes_sent)",
+            "total_bytes_sent": "SUM(total_bytes_sent)",
+            "total_bytes_received": "SUM(total_bytes_received)",
             "last_connected": "MAX(last_connected)",
         }
 
@@ -2230,8 +2230,8 @@ def ovpn_stats():
                 stats_list.append(
                     {
                         "client_name": client_name,
-                        "total_bytes_sent": format_bytes(received),
-                        "total_bytes_received": format_bytes(sent),
+                        "total_bytes_sent": format_bytes(sent),
+                        "total_bytes_received": format_bytes(received),
                         "last_connected": last_connected,
                     }
                 )
