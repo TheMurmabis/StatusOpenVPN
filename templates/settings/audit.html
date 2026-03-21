@@ -17,12 +17,25 @@
     <h4 class="mb-3">Журнал действий</h4>
 
     <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
-      <select class="form-select form-select-sm" onchange="location=this.value;">
+      <select class="form-select form-select-sm flex-grow-1" onchange="location=this.value;">
         <option value="?action=all" {% if not action_filter or action_filter=='all' %}selected{% endif %} disabled selected>Выберите действие</option>
         {% for action_key, action_name in action_labels.items() %}
         <option value="?action={{ action_key }}" {% if action_filter==action_key %}selected{% endif %}>{{ action_name }}</option>
         {% endfor %}
       </select>
+      <a class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="collapse" href="#auditHint"
+        role="button" aria-expanded="false" aria-controls="auditHint" title="Подсказка">
+        <i class="bi bi-question-circle"></i>
+      </a>
+    </div>
+
+    <div class="collapse mb-3" id="auditHint">
+      <div class="alert alert-info py-2 px-3 small mb-0">
+        <ul class="mb-0 ps-3">
+          <li>В журнале отображаются действия администраторов Telegram-бота и веб-интерфейса.</li>
+          <li>В журнале отображаются действия администраторов Telegram-бота и веб-интерфейса.</li>
+        </ul>
+      </div>
     </div>
 
     {% if logs %}
