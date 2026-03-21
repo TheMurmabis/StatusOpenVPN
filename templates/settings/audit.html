@@ -16,7 +16,7 @@
   <div class="mb-4 p-3 border rounded">
     <h4 class="mb-3">Журнал действий</h4>
 
-    <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+    <div class="d-flex align-items-center gap-2 mb-3">
       <select class="form-select form-select-sm flex-grow-1" onchange="location=this.value;">
         <option value="?action=all" {% if not action_filter or action_filter=='all' %}selected{% endif %} disabled selected>Выберите действие</option>
         {% for action_key, action_name in action_labels.items() %}
@@ -33,7 +33,7 @@
       <div class="alert alert-info py-2 px-3 small mb-0">
         <ul class="mb-0 ps-3">
           <li>В журнале отображаются действия администраторов Telegram-бота и веб-интерфейса.</li>
-          <li>В журнале отображаются действия администраторов Telegram-бота и веб-интерфейса.</li>
+          <li>Операции, выполненные напрямую на сервере, не отображаются.</li>
         </ul>
       </div>
     </div>
