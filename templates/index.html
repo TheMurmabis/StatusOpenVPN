@@ -16,7 +16,7 @@
   <header class="dash-mon__hero">
     <div class="dash-mon__hero-top">
       <div class="dash-mon__hero-titles">
-        <dt class="dash-mon__fact-k">IP-адрес</dt>
+        <dt class="dash-mon__fact-k">{{ hostname }}</dt>
         <dd class="dash-mon__fact-v">{{ server_ip }}</dd>
       </div>
       <a href="{{ url_for('settings') }}" class="btn btn-sm dash-mon__iconbtn" title="Настройки" aria-label="Настройки">
