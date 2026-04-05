@@ -75,10 +75,9 @@
 
 ### Внешний вид StatusOpenVPN.
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/c40b08c2-fc2b-433c-b0f9-80d74052dc85">
-  <img alt="image" src="https://github.com/user-attachments/assets/b1c763fb-4bb6-41b6-b9fc-684f2ecef6cf" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/c3d48043-2e12-4468-a174-f3b28a33a1b2">
+  <img alt="image" src="https://github.com/user-attachments/assets/d57a7354-3ded-4c78-834c-12081e4a8f60" />
 </picture>
-
 
 ### Внешний вид TelegramBot.
 
