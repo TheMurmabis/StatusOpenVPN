@@ -198,8 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
         flatpickr.localize(flatpickr.l10ns.ru);
         const fp = flatpickr(rangeInput, {
             mode: 'range',
-            dateFormat: 'd.m.Y',
+            dateFormat: 'Y-m-d',
             locale: { ...flatpickr.l10ns.ru, rangeSeparator: ' — ' },
+            maxDate: "today",
+            monthSelectorType: "static",
+            prevArrow: "<span>&lt;</span>",
+            nextArrow: "<span>&gt;</span>",
             defaultDate: defaultDates,
             positionElement: calendarOpenBtn || rangeInput,
             onChange: function (selectedDates, dateStr, instance) {
