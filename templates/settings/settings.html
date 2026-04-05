@@ -1,94 +1,267 @@
 {% extends "base.html" %}
 
+{% block title %}Настройки · Общие{% endblock %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Общие</p>
+{% endblock %}
+
 {% block content %}
 
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-  <h2>Настройки</h2>
-</div>
+<div class="dash-mon settings-shell">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
 
-<div class="tabs mb-3">
-  <a href="{{ url_for('settings') }}" class="tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
-  <a href="{{ url_for('settings_telegram') }}" class="tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
-  <a href="{{ url_for('settings_audit') }}" class="tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
-</div>
+  <form method="post" autocomplete="off" class="settings-general-form">
+    <input type="hidden" name="form_type" value="settings_all" />
 
-<div class="container">
-
-  <!-- Раздел Название приложения -->
-  <div class="mb-4 p-3 border rounded">
-
-    {% if app_message %}
-    <div class="alert alert-success" role="alert">{{ app_message }}</div>
+    {% if settings_message %}
+    <div class="alert alert-success py-2 mb-3" role="alert">{{ settings_message }}</div>
     {% endif %}
-    {% if app_error %}
-    <div class="alert alert-danger" role="alert">{{ app_error }}</div>
+    {% if settings_error %}
+    <div class="alert alert-danger py-2 mb-3" role="alert">{{ settings_error }}</div>
     {% endif %}
 
-    <form method="post" autocomplete="off">
-      <input type="hidden" name="form_type" value="app_name" />
-
-      <div class="d-flex gap-2 align-items-end mb-2">
-        <div class="flex-grow-1">
-          <label for="app_name" class="form-label">Название приложения</label>
-          <input type="text" class="form-control" id="app_name" name="app_name" placeholder="Введите название приложения"
-            value="{{ app_name }}" />
-        </div>
-
-        <button type="submit" class="btn btn-primary">
-          Сохранить
-        </button>
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-app-indicator dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Название приложения</span>
       </div>
 
-      <div class="form-text">
-        Это название будет отображаться в заголовке браузера.
-        Оставьте пустым, чтобы убрать название.
+      <div class="flex-grow-1" style="min-width: 12rem;">
+        <label for="app_name" class="form-label small settings-field-hint mb-1">Отображаемое имя</label>
+        <input type="text" class="form-control" id="app_name" name="app_name" placeholder="Введите название приложения"
+          value="{{ app_name }}" />
       </div>
-    </form>
-  </div>
 
-  <!-- Раздел Отображение IP-адресов -->
-  <div class="mb-4 p-3 border rounded">
-    <label class="form-label">Отображение IP-адресов</label>
-    <p class="text-muted small mb-3">
-      Управление отображением реальных IP-адресов клиентов. Реальные IP-адреса клиентов будут маскироваться.
-    </p>
+      <p class="settings-field-hint small mb-0 mt-2">
+        Название в заголовке браузера. Оставьте пустым, чтобы убрать.
+      </p>
+    </section>
 
-    {% if ip_message %}
-    <div class="alert alert-success" role="alert">{{ ip_message }}</div>
-    {% endif %}
-
-    <form method="post" autocomplete="off">
-      <input type="hidden" name="form_type" value="ip_settings" />
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-eye-slash dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Отображение IP-адресов</span>
+      </div>
+      <p class="settings-field-hint small mb-3">
+        Управление отображением реальных IP-адресов клиентов.
+      </p>
 
       <div class="mb-3">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="hide_ovpn_ip" name="hide_ovpn_ip" {% if hide_ovpn_ip %}checked{% endif %}>
-          <label class="form-check-label" for="hide_ovpn_ip">
+          <label class="form-check-label settings-check-label" for="hide_ovpn_ip">
             OpenVPN
-            <small class="text-muted d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
+            <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
           </label>
         </div>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-0">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="hide_wg_ip" name="hide_wg_ip" {% if hide_wg_ip %}checked{% endif %}>
-          <label class="form-check-label" for="hide_wg_ip">
+          <label class="form-check-label settings-check-label" for="hide_wg_ip">
             WireGuard
-            <small class="text-muted d-block">Скрывать реальные IP в таблице клиентов WireGuard</small>
+            <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов WireGuard</small>
           </label>
         </div>
       </div>
+    </section>
 
-      <div class="d-flex justify-content-end">
-        <button type="submit" class="btn btn-primary">
-          Сохранить
-        </button>
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-graph-up dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Глубина хранения статистики</span>
       </div>
-    </form>
+      <p class="settings-field-hint small mb-3">
+        Задайте, сколько дней хранить статистику OpenVPN и WireGuard. Ниже — размер файлов этих баз и очистка по отдельности для каждой базы.
+      </p>
+
+      {% if stats_db_message %}
+      <div class="alert alert-success py-2" role="alert">{{ stats_db_message }}</div>
+      {% endif %}
+      {% if stats_db_error %}
+      <div class="alert alert-danger py-2" role="alert">{{ stats_db_error }}</div>
+      {% endif %}
+
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-5 col-lg-4">
+          <label for="stats_retention_days" class="form-label settings-check-label mb-1">Дней хранения</label>
+          <input type="number" min="30" max="3650" step="1" class="form-control" id="stats_retention_days"
+            name="stats_retention_days" value="{{ stats_retention_days }}">
+          <div class="form-text settings-field-hint">От 30 до 3650 дней.</div>
+        </div>
+      </div>
+
+      <div class="settings-subcard settings-stats-depth p-0 overflow-hidden">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom install-panel-header"
+          style="border-color: var(--dm-border) !important;">
+          <div class="flex-grow-1 min-w-0 install-panel-header__toggle" role="button" tabindex="0"
+            data-bs-toggle="collapse" data-bs-target="#statsDbSizeCollapse" aria-expanded="false"
+            aria-controls="statsDbSizeCollapse">
+            <div class="settings-stats-depth__caption mb-0">Размер баз статистики</div>
+          </div>
+          <span class="install-panel-chevron bi bi-chevron-down collapsed" role="button" tabindex="0"
+            data-bs-toggle="collapse" data-bs-target="#statsDbSizeCollapse" aria-expanded="false"
+            aria-controls="statsDbSizeCollapse" aria-label="Развернуть или свернуть"></span>
+        </div>
+        <div id="statsDbSizeCollapse" class="collapse">
+          <div class="px-3 pb-3 pt-2">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0 settings-stats-depth__table">
+                <thead>
+                  <tr>
+                    <th scope="col">База</th>
+                    <th scope="col" class="text-end">Размер</th>
+                    <th scope="col" class="text-end">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in stats_db_items %}
+                  <tr>
+                    <td class="settings-stats-depth__cell-strong">{{ row.label }}</td>
+                    <td class="text-end font-monospace text-nowrap settings-stats-depth__cell-mono">{{ row.size_fmt }}</td>
+                    <td class="text-end">
+                      {% if row.key == 'ovpn' %}
+                      <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#statsClearModalOvpn">
+                        <i class="bi bi-trash3 me-1" aria-hidden="true"></i>Очистить
+                      </button>
+                      {% else %}
+                      <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#statsClearModalWg">
+                        <i class="bi bi-trash3 me-1" aria-hidden="true"></i>Очистить
+                      </button>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  <tr class="settings-stats-depth__foot-row">
+                    <th scope="row">Всего</th>
+                    <th class="text-end font-monospace settings-stats-depth__cell-mono">{{ stats_db_total_fmt }}</th>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <p class="settings-stats-depth__note mb-0 mt-2">
+              Удаляются только записи статистики выбранной базы. Пользователи панели и журнал аудита не затрагиваются.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="d-flex justify-content-end mb-4">
+      <button type="submit" class="btn btn-primary px-4">
+        Сохранить
+      </button>
+    </div>
+  </form>
+
+  <div class="modal fade" id="statsClearModalOvpn" tabindex="-1" aria-labelledby="statsClearModalOvpnLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title" id="statsClearModalOvpnLabel">Очистка базы OpenVPN</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Будут удалены <strong>все</strong> записи статистики OpenVPN (месячные данные, логи подключений, последние счётчики). Это действие нельзя отменить.</p>
+          <p class="small text-muted mb-2">Для подтверждения введите слово <strong class="text-body">{{ stats_clear_ovpn_phrase }}</strong> (как показано, с учётом регистра).</p>
+          <form method="post" id="statsClearFormOvpn" autocomplete="off">
+            <input type="hidden" name="form_type" value="stats_db_clear_ovpn" />
+            <label for="statsClearPhraseOvpn" class="form-label">Подтверждение</label>
+            <input type="text" class="form-control font-monospace" id="statsClearPhraseOvpn" name="confirm_phrase" autocomplete="off" placeholder="{{ stats_clear_ovpn_phrase }}" />
+          </form>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-danger" id="statsClearSubmitOvpn" form="statsClearFormOvpn" disabled>Очистить базу</button>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <div class="modal fade" id="statsClearModalWg" tabindex="-1" aria-labelledby="statsClearModalWgLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title" id="statsClearModalWgLabel">Очистка базы WireGuard</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Будут удалены <strong>все</strong> записи статистики WireGuard (дневные и суммарные данные по пирам). Это действие нельзя отменить.</p>
+          <p class="small text-muted mb-2">Для подтверждения введите слово <strong class="text-body">{{ stats_clear_wg_phrase }}</strong> (как показано, с учётом регистра).</p>
+          <form method="post" id="statsClearFormWg" autocomplete="off">
+            <input type="hidden" name="form_type" value="stats_db_clear_wg" />
+            <label for="statsClearPhraseWg" class="form-label">Подтверждение</label>
+            <input type="text" class="form-control font-monospace" id="statsClearPhraseWg" name="confirm_phrase" autocomplete="off" placeholder="{{ stats_clear_wg_phrase }}" />
+          </form>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-danger" id="statsClearSubmitWg" form="statsClearFormWg" disabled>Очистить базу</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </div>
+
+<script>
+(function () {
+  const ovpn = {{ stats_clear_ovpn_phrase|tojson }};
+  const wg = {{ stats_clear_wg_phrase|tojson }};
+  function bindModal(modalId, inputId, submitId, expected) {
+    const modal = document.getElementById(modalId);
+    const inp = document.getElementById(inputId);
+    const btn = document.getElementById(submitId);
+    if (!modal || !inp || !btn) return;
+    function sync() {
+      btn.disabled = inp.value.trim() !== expected;
+    }
+    inp.addEventListener('input', sync);
+    modal.addEventListener('shown.bs.modal', function () {
+      inp.value = '';
+      sync();
+      inp.focus();
+    });
+    modal.addEventListener('hidden.bs.modal', function () {
+      inp.value = '';
+      sync();
+    });
+  }
+  bindModal('statsClearModalOvpn', 'statsClearPhraseOvpn', 'statsClearSubmitOvpn', ovpn);
+  bindModal('statsClearModalWg', 'statsClearPhraseWg', 'statsClearSubmitWg', wg);
+
+  (function syncStatsDbSizeChevron() {
+    const panel = document.getElementById('statsDbSizeCollapse');
+    if (!panel) return;
+    const sel = '[data-bs-target="#statsDbSizeCollapse"]';
+    function sync() {
+      const expanded = panel.classList.contains('show');
+      document.querySelectorAll(sel + '.install-panel-chevron').forEach(function (ch) {
+        ch.classList.toggle('collapsed', !expanded);
+        ch.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+      document.querySelectorAll(sel + '.install-panel-header__toggle').forEach(function (el) {
+        el.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+    }
+    panel.addEventListener('shown.bs.collapse', sync);
+    panel.addEventListener('hidden.bs.collapse', sync);
+  })();
+})();
+</script>
 
 {% endblock %}

@@ -2,159 +2,207 @@
 
 
 {% block content %}
-<div class="container">
-  <h2 class="text-center">
-    Добро пожаловать в панель мониторинга
-    <a href="{{ url_for('ovpn') }}" class="fancy-link">OpenVPN</a> и
-    <a href="{{ url_for('wg') }}" class="fancy-link">WireGuard</a>
-  </h2>
+{% set vpn_svc_st_ru = {
+  'active': 'Активен',
+  'inactive': 'Остановлен',
+  'failed': 'Сбой',
+  'activating': 'Запуск',
+  'deactivating': 'Остановка',
+  'reloading': 'Перезагрузка',
+  'not-found': 'Нет unit',
+  'unknown': 'Неизвестно',
+} %}
+<div class="dash-mon">
+  <header class="dash-mon__hero">
+    <div class="dash-mon__hero-top">
+      <div class="dash-mon__hero-titles">
+        <dt class="dash-mon__fact-k">IP-адрес</dt>
+        <dd class="dash-mon__fact-v">{{ server_ip }}</dd>
+      </div>
+      <a href="{{ url_for('settings') }}" class="btn btn-sm dash-mon__iconbtn" title="Настройки" aria-label="Настройки">
+        <i class="bi bi-gear" aria-hidden="true"></i>
+      </a>
+    </div>
+    <dl class="dash-mon__facts">
+      <div class="dash-mon__fact">
+        <dt class="dash-mon__fact-k">ОС</dt>
+        <dd class="dash-mon__fact-v" id="dash-host-os">{{ host_os_label }}</dd>
+      </div>
+      <div class="dash-mon__fact">
+        <dt class="dash-mon__fact-k">Аптайм</dt>
+        <dd class="dash-mon__fact-v font-monospace" id="admin-kpi-uptime" title="">Загрузка…</dd>
+      </div>
+      <div class="dash-mon__fact">
+        <dt class="dash-mon__fact-k">Диск</dt>
+        <dd class="dash-mon__fact-v font-monospace">
+          <span id="admin-kpi-disk-used">{% if system_info %}{{ system_info.disk_used }}{% else %}…{% endif %}</span>
+          <span class="dash-mon__sep">/</span>
+          <span id="admin-kpi-disk-total">{% if system_info %}{{ system_info.disk_total }}{% else %}…{% endif %}</span>
+          <span class="dash-mon__unit">ГБ</span>
+        </dd>
+      </div>
+      <div class="dash-mon__fact">
+        <dt class="dash-mon__fact-k">Ядер CPU</dt>
+        <dd class="dash-mon__fact-v font-monospace" id="admin-kpi-cpu-cores" title="Физические ядра; если недоступно — логические CPU">
+          {% if system_info and system_info.cpu_cores is defined %}{{ system_info.cpu_cores }}{% else %}…{% endif %}
+        </dd>
+      </div>
+      <div class="dash-mon__fact dash-mon__fact--wide">
+        <dt class="dash-mon__fact-k">Службы Antizapret</dt>
+        <dd class="dash-mon__fact-v d-flex flex-wrap align-items-center gap-2">
+          <span id="dash-vpn-summary" class="dash-mon__vpn-sum">Загрузка…</span>
+          <a href="#dashVpnServicesCollapse" id="dashVpnServicesToggle" class="dash-mon__linkchev text-decoration-none"
+            data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="dashVpnServicesCollapse">
+            <i class="bi bi-chevron-right dash-mon__chev" aria-hidden="true"></i><span class="visually-hidden">Подробнее</span>
+          </a>
+        </dd>
+      </div>
+    </dl>
+  </header>
 
-  <p class="text-center">
-    Это приложение позволяет отслеживать статистику подключений и трафика для серверов OpenVPN и WireGuard.
-  </p>
+  <div class="collapse dash-mon__vpn-collapse" id="dashVpnServicesCollapse">
+    <section class="dash-panel dash-panel--nest" aria-label="Службы VPN">
+      <div class="dash-panel__hd">
+        <i class="bi bi-shield-check dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Службы Antizapret · systemd</span>
+      </div>
+      <div id="dash-vpn-services-root" class="dash-vpn-svc-list" role="list">
+        {% if system_info and system_info.vpn_services %}
+        {% for s in system_info.vpn_services %}
+        <div class="dash-svc" role="listitem" data-unit="{{ s.unit }}">
+          <span class="dash-svc__state" data-state="{{ s.state }}">{{ vpn_svc_st_ru.get(s.state, s.state) }}</span>
+          <div class="dash-svc__main min-w-0">
+            <div class="dash-svc__line d-flex flex-wrap align-items-baseline gap-2">
+              <span class="fw-medium">{{ s.label }}</span>
+              <span class="text-muted small">{{ 'OpenVPN' if s.kind == 'openvpn' else 'WireGuard' }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted small mb-0 dash-vpn-svc-placeholder">Загрузка статусов…</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
 
-  <div class="mt-3 p-3 border rounded" style="margin: auto;">
-    <h4 class="text-center">Системные метрики:</h4>
-    <p class="text-center text-muted small">
-      Сервер:
-      <span class="text-success">{{ server_ip }}</span>@{{ hostname }}
-    </p>
-    <div class="row">
-      <div class="col-12 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title">Клиенты онлайн:</h5>
-            <p class="card-text" id="vpn_clients">
-              <a class="text-decoration-none" href="{{ url_for('ovpn') }}">&#128279; <b>OpenVPN</b></a>:
-              {{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}
-              шт.<br>
-              <a class="text-decoration-none" href="{{ url_for('wg') }}">&#128279; <b>WireGuard</b></a>:
-              {{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}
-              шт.
-            </p>
-          </div>
+  <div class="dash-mon__kpi">
+    <a href="{{ url_for('ovpn') }}" class="dash-kpi dash-kpi--link">
+      <div class="dash-kpi__ic dash-kpi__ic--ovpn"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
+      <div class="dash-kpi__body">
+        <span class="dash-kpi__lbl">OpenVPN</span>
+        <span id="admin-stat-ovpn" class="dash-kpi__val">{{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}</span>
+        <span class="dash-kpi__hint">онлайн</span>
+      </div>
+    </a>
+    <a href="{{ url_for('wg') }}" class="dash-kpi dash-kpi--link">
+      <div class="dash-kpi__ic dash-kpi__ic--wg"><i class="bi bi-hdd-network" aria-hidden="true"></i></div>
+      <div class="dash-kpi__body">
+        <span class="dash-kpi__lbl">WireGuard</span>
+        <span id="admin-stat-wg" class="dash-kpi__val">{{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}</span>
+        <span class="dash-kpi__hint">онлайн</span>
+      </div>
+    </a>
+    <div class="dash-kpi dash-kpi--meter">
+      <button type="button" id="toggleCpuChartBtn" class="dash-kpi__graphbtn btn btn-sm btn-outline-secondary" title="График ЦП/ОЗУ" aria-label="График ЦП/ОЗУ">
+        <i class="bi bi-graph-up" aria-hidden="true"></i>
+      </button>
+      <div class="dash-kpi__ic dash-kpi__ic--cpu"><i class="bi bi-cpu" aria-hidden="true"></i></div>
+      <div class="dash-kpi__body">
+        <span class="dash-kpi__lbl">ЦП</span>
+        <span class="dash-kpi__val"><span id="admin-kpi-cpu">…</span><span class="dash-kpi__pct">%</span></span>
+        <div class="dash-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="cpu_bar" class="dash-meter__fill"></div>
         </div>
       </div>
-      <div class="col-12 col-md-6 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title">Время работы сервера:</h5>
-            <p class="card-text"><span id="server_uptime">Загрузка...</span></p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-6 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title">Использование диска:</h5>
-            <p class="card-text">
-              <span id="disk_used">Загрузка...</span> GB /
-              <span id="disk_total">{{ system_info.disk_total }}</span> GB
-            </p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <h5 class="card-title mb-0">Текущая нагрузка ЦП / ОЗУ:</h5>
-              <a id="toggleCpuChartBtn" class="btn btn-sm btn-outline-secondary " title="Показать график">
-                <i class="bi bi-graph-up"></i>
-              </a>
-            </div>
-              <span class="card-title">ЦП:</span>
-              <span class="card-text"><span id="cpu_load">Загрузка...</span>%</span><br>
-              <span class="card-title">ОЗУ:</span>
-              <span class="card-text">
-                <span id="memory_used">Загрузка...</span> MB /
-                <span id="memory_total">{{ system_info.memory_total }}</span> MB
-              </span>
-
-          </div>
-        </div>
-      </div>
-      <div class="col-12 mb-3" id="cpuChartContainer" style="display: none;">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-              <h5 class="card-title mb-0">График ЦП / ОЗУ:</h5>
-              <div id="cpu-period-filters" class="overflow-auto btn-group btn-group-sm" role="group">
-                <button class="btn btn-outline-secondary cpu-period active" data-period="live">Live</button>
-                <button class="btn btn-outline-secondary cpu-period" data-period="hour">Час</button>
-                <button class="btn btn-outline-secondary cpu-period" data-period="day">Сутки</button>
-                <button class="btn btn-outline-secondary cpu-period" data-period="week">Неделя</button>
-              </div>
-            </div>
-            <div class="mt-2">
-              <canvas id="cpuChart" height="250"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 mb-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <h5 class="card-title mb-0">Текущая сетевая загрузка:</h5>
-              <a id="toggleChartBtn" class="btn btn-sm btn-outline-secondary " title="Показать график">
-                <i class="bi bi-graph-up"></i>
-              </a>
-            </div>
-            <div id="network_load" class="mt-2">Загрузка...</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 mb-3" >
-        <div class="card" id="bwChartContainer" style="display: none;">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-              <div id="interface-filters" class="overflow-auto btn-group btn-group-sm" style="white-space: nowrap;"
-                role="group"></div>
-              <div id="period-filters" class="overflow-auto btn-group btn-group-sm" role="group">
-                <button class="btn btn-outline-secondary period" data-period="hour">Час</button>
-                <button class="btn btn-outline-secondary period" data-period="day">Сутки</button>
-                <button class="btn btn-outline-secondary period" data-period="week">Неделя</button>
-                <button class="btn btn-outline-secondary period" data-period="month">Месяц</button>
-              </div>
-            </div>
-            <div class="d-flex align-items-center mb-2">
-              <span class="text-muted me-2">График интерфейса: </span>
-              <code id="bwIface">—</code>
-            </div>
-            <canvas id="bwChart" height="130"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-4">
-        <h4 class="text-center mb-4">
-          Статистика по интерфейсу: <span id="network_interface">Загрузка...</span>
-        </h4>
-        <div class="row">
-          <div class="col-12 col-md-6 mb-3">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Принятые данные:</h5>
-                <p class="card-text"><span id="rx_bytes">Загрузка...</span></p>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6 mb-3">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Переданные данные:</h5>
-                <p class="card-text"><span id="tx_bytes">Загрузка...</span></p>
-              </div>
-            </div>
-          </div>
+    </div>
+    <div class="dash-kpi dash-kpi--meter">
+      <div class="dash-kpi__ic dash-kpi__ic--ram"><i class="bi bi-speedometer2" aria-hidden="true"></i></div>
+      <div class="dash-kpi__body">
+        <span class="dash-kpi__lbl">ОЗУ</span>
+        <span class="dash-kpi__val"><span id="admin-kpi-ram-pct">…</span><span class="dash-kpi__pct">%</span></span>
+        <span class="dash-kpi__sub font-monospace">
+          <span id="memory_used">…</span><span class="text-muted"> / </span><span id="memory_total">{{ system_info.memory_total if system_info else '…' }}</span><span class="text-muted small"> МБ</span>
+        </span>
+        <span id="admin-kpi-mem-used" class="visually-hidden" aria-hidden="true"></span>
+        <span id="admin-kpi-mem-total" class="visually-hidden" aria-hidden="true"></span>
+        <div class="dash-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="ram_bar" class="dash-meter__fill"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="{{ url_for('static', filename='js/main_page.js') }}"></script>
+  <div class="dash-mon__stack">
+    <div id="cpuChartContainer" class="dash-panel dash-panel--chartwrap" style="display: none;">
+      <div class="dash-panel__hd">
+        <span class="dash-panel__hd-t">ЦП / ОЗУ</span>
+        <div id="cpu-period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
+          <button type="button" class="btn btn-outline-secondary cpu-period active" data-period="live">Live</button>
+          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="hour">Час</button>
+          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="day">Сутки</button>
+          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="week">Неделя</button>
+        </div>
+      </div>
+      <div class="dashboard-chart-wrap dash-mon__chart-canvas">
+        <canvas id="cpuChart" height="220"></canvas>
+      </div>
+    </div>
 
-  {% endblock %}
+    <section class="dash-panel">
+      <div class="dash-panel__hd">
+        <i class="bi bi-activity dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Скорость · интерфейсы</span>
+        <button type="button" id="toggleChartBtn" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0" title="График трафика">
+          <i class="bi bi-graph-up" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div id="network_load" class="dash-mon__netload small">Загрузка…</div>
+    </section>
+
+    <div id="bwChartContainer" class="dash-panel dash-panel--chartwrap" style="display: none;">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div id="interface-filters" class="btn-group btn-group-sm overflow-auto flex-shrink-0" style="white-space: nowrap;" role="group"></div>
+        <div id="period-filters" class="btn-group btn-group-sm overflow-auto flex-shrink-0" role="group">
+          <button type="button" class="btn btn-outline-secondary period" data-period="hour">Час</button>
+          <button type="button" class="btn btn-outline-secondary period" data-period="day">Сутки</button>
+          <button type="button" class="btn btn-outline-secondary period" data-period="week">Неделя</button>
+          <button type="button" class="btn btn-outline-secondary period" data-period="month">Месяц</button>
+        </div>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-2 mb-2 small text-muted">
+        <span class="text-muted me-2">График интерфейса: </span>
+        <code id="bwIface">—</code>
+      </div>
+      <div class="dashboard-chart-wrap dashboard-chart-wrap--bw">
+        <canvas id="bwChart" height="120"></canvas>
+      </div>
+    </div>
+
+    <section class="dash-panel">
+      <div class="dash-panel__hd">
+        <i class="bi bi-ethernet dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Накопленный трафик</span>
+        <code id="network_interface" class="dash-mon__iface small ms-auto text-truncate" style="max-width: 12rem;">Загрузка…</code>
+      </div>
+      <div class="row g-2 g-md-3">
+        <div class="col-12 col-sm-6">
+          <div class="dash-mini">
+            <span class="dash-mini__lbl text-success"><i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>RX</span>
+            <div id="rx_bytes" class="dash-mini__val font-monospace">Загрузка…</div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6">
+          <div class="dash-mini">
+            <span class="dash-mini__lbl text-primary"><i class="bi bi-arrow-up-circle me-1" aria-hidden="true"></i>TX</span>
+            <div id="tx_bytes" class="dash-mini__val font-monospace">Загрузка…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/main_page.js') }}"></script>
+{% endblock %}

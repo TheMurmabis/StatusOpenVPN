@@ -2,156 +2,226 @@
 
 {% block title %}OpenVPN{% endblock %}
 
+{% block page_title %}OpenVPN{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Активные сессии</p>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h2>Клиенты OpenVPN</h2>
-</div>
 
-<div class="tabs">
-    <a href="{{ url_for('ovpn') }}" class="tab {% if active_page == 'clients' %}active{% endif %}">Клиенты</a>
-    <a href="{{ url_for('ovpn_history') }}" class="tab {% if active_page == 'history' %}active{% endif %}">История</a>
-    <a href="{{ url_for('ovpn_stats') }}" class="tab {% if active_page == 'stats' %}active{% endif %}">Статистика</a>
-</div>
+<div class="dash-mon vpn-page">
+    <header class="dash-mon__hero">
 
-{% if error_message %}
-<div class="alert alert-danger" role="alert">
-    {{ error_message }}
-</div>
-{% else %}
+        <div class="dash-mon__hero-top d-flex align-items-start flex-wrap gap-3 justify-content-end">
 
-<div>
-    <div class="control-panel">
-        <div class="control-item" title="Показать скорость">
-            <label class="form-check-label" for="show-columns-checkbox">
-                <input type="checkbox" id="show-columns-checkbox" class="form-check-input">
-                Показать скорость
-            </label>
+            <!-- Контролы -->
+            <div class="d-flex flex-wrap gap-3 align-items-center vpn-control-row">
+
+                <label class="form-check-label d-flex align-items-center gap-2 mb-0">
+                    <input type="checkbox" id="show-ip-checkbox" class="form-check-input">
+                    <span class="small">Показать IP</span>
+                </label>
+
+                <label class="form-check-label d-flex align-items-center gap-2 mb-0">
+                    <input type="checkbox" id="ovpn-auto-refresh-toggle" class="form-check-input">
+                    <span class="small">Автообновление</span>
+                    <small id="ovpn-refresh-countdown" class="text-muted"></small>
+                </label>
+
+
+            </div>
+
         </div>
-    </div>
-    <div class="table-responsive ovpn_table w-100">
-        <table class="table table-hover ">
-            <thead>
-                <tr>
-                    <th class="text-center sortable">
-                        <a
-                            href="{{ url_for('ovpn', sort='client', order='asc' if sort_by != 'client' or order == 'desc' else 'desc') }}">
-                            Клиент
-                            {% if sort_by == 'client' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center sortable">
-                        <a
-                            href="{{ url_for('ovpn', sort='realIp', order='asc' if sort_by != 'realIp' or order == 'desc' else 'desc') }}">
-                            Реальный IP
-                            {% if sort_by == 'realIp' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center sortable">
-                        <a
-                            href="{{ url_for('ovpn', sort='localIp', order='asc' if sort_by != 'localIp' or order == 'desc' else 'desc') }}">
-                            Локальный IP
-                            {% if sort_by == 'localIp' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center sortable">
-                        <a
-                            href="{{ url_for('ovpn', sort='sent', order='asc' if sort_by != 'sent' or order == 'desc' else 'desc') }}">
-                            Передано
-                            {% if sort_by == 'sent' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center sortable">
-                        <a
-                            href="{{ url_for('ovpn', sort='received', order='asc' if sort_by != 'received' or order == 'desc' else 'desc') }}">
-                            Получено
-                            {% if sort_by == 'received' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center speed-column hidden">Скорость<br>получения</th>
-                    <th class="text-center speed-column hidden">Скорость<br>передачи</th>
-                    <th class="text-center">
-                        <a
-                            href="{{ url_for('ovpn', sort='connection-time', order='asc' if sort_by != 'connection-time' or order == 'desc' else 'desc') }}">
-                            Подключен
-                            {% if sort_by == 'connection-time' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center">
-                        <a
-                            href="{{ url_for('ovpn', sort='duration', order='asc' if sort_by != 'duration' or order == 'desc' else 'desc') }}">
-                            Длительность
-                            {% if sort_by == 'duration' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th class="text-center">
-                        <a
-                            href="{{ url_for('ovpn', sort='protocol', order='asc' if sort_by != 'protocol' or order == 'desc' else 'desc') }}">
-                            Протокол (порт)
-                            {% if sort_by == 'protocol' %}
-                            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
 
-                </tr>
-            </thead>
-            <tbody>
-                {% for client in clients if client[0] != 'UNDEF' %}
-                <tr class="text-center log-row">
-                    <td class="text-center">{{ client[0] }}</td>
-                    {% set ip_without_port = client[1].split(':')[0] %}
-                    {% set ip_segments = ip_without_port.split('.') %}
-                    <td class="text-center">
-                        {% if hide_ip %}
-                        {{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}
-                        {% else %}
-                        {{ ip_without_port }}
-                        {% endif %}
-                    </td>
-                    <td class="text-center">{{ client[2] }}</td>
-                    <td class="text-center">{{ client[3] }}</td>
-                    <td class="text-center">{{ client[4] }}</td>
-                    <td class="text-center speed-column hidden">{{ client[5] }}</td>
-                    <td class="text-center speed-column hidden">{{ client[6] }}</td>
-                    <td class="text-center connection-time" data-utc="{{ client[7] }}">{{ client[7] }}</td>
-                    <td class="text-center">{{ client[8] }}</td>
-                    {% set port = client[1].split(':')[1] if ':' in client[1] else '' %}
-                    <td class="text-center">
-                        {% if port %}
-                        {{ client[9] }} ({{ port }})
-                        {% else %}
-                        {{ client[9] }}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                <tr class="table-dark text-left">
-                    <td colspan="3">Онлайн: {{ total_clients_str }}</td>
-                    <td class="text-center">{{ total_received }}</td>
-                    <td class="text-center">{{ total_sent }}</td>
-                    <td colspan="5"></td>
-                </tr>
-            </tbody>
-        </table>
+        <nav class="settings-tabs mt-3" aria-label="Разделы OpenVPN">
+            <a href="{{ url_for('ovpn') }}" class="settings-tab {% if active_page == 'clients' %}active{% endif %}">
+                Клиенты
+            </a>
+
+            <a href="{{ url_for('ovpn_client_status') }}"
+                class="settings-tab {% if active_page == 'client_status' %}active{% endif %}">
+                Профили
+            </a>
+
+            <a href="{{ url_for('ovpn_history') }}"
+                class="settings-tab {% if active_page == 'history' %}active{% endif %}">
+                История
+            </a>
+
+            <a href="{{ url_for('ovpn_stats') }}" class="settings-tab {% if active_page == 'stats' %}active{% endif %}">
+                Статистика
+            </a>
+        </nav>
+
+    </header>
+
+
+    {% if error_message %}
+    <div class="alert alert-danger" role="alert">
+        {{ error_message }}
     </div>
+    {% else %}
+
+    <section class="dash-panel mb-3">
+        <div class="table-responsive ovpn_table ovpn-table-online vpn-data-table-wrap w-100 mb-4">
+            <table class="table vpn-data-table mb-0">
+                <thead>
+                    <tr>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn', sort='client', order='asc' if sort_by != 'client' or order == 'desc' else 'desc') }}">
+                                Клиент
+                                {% if sort_by == 'client' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn', sort='realIp', order='asc' if sort_by != 'realIp' or order == 'desc' else 'desc') }}">
+                                Реальный IP
+                                {% if sort_by == 'realIp' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn', sort='localIp', order='asc' if sort_by != 'localIp' or order == 'desc' else 'desc') }}">
+                                Локальный IP
+                                {% if sort_by == 'localIp' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn', sort='sent', order='asc' if sort_by != 'sent' or order == 'desc' else 'desc') }}">
+                                Передано
+                                {% if sort_by == 'sent' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn', sort='received', order='asc' if sort_by != 'received' or order == 'desc' else 'desc') }}">
+                                Получено
+                                {% if sort_by == 'received' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a
+                                href="{{ url_for('ovpn', sort='connection-time', order='asc' if sort_by != 'connection-time' or order == 'desc' else 'desc') }}">
+                                Подключен
+                                {% if sort_by == 'connection-time' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a
+                                href="{{ url_for('ovpn', sort='duration', order='asc' if sort_by != 'duration' or order == 'desc' else 'desc') }}">
+                                Длительность
+                                {% if sort_by == 'duration' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a
+                                href="{{ url_for('ovpn', sort='protocol', order='asc' if sort_by != 'protocol' or order == 'desc' else 'desc') }}">
+                                Протокол (порт)
+                                {% if sort_by == 'protocol' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="ovpn-clients-tbody">
+                    {% set online_clients = clients | selectattr('online') | list %}
+                    {% for client in online_clients %}
+                    <tr class="text-center log-row ovpn-session-row {% if client.blocked %}client-blocked{% endif %}"
+                        data-row-key="{{ client.row_key }}"
+                        data-client-name="{{ client.name }}" data-online="true"
+                        data-blocked="{{ 'true' if client.blocked else 'false' }}"
+                        data-protocol="{{ client.protocol }}">
+                        <td class="text-center vpn-table-client">{{ client.display_name or client.name }}</td>
+                        {% if client.real_ip != '-' %}
+                        {% set ip_segments = client.real_ip.split(':')[0].split('.') %}
+                        <td class="text-center real-ip-cell" data-real-ip="{{ client.real_ip }}"
+                            data-masked-ip="{{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}">
+                            {{ ip_segments[0]|int }}.***.***.{{ ip_segments[-1]|int }}
+                        </td>
+                        {% else %}
+                        <td class="text-center">-</td>
+                        {% endif %}
+                        <td class="text-center">{{ client.local_ip }}</td>
+                        <td class="text-center">
+                            {{ client.received }}
+                            {% if client.download_speed != '-' %}
+                            <span class="ovpn-speed">↓ {{ client.download_speed }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {{ client.sent }}
+                            {% if client.upload_speed != '-' %}
+                            <span class="ovpn-speed">↑ {{ client.upload_speed }}</span>
+                            {% endif %}
+                        </td>
+                        {% if client.connected_since != '-' %}
+                        <td class="text-center connection-time" data-utc="{{ client.connected_since }}">{{
+                            client.connected_since }}</td>
+                        {% else %}
+                        <td class="text-center">-</td>
+                        {% endif %}
+                        <td class="text-center">{{ client.duration }}</td>
+                        {% set port = client.real_ip.split(':')[1] if client.real_ip != '-' and ':' in client.real_ip
+                        else '' %}
+                        <td class="text-center">
+                            {% if port %}
+                            {{ client.protocol }} ({{ port }})
+                            {% else %}
+                            {{ client.protocol }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if online_clients | length == 0 %}
+                    <tr class="ovpn-empty-row">
+                        <td colspan="8" class="text-center text-muted py-4">Нет клиентов в сети</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="vpn-tfoot-totals text-start">
+                        <td colspan="2" id="ovpn-footer-online">Онлайн: {{ total_clients_str }}</td>
+                        <td colspan="2"></td>
+                        <td class="text-center" id="ovpn-footer-received">{{ total_received }}</td>
+                        <td class="text-center" id="ovpn-footer-sent">{{ total_sent }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small mb-0">Блокировка и отключение клиентов — на странице <a
+                href="{{ url_for('ovpn_client_status') }}">«Профили»</a>.</p>
+    </section>
+
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/ovpn_page.js') }}"></script>
+
 </div>
-
-{% endif %}
-
-<script src="{{ url_for('static', filename='js/ovpn_page.js') }}"></script>
 
 {% endblock %}

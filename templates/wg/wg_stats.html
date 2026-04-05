@@ -1,17 +1,57 @@
 {% extends "base.html" %}
 
+{% block body_extra_class %} app-page--stats-filters{% endblock %}
+
 {% block title %}Статистика WireGuard{% endblock %}
 
+{% block page_title %}WireGuard{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Статистика по клиентам</p>
+{% endblock %}
+
+{% block topbar_search %}
+<label class="visually-hidden" for="clientFilter">Фильтр клиентов</label>
+<input type="text" id="clientFilter" class="form-control form-control-sm" placeholder="🔎 Фильтр по имени клиента…" style="min-width: 0;" autocomplete="off">
+{% endblock %}
+
+{% block topbar_filters %}
+<div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
+  <a href="?period=week&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+    data-period="week"
+    class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+    Неделя
+  </a>
+  <a href="?period=month&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+    data-period="month"
+    class="btn chart-period {% if period == 'month' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+    Месяц
+  </a>
+  <a href="?period=year&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+    data-period="year"
+    class="btn chart-period {% if period == 'year' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+    Год
+  </a>
+</div>
+<button type="button" id="statsDateRangeOpen" class="btn btn-sm btn-outline-secondary flex-shrink-0"
+  title="Выбрать период" aria-label="Выбрать период в календаре">
+  <i class="bi bi-calendar3" aria-hidden="true"></i>
+</button>
+<a class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="collapse" href="#statsHint"
+  role="button" aria-expanded="false" aria-controls="statsHint" title="Подсказка">
+  <i class="bi bi-question-circle"></i>
+</a>
+{% endblock %}
+
 {% block content %}
+<div class="dash-mon vpn-page">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы WireGuard">
+      <a href="{{ url_for('wg') }}" class="settings-tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
+      <a href="{{ url_for('wg_stats') }}" class="settings-tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
+    </nav>
+  </header>
 
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-  <h2>Статистика клиентов WireGuard</h2>
-</div>
-
-<div class="tabs mb-3">
-  <a href="{{ url_for('wg') }}" class="tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
-  <a href="{{ url_for('wg_stats') }}" class="tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
-</div>
 
 {% if error_message %}
 <div class="alert alert-danger" role="alert">
@@ -19,128 +59,110 @@
 </div>
 {% else %}
 
-<!-- Панель фильтров -->
-<div class="d-flex align-items-center gap-2 mb-3">
-
-  <input type="text" id="clientFilter" class="form-control form-control-sm flex-grow-1"
-    placeholder="🔎 Фильтр по имени клиента...">
-
-  <!-- Кнопки периода -->
-  <div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
-    <a href="?period=week&sort={{ sort_by }}&order={{ order }}"
-      data-period="week"
-      class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
-      Неделя
-    </a>
-    <a href="?period=month&sort={{ sort_by }}&order={{ order }}"
-      data-period="month"
-      class="btn chart-period {% if period == 'month' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
-      Месяц
-    </a>
-    <a href="?period=year&sort={{ sort_by }}&order={{ order }}"
-      data-period="year"
-      class="btn chart-period {% if period == 'year' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
-      Год
-    </a>
+  <div class="stats-date-range-offscreen" aria-hidden="true">
+    <form class="mb-0" method="get">
+      <input type="hidden" name="period" value="custom">
+      <input type="hidden" name="sort" value="{{ sort_by }}">
+      <input type="hidden" name="order" value="{{ order }}">
+      <input type="hidden" name="date_from" id="statsDateFrom" value="{{ selected_date_from }}">
+      <input type="hidden" name="date_to" id="statsDateTo" value="{{ selected_date_to }}">
+      <input id="statsDateRange" type="text" autocomplete="off" tabindex="-1">
+    </form>
   </div>
 
-  <a class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="collapse" href="#statsHint"
-    role="button" aria-expanded="false" aria-controls="statsHint" title="Подсказка">
-    <i class="bi bi-question-circle"></i>
-  </a>
-
-</div>
-
-<div class="collapse mb-3" id="statsHint">
-  <div class="alert alert-info py-2 px-3 small mb-0">
-    <ul class="mb-0 ps-3">
-      <li>значения в таблице суммированы за выбранный период (Неделя / Месяц / Год);</li>
-      <li>для детального графика по клиенту кликните по его строке в таблице;</li>
-      <li>поиск фильтрует клиентов по части имени.</li>
-    </ul>
+  <div class="collapse mb-3" id="statsHint">
+    <div class="alert alert-info py-2 px-3 small mb-0">
+      <ul class="mb-0 ps-3">
+        <li>значения в таблице суммированы за выбранный период (Неделя / Месяц / Год / Пользовательский интервал);</li>
+        <li>для пользовательского интервала нажмите кнопку с календарём и выберите обе даты (с и по).</li>
+        <li>для детального графика по клиенту кликните по его строке в таблице;</li>
+        <li>поиск фильтрует клиентов по части имени.</li>
+      </ul>
+    </div>
   </div>
-</div>
 
-<!-- График трафика клиента -->
-<div class="col-12 mb-3" id="clientChartContainer" style="display: none;">
-  <div class="card">
-    <div class="card-body">
-      <h5 class="card-title mb-2">Трафик клиента: <code id="chartClientName">—</code></h5>
-      <div class="mt-2">
+  <div class="mb-3 dash-panel vpn-chart-panel">
+    <div id="clientChartContainer" style="display: none;">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-graph-up dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Трафик клиента: <code id="chartClientName">—</code></span>
+      </div>
+      <div class="dashboard-chart-wrap">
         <canvas id="clientChart" height="250"></canvas>
       </div>
     </div>
+    <div class="vpn-chart-panel__period text-end py-2 px-3 small mb-0 text-body-secondary" role="status">
+      Период: <strong>{{ interval_label }}</strong>.
+    </div>
   </div>
-</div>
 
-<!-- Таблица -->
-<div class="table-responsive ovpn_table log_table w-100">
-  <table class="table client-table table-hover table-sm align-middle">
-
-    <thead>
-      <tr>
-
-        <th class="text-center">
-          <a
-            href="?period={{ period }}&sort=client&order={{ 'desc' if sort_by == 'client' and order == 'asc' else 'asc' }}">
-            Клиент
-            {% if sort_by == 'client' %}
-            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-            {% endif %}
-          </a>
-        </th>
-
-        <th class="text-center">
-          <a
-            href="?period={{ period }}&sort=total_sent&order={{ 'desc' if sort_by == 'total_sent' and order == 'asc' else 'asc' }}">
-            Передано
-            {% if sort_by == 'total_sent' %}
-            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-            {% endif %}
-          </a>
-        </th>
-
-        <th class="text-center">
-          <a
-            href="?period={{ period }}&sort=total_received&order={{ 'desc' if sort_by == 'total_received' and order == 'asc' else 'asc' }}">
-            Получено
-            {% if sort_by == 'total_received' %}
-            <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
-            {% endif %}
-          </a>
-        </th>
-
-      </tr>
-    </thead>
-
-    <tbody>
-
-      {% for client in stats %}
-      {% if client['client'] != 'Unknown' %}
-      <tr data-client="{{ client['client'] }}" style="cursor: pointer;">
-        <td class="client-name text-center">{{ client['client'] }}</td>
-        <td class="text-center">{{ client['total_sent'] }}</td>
-        <td class="text-center">{{ client['total_received'] }}</td>
-      </tr>
-      {% endif %}
-      {% endfor %}
-
-    </tbody>
-
-    <tfoot>
-      <tr class="table-dark text-left">
-        <td class="text-center">Итого</td>
-        <td class="text-center">{{ total_sent }}</td>
-        <td class="text-center">{{ total_received }}</td>
-      </tr>
-    </tfoot>
-
-  </table>
-</div>
+  <section class="dash-panel mb-3 p-0">
+    <div class="dash-panel__hd px-3 pt-3 pb-2 mb-0 border-bottom" style="border-color: var(--dm-border) !important;">
+      <i class="bi bi-table dash-panel__hd-ic" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Сводка по клиентам</span>
+    </div>
+    <div class="table-responsive ovpn_table log_table vpn-data-table-wrap w-100">
+      <table class="table client-table vpn-data-table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th class="text-center">
+              <a
+                href="?period={{ period }}&sort=client&order={{ 'desc' if sort_by == 'client' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+                Клиент
+                {% if sort_by == 'client' %}
+                <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+              </a>
+            </th>
+            <th class="text-center">
+              <a
+                href="?period={{ period }}&sort=total_sent&order={{ 'desc' if sort_by == 'total_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+                Передано
+                {% if sort_by == 'total_sent' %}
+                <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+              </a>
+            </th>
+            <th class="text-center">
+              <a
+                href="?period={{ period }}&sort=total_received&order={{ 'desc' if sort_by == 'total_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+                Получено
+                {% if sort_by == 'total_received' %}
+                <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                {% endif %}
+              </a>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in stats %}
+          {% if client['client'] != 'Unknown' %}
+          <tr data-client="{{ client['client'] }}" style="cursor: pointer;">
+            <td class="client-name text-center vpn-table-client">{{ client['client'] }}</td>
+            <td class="text-center"><span class="vpn-table-metric">{{ client['total_sent'] }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ client['total_received'] }}</span></td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="vpn-tfoot-totals text-start">
+            <td class="text-center">Итого</td>
+            <td class="text-center"><span class="vpn-table-metric">{{ total_sent }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ total_received }}</span></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
 
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 <script src="{{ url_for('static', filename='js/wg_stats.js') }}"></script>
+
+</div>
 
 {% endblock %}

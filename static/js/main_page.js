@@ -155,7 +155,9 @@ function updateCpuChart(period = 'live') {
 function toggleCpuChartVisibility() {
     const chartContainer = document.getElementById('cpuChartContainer');
     const toggleBtn = document.getElementById('toggleCpuChartBtn');
+    if (!chartContainer || !toggleBtn) return;
     const icon = toggleBtn.querySelector('i');
+    if (!icon) return;
     const isVisible = chartContainer.style.display === 'block';
 
     if (isVisible) {
@@ -197,6 +199,150 @@ function toggleCpuChartVisibility() {
 }
 
 // Системная информация
+const VPN_SVC_STATE_RU = {
+    active: 'Активен',
+    inactive: 'Остановлен',
+    failed: 'Сбой',
+    activating: 'Запуск',
+    deactivating: 'Остановка',
+    reloading: 'Перезагрузка',
+    'not-found': 'Нет unit',
+    unknown: 'Неизвестно',
+};
+
+function vpnSvcStateRu(state) {
+    return VPN_SVC_STATE_RU[state] || state;
+}
+
+function formatDiskGb(n) {
+    if (n == null || Number.isNaN(Number(n))) return '—';
+    const x = Number(n);
+    return Math.abs(x - Math.round(x)) < 1e-6 ? String(Math.round(x)) : x.toFixed(1);
+}
+
+function formatCpuPercent(p) {
+    if (p == null || Number.isNaN(Number(p))) return '—';
+    const x = Number(p);
+    return Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1);
+}
+
+function setUtilMeter(fillEl, pct) {
+    if (!fillEl) return;
+    const raw = Number(pct);
+    const v = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+    fillEl.style.width = `${v}%`;
+    fillEl.classList.remove('dash-meter__fill--ok', 'dash-meter__fill--warn', 'dash-meter__fill--crit');
+    if (v < 50) fillEl.classList.add('dash-meter__fill--ok');
+    else if (v <= 80) fillEl.classList.add('dash-meter__fill--warn');
+    else fillEl.classList.add('dash-meter__fill--crit');
+    const track = fillEl.closest('.dash-meter');
+    if (track) track.setAttribute('aria-valuenow', String(Math.round(v)));
+}
+
+function vpnInactiveSummaryPhrase(count) {
+    if (count <= 0) return { text: 'Активны', allActive: true };
+    const n = count;
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    let phrase;
+    if (mod10 === 1 && mod100 !== 11) {
+        phrase = `${n} из 6 не активен`;
+    } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+        phrase = `${n} из 6 не активны`;
+    } else {
+        phrase = `${n} из 6 не активны`;
+    }
+    return { text: phrase, allActive: false };
+}
+
+function updateVpnSummaryLine(services) {
+    const el = document.getElementById('dash-vpn-summary');
+    if (!el) return;
+    if (!Array.isArray(services) || services.length === 0) {
+        el.textContent = 'Нет данных о службах';
+        el.classList.remove('text-success', 'text-warning');
+        el.classList.add('text-muted');
+        return;
+    }
+    const inactive = services.filter((s) => s.state !== 'active');
+    const { text, allActive } = vpnInactiveSummaryPhrase(inactive.length);
+    el.textContent = text;
+    el.classList.toggle('text-success', allActive);
+    el.classList.toggle('text-warning', !allActive);
+    el.classList.remove('text-muted');
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text == null ? '' : String(text);
+    return d.innerHTML;
+}
+
+function renderVpnServices(services) {
+    const root = document.getElementById('dash-vpn-services-root');
+    if (!root || !Array.isArray(services)) return;
+    const kindLabel = (k) => (k === 'wireguard' ? 'WireGuard' : 'OpenVPN');
+    root.innerHTML = services
+        .map((s) => {
+            const active = s.state === 'active';
+            const restartBtn = active
+                ? ''
+                : `<div class="dash-svc__actions"><button type="button" class="btn btn-sm btn-outline-warning dash-svc__restart" data-unit="${escapeHtml(s.unit)}" title="Перезапустить службу"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span class="visually-hidden"> Перезапуск</span></button></div>`;
+            return `<div class="dash-svc" role="listitem" data-unit="${escapeHtml(s.unit)}">
+        <span class="dash-svc__state" data-state="${escapeHtml(s.state)}">${escapeHtml(vpnSvcStateRu(s.state))}</span>
+        <div class="dash-svc__main min-w-0">
+          <div class="dash-svc__line d-flex flex-wrap align-items-baseline gap-2">
+            <span class="fw-medium">${escapeHtml(s.label)}</span>
+            <span class="text-muted small">${escapeHtml(kindLabel(s.kind))}</span>
+          </div>
+        </div>
+        ${restartBtn}
+      </div>`;
+        })
+        .join('');
+}
+
+function initDashVpnRestartClicks() {
+    const root = document.getElementById('dash-vpn-services-root');
+    if (!root || root.dataset.vpnRestartBound === '1') return;
+    root.dataset.vpnRestartBound = '1';
+    root.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.dash-svc__restart');
+        if (!btn || btn.disabled) return;
+        e.preventDefault();
+        const unit = btn.getAttribute('data-unit');
+        if (!unit) return;
+        let basePath = window.basePath || '';
+        if (!basePath) {
+            const path = window.location.pathname;
+            if (path.includes('/status')) basePath = '/status';
+        }
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${basePath}/api/vpn-service/restart`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ unit }),
+            });
+            let payload = {};
+            try {
+                payload = await res.json();
+            } catch {
+                payload = {};
+            }
+            if (!res.ok || !payload.ok) {
+                window.alert(payload.error || payload.detail || 'Не удалось перезапустить службу');
+            }
+            await updateSystemInfo();
+        } catch (err) {
+            console.error(err);
+            window.alert('Ошибка сети при перезапуске службы');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+}
+
 async function updateSystemInfo() {
     try {
 
@@ -209,35 +355,94 @@ async function updateSystemInfo() {
         }
         const response = await fetch(basePath + '/api/system_info');
         const data = await response.json();
-        const cpuElement = document.getElementById('cpu_load');
         const memoryElement = document.getElementById('memory_used');
-        const diskElement = document.getElementById('disk_used');
+        const diskUsedDetail = document.getElementById('disk_used');
+        const diskTotalDetail = document.getElementById('disk_total');
+        const diskUsedKpi = document.getElementById('admin-kpi-disk-used');
+        const diskTotalKpi = document.getElementById('admin-kpi-disk-total');
         const networkElement = document.getElementById('network_load');
-        const uptimeElement = document.getElementById('server_uptime');
         const interfaceElement = document.getElementById('network_interface');
         const rxElement = document.getElementById('rx_bytes');
         const txElement = document.getElementById('tx_bytes');
-        const vpnClientsElement = document.getElementById('vpn_clients');
         const openvpn = data.vpn_clients?.OpenVPN ?? 0;
         const wireguard = data.vpn_clients?.WireGuard ?? 0;
-        const vpnHtml = `<a class="text-decoration-none" href="${basePath}/ovpn">&#128279; <b>OpenVPN</b></a>: ${openvpn} шт.<br>
-                     <a class="text-decoration-none" href="${basePath}/wg">&#128279; <b>WireGuard</b></a>: ${wireguard} шт.`;
 
-        if (cpuElement.textContent !== data.cpu_load) cpuElement.textContent = data.cpu_load;
-        if (memoryElement.textContent !== data.memory_used) memoryElement.textContent = data.memory_used;
-        if (diskElement.textContent !== data.disk_used) diskElement.textContent = data.disk_used;
-        if (uptimeElement.textContent !== data.uptime) uptimeElement.textContent = data.uptime;
+        if (memoryElement && memoryElement.textContent !== String(data.memory_used)) {
+            memoryElement.textContent = data.memory_used;
+        }
 
-        if (interfaceElement.textContent !== data.network_interface) interfaceElement.textContent = data.network_interface;
-        if (rxElement.textContent !== data.rx_bytes.toLocaleString()) rxElement.textContent = data.rx_bytes.toLocaleString();
-        if (txElement.textContent !== data.tx_bytes.toLocaleString()) txElement.textContent = data.tx_bytes.toLocaleString();
+        const du = formatDiskGb(data.disk_used);
+        const dt = formatDiskGb(data.disk_total);
+        if (diskUsedDetail && diskUsedDetail.textContent !== du) diskUsedDetail.textContent = du;
+        if (diskTotalDetail && diskTotalDetail.textContent !== dt) diskTotalDetail.textContent = dt;
+        if (diskUsedKpi && diskUsedKpi.textContent !== du) diskUsedKpi.textContent = du;
+        if (diskTotalKpi && diskTotalKpi.textContent !== dt) diskTotalKpi.textContent = dt;
+
+        if (interfaceElement && interfaceElement.textContent !== data.network_interface) interfaceElement.textContent = data.network_interface;
+        const rxStr =
+            typeof data.rx_bytes === 'number'
+                ? data.rx_bytes.toLocaleString('ru-RU')
+                : String(data.rx_bytes ?? '');
+        const txStr =
+            typeof data.tx_bytes === 'number'
+                ? data.tx_bytes.toLocaleString('ru-RU')
+                : String(data.tx_bytes ?? '');
+        if (rxElement && rxElement.textContent !== rxStr) rxElement.textContent = rxStr;
+        if (txElement && txElement.textContent !== txStr) txElement.textContent = txStr;
 
         let networkHtml = '';
         for (const [iface, stats] of Object.entries(data.network_load)) {
             networkHtml += `<p><b>${iface}</b>: Передача: ${stats.sent_speed} Мбит/с, Прием: ${stats.recv_speed} Мбит/с</p>`;
         }
-        if (networkElement.innerHTML !== networkHtml) networkElement.innerHTML = networkHtml;
-        if (vpnClientsElement.innerHTML !== vpnHtml) vpnClientsElement.innerHTML = vpnHtml;
+        if (networkElement && networkElement.innerHTML !== networkHtml) networkElement.innerHTML = networkHtml;
+
+        const elOvpn = document.getElementById('admin-stat-ovpn');
+        const elWg = document.getElementById('admin-stat-wg');
+        const elKpiCpu = document.getElementById('admin-kpi-cpu');
+        const elKpiUptime = document.getElementById('admin-kpi-uptime');
+        if (elOvpn && elOvpn.textContent !== String(openvpn)) elOvpn.textContent = String(openvpn);
+        if (elWg && elWg.textContent !== String(wireguard)) elWg.textContent = String(wireguard);
+        const cpuStr = formatCpuPercent(data.cpu_load);
+        if (elKpiCpu && elKpiCpu.textContent !== cpuStr) elKpiCpu.textContent = cpuStr;
+        const cpuBar = document.getElementById('cpu_bar');
+        const rawCpuNum = Number(data.cpu_load);
+        setUtilMeter(cpuBar, Number.isFinite(rawCpuNum) ? rawCpuNum : 0);
+
+        const elRamPct = document.getElementById('admin-kpi-ram-pct');
+        const elMemUsed = document.getElementById('admin-kpi-mem-used');
+        const elMemTotal = document.getElementById('admin-kpi-mem-total');
+        let ramPct = data.memory_percent;
+        if (ramPct == null && data.memory_total > 0) {
+            ramPct = Math.round((100 * Number(data.memory_used)) / Number(data.memory_total) * 10) / 10;
+        }
+        const ramPctStr = ramPct == null ? '—' : formatCpuPercent(ramPct);
+        if (elRamPct && elRamPct.textContent !== ramPctStr) elRamPct.textContent = ramPctStr;
+        if (elMemUsed && elMemUsed.textContent !== String(data.memory_used)) elMemUsed.textContent = data.memory_used;
+        if (elMemTotal && data.memory_total != null && elMemTotal.textContent !== String(data.memory_total)) {
+            elMemTotal.textContent = data.memory_total;
+        }
+        const ramBar = document.getElementById('ram_bar');
+        setUtilMeter(ramBar, ramPct == null || !Number.isFinite(Number(ramPct)) ? 0 : Number(ramPct));
+        if (elKpiUptime && elKpiUptime.textContent !== data.uptime) {
+            elKpiUptime.textContent = data.uptime;
+            elKpiUptime.setAttribute('title', data.uptime);
+        }
+
+        const elCpuCoresKpi = document.getElementById('admin-kpi-cpu-cores');
+        const nCores = data.cpu_cores;
+        if (elCpuCoresKpi && nCores != null && elCpuCoresKpi.textContent !== String(nCores)) {
+            elCpuCoresKpi.textContent = String(nCores);
+        }
+
+        const elHostOs = document.getElementById('dash-host-os');
+        if (elHostOs && data.os_label != null && elHostOs.textContent !== String(data.os_label)) {
+            elHostOs.textContent = data.os_label;
+        }
+
+        if (Array.isArray(data.vpn_services)) {
+            renderVpnServices(data.vpn_services);
+            updateVpnSummaryLine(data.vpn_services);
+        }
 
     } catch (error) {
         console.error('Ошибка при загрузке данных:', error);
@@ -324,6 +529,8 @@ function getThemeColors() {
 
 async function updateGraph() {
     if (!selectedIface) return;
+    const bwBox = document.getElementById('bwChartContainer');
+    if (!bwBox || bwBox.style.display !== 'block') return;
 
     try {
         const basePath = window.basePath || '';
@@ -433,7 +640,9 @@ async function updateGraph() {
 function toggleChartVisibility() {
     const chartContainer = document.getElementById('bwChartContainer');
     const toggleChartBtn = document.getElementById('toggleChartBtn');
+    if (!chartContainer || !toggleChartBtn) return;
     const icon = toggleChartBtn.querySelector('i');
+    if (!icon) return;
     const isVisible = chartContainer.style.display === 'block';
 
     if (isVisible) {
@@ -467,12 +676,25 @@ function toggleChartVisibility() {
 
 // Инициализация после загрузки страницы
 document.addEventListener('DOMContentLoaded', () => {
+    const vpnCollapse = document.getElementById('dashVpnServicesCollapse');
+    const vpnToggle = document.getElementById('dashVpnServicesToggle');
+    if (vpnCollapse && vpnToggle) {
+        vpnCollapse.addEventListener('shown.bs.collapse', () => {
+            vpnToggle.setAttribute('aria-expanded', 'true');
+        });
+        vpnCollapse.addEventListener('hidden.bs.collapse', () => {
+            vpnToggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    initDashVpnRestartClicks();
+
     // Восстановление состояния CPU графика
     const cpuChartContainer = document.getElementById('cpuChartContainer');
     const toggleCpuChartBtn = document.getElementById('toggleCpuChartBtn');
     const cpuSavedState = localStorage.getItem('cpuChartVisible') === 'true';
 
-    if (cpuSavedState && toggleCpuChartBtn) {
+    if (cpuSavedState && toggleCpuChartBtn && cpuChartContainer) {
         cpuChartContainer.style.display = 'block';
         toggleCpuChartBtn.classList.add('active', 'btn-primary');
         toggleCpuChartBtn.classList.remove('btn-outline-secondary');
@@ -483,8 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Инициализация CPU графика только если он видим
-    if (cpuChartContainer.style.display === 'block') {
-
+    if (cpuChartContainer && cpuChartContainer.style.display === 'block') {
         setTimeout(() => {
             initCpuChart();
             updateCpuChart('live');
@@ -516,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartContainer = document.getElementById('bwChartContainer');
         const icon = toggleChartBtn.querySelector('i');
         
-        if (savedState) {
+        if (savedState && chartContainer) {
             chartContainer.style.display = 'block';
             toggleChartBtn.classList.add('active', 'btn-primary');
             toggleChartBtn.classList.remove('btn-outline-secondary');
@@ -551,7 +772,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Обновляем стиль при переключении темы
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (cpuChart && document.getElementById('cpuChartContainer').style.display === 'block') {
+        const cpuChartEl = document.getElementById('cpuChartContainer');
+        if (cpuChart && cpuChartEl && cpuChartEl.style.display === 'block') {
             cpuChart.destroy();
             initCpuChart();
             const active = document.querySelector('.cpu-period.active');

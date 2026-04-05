@@ -11,6 +11,7 @@ from .admin import (
     is_admin_notification_enabled,
     is_admin_load_notification_enabled,
     is_admin_request_notification_enabled,
+    is_admin_vpn_service_notification_enabled,
     get_user_label,
 )
 
@@ -33,11 +34,17 @@ def create_main_menu(server_ip: str):
                 InlineKeyboardButton(text="📦 Создать бэкап", callback_data="8"),
             ],
             [
-                InlineKeyboardButton(text="👥 Клиенты бота", callback_data="clients_menu"),
-                InlineKeyboardButton(text="👤 Администраторы", callback_data="admins_menu"),
+                InlineKeyboardButton(
+                    text="👥 Клиенты бота", callback_data="clients_menu"
+                ),
+                InlineKeyboardButton(
+                    text="👤 Администраторы", callback_data="admins_menu"
+                ),
             ],
             [
-                InlineKeyboardButton(text="🔔 Уведомления", callback_data="notifications_menu"),
+                InlineKeyboardButton(
+                    text="🔔 Уведомления", callback_data="notifications_menu"
+                ),
             ],
         ]
     )
@@ -48,15 +55,23 @@ def create_server_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📊 Статистика", callback_data="server_stats"),
-                InlineKeyboardButton(text="🔄 Перезагрузка", callback_data="server_reboot"),
+                InlineKeyboardButton(
+                    text="📊 Статистика", callback_data="server_stats"
+                ),
+                InlineKeyboardButton(
+                    text="🔄 Перезагрузка", callback_data="server_reboot"
+                ),
             ],
             [
                 InlineKeyboardButton(text="⚙️ Службы", callback_data="server_services"),
-                InlineKeyboardButton(text="👥 Кто онлайн", callback_data="server_online"),
+                InlineKeyboardButton(
+                    text="👥 Кто онлайн", callback_data="server_online"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⚠️ Пороги нагрузки", callback_data="server_thresholds"),
+                InlineKeyboardButton(
+                    text="⚠️ Пороги нагрузки", callback_data="server_thresholds"
+                ),
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
@@ -71,12 +86,20 @@ def create_thresholds_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=f"CPU: {cpu_threshold}%", callback_data="server_thresholds"),
-                InlineKeyboardButton(text="Изменить CPU", callback_data="set_cpu_threshold"),
+                InlineKeyboardButton(
+                    text=f"CPU: {cpu_threshold}%", callback_data="server_thresholds"
+                ),
+                InlineKeyboardButton(
+                    text="Изменить CPU", callback_data="set_cpu_threshold"
+                ),
             ],
             [
-                InlineKeyboardButton(text=f"RAM: {memory_threshold}%", callback_data="server_thresholds"),
-                InlineKeyboardButton(text="Изменить RAM", callback_data="set_memory_threshold"),
+                InlineKeyboardButton(
+                    text=f"RAM: {memory_threshold}%", callback_data="server_thresholds"
+                ),
+                InlineKeyboardButton(
+                    text="Изменить RAM", callback_data="set_memory_threshold"
+                ),
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="server_menu"),
@@ -95,9 +118,7 @@ def create_reboot_confirm_menu():
                     callback_data="server_reboot_confirm",
                 )
             ],
-            [
-                InlineKeyboardButton(text="❌ Отмена", callback_data="server_menu")
-            ],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="server_menu")],
         ]
     )
 
@@ -134,13 +155,20 @@ def create_wireguard_menu():
     )
 
 
-def create_openvpn_config_menu(client_name: str, back_callback: str = "back_to_client_list"):
+def create_openvpn_config_menu(
+    client_name: str, back_callback: str = "back_to_client_list"
+):
     """Создать меню выбора типа конфигурации OpenVPN."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"),
-                InlineKeyboardButton(text="Antizapret", callback_data=f"openvpn_config_antizapret_{client_name}"),
+                InlineKeyboardButton(
+                    text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="Antizapret",
+                    callback_data=f"openvpn_config_antizapret_{client_name}",
+                ),
             ],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
         ]
@@ -158,23 +186,37 @@ def create_openvpn_protocol_menu(interface: str, client_name: str):
                 )
             ],
             [
-                InlineKeyboardButton(text="TCP", callback_data=f"send_ovpn_{interface}_tcp_{client_name}"),
-                InlineKeyboardButton(text="UDP", callback_data=f"send_ovpn_{interface}_udp_{client_name}"),
+                InlineKeyboardButton(
+                    text="TCP", callback_data=f"send_ovpn_{interface}_tcp_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="UDP", callback_data=f"send_ovpn_{interface}_udp_{client_name}"
+                ),
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_to_interface_{interface}_{client_name}"),
+                InlineKeyboardButton(
+                    text="⬅️ Назад",
+                    callback_data=f"back_to_interface_{interface}_{client_name}",
+                ),
             ],
         ]
     )
 
 
-def create_wireguard_config_menu(client_name: str, back_callback: str = "back_to_client_list"):
+def create_wireguard_config_menu(
+    client_name: str, back_callback: str = "back_to_client_list"
+):
     """Создать меню выбора типа конфигурации WireGuard."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"),
-                InlineKeyboardButton(text="Antizapret", callback_data=f"wireguard_config_antizapret_{client_name}"),
+                InlineKeyboardButton(
+                    text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="Antizapret",
+                    callback_data=f"wireguard_config_antizapret_{client_name}",
+                ),
             ],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
         ]
@@ -186,11 +228,19 @@ def create_wireguard_type_menu(interface: str, client_name: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="WireGuard", callback_data=f"send_wg_{interface}_wg_{client_name}"),
-                InlineKeyboardButton(text="AmneziaWG", callback_data=f"send_wg_{interface}_am_{client_name}"),
+                InlineKeyboardButton(
+                    text="WireGuard",
+                    callback_data=f"send_wg_{interface}_wg_{client_name}",
+                ),
+                InlineKeyboardButton(
+                    text="AmneziaWG",
+                    callback_data=f"send_wg_{interface}_am_{client_name}",
+                ),
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_to_interface_{client_name}")
+                InlineKeyboardButton(
+                    text="⬅️ Назад", callback_data=f"back_to_interface_{client_name}"
+                )
             ],
         ]
     )
@@ -201,8 +251,12 @@ def create_client_menu(client_name: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="OpenVPN", callback_data=f"client_openvpn_{client_name}"),
-                InlineKeyboardButton(text="WireGuard", callback_data=f"client_wireguard_{client_name}"),
+                InlineKeyboardButton(
+                    text="OpenVPN", callback_data=f"client_openvpn_{client_name}"
+                ),
+                InlineKeyboardButton(
+                    text="WireGuard", callback_data=f"client_wireguard_{client_name}"
+                ),
             ],
         ]
     )
@@ -213,10 +267,12 @@ def create_notifications_menu(user_id: int):
     enabled = is_admin_notification_enabled(user_id)
     load_enabled = is_admin_load_notification_enabled(user_id)
     request_enabled = is_admin_request_notification_enabled(user_id)
+    vpn_svc_enabled = is_admin_vpn_service_notification_enabled(user_id)
     status_text = "вкл ✅" if enabled else "выкл ❌"
     load_status = "вкл ✅" if load_enabled else "выкл ❌"
     request_status = "вкл ✅" if request_enabled else "выкл ❌"
-    
+    vpn_svc_status = "вкл ✅" if vpn_svc_enabled else "выкл ❌"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -237,7 +293,31 @@ def create_notifications_menu(user_id: int):
                     callback_data="toggle_request_notifications",
                 )
             ],
+            [
+                InlineKeyboardButton(
+                    text=f"🔌 VPN-службы: {vpn_svc_status}",
+                    callback_data="toggle_vpn_service_notifications",
+                )
+            ],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")],
+        ]
+    )
+
+
+def create_vpn_service_autorestart_cancel_keyboard(service_index: int):
+    """Кнопки немедленного перезапуска и отмены таймера (callback_data ≤ 64 байт)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔄 Перезапустить сейчас",
+                    callback_data=f"vpn_ar_now_{service_index}",
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отменить",
+                    callback_data=f"vpn_ar_cancel_{service_index}",
+                ),
+            ],
         ]
     )
 
@@ -246,41 +326,106 @@ def create_clients_menu(admin_ids: list):
     """Создать меню привязок клиентов."""
     client_map = get_client_mapping()
     buttons = []
-    
+
     if client_map:
         for telegram_id, client_name in client_map.items():
             label = f"{get_user_label(telegram_id)}:{client_name}"
-            buttons.append([
-                InlineKeyboardButton(text=label, callback_data=f"clientmap_{telegram_id}")
-            ])
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=label, callback_data=f"clientmap_{telegram_id}"
+                    )
+                ]
+            )
     else:
-        buttons.append([
-            InlineKeyboardButton(text="Привязок нет", callback_data="no_action")
-        ])
-    
-    buttons.append([InlineKeyboardButton(text="➕ Добавить", callback_data="clientmap_add")])
+        buttons.append(
+            [InlineKeyboardButton(text="Привязок нет", callback_data="no_action")]
+        )
+
+    buttons.append(
+        [InlineKeyboardButton(text="➕ Добавить", callback_data="clientmap_add")]
+    )
+    buttons.append(
+        [InlineKeyboardButton(text="🚫 Заблокированные", callback_data="banned_menu")]
+    )
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
-    
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_banned_list_keyboard(sorted_ids: list, page: int):
+    """Постраничный список заблокированных user id с кнопкой разблокировки по строке."""
+    buttons = []
+    total = len(sorted_ids)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+    page = max(1, min(page, total_pages))
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    chunk = sorted_ids[start_idx : start_idx + ITEMS_PER_PAGE]
+
+    for uid in chunk:
+        uid_str = str(uid)
+        label = get_user_label(uid_str)
+        btn_text = f"✅ Разблокировать {label}"
+        if len(btn_text) > 64:
+            btn_text = btn_text[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=btn_text,
+                    callback_data=f"ban_rm_{uid_str}_{page}",
+                )
+            ]
+        )
+
+    if not chunk and not sorted_ids:
+        buttons.append(
+            [InlineKeyboardButton(text="— список пуст —", callback_data="banned_noop")]
+        )
+
+    nav = []
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(text="⬅️ Стр.", callback_data=f"banned_p_{page - 1}")
+        )
+    if page < total_pages:
+        nav.append(
+            InlineKeyboardButton(text="Стр. ➡️", callback_data=f"banned_p_{page + 1}")
+        )
+    if nav:
+        buttons.append(nav)
+
+    buttons.append(
+        [InlineKeyboardButton(text="➕ Заблокировать по ID", callback_data="ban_add")]
+    )
+    buttons.append(
+        [InlineKeyboardButton(text="⬅️ К клиентам бота", callback_data="clients_menu")]
+    )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def create_admins_menu(admin_ids: list):
     """Создать меню списка администраторов."""
     buttons = []
-    
+
     if admin_ids:
         for admin_id in admin_ids:
-            buttons.append([
-                InlineKeyboardButton(
-                    text=get_user_label(str(admin_id)),
-                    callback_data="no_action",
-                )
-            ])
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=get_user_label(str(admin_id)),
+                        callback_data="no_action",
+                    )
+                ]
+            )
     else:
-        buttons.append([
-            InlineKeyboardButton(text="Администраторы не настроены", callback_data="no_action")
-        ])
-    
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text="Администраторы не настроены", callback_data="no_action"
+                )
+            ]
+        )
+
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -290,7 +435,10 @@ def create_clientmap_delete_menu(telegram_id: str, client_name: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Удалить", callback_data=f"clientmap_delete_confirm_{telegram_id}"),
+                InlineKeyboardButton(
+                    text="✅ Удалить",
+                    callback_data=f"clientmap_delete_confirm_{telegram_id}",
+                ),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="clients_menu"),
             ]
         ]
@@ -302,28 +450,34 @@ def create_client_list_keyboard(clients, page, total_pages, vpn_type, action):
     buttons = []
     start_idx = (page - 1) * ITEMS_PER_PAGE
     end_idx = start_idx + ITEMS_PER_PAGE
-    
+
     for client in clients[start_idx:end_idx]:
         if action == "delete":
             callback_data = f"delete_{vpn_type}_{client}"
         else:
             callback_data = f"client_{vpn_type}_{client}"
         buttons.append([InlineKeyboardButton(text=client, callback_data=callback_data)])
-    
+
     pagination = []
     if page > 1:
         pagination.append(
-            InlineKeyboardButton(text="⬅️ Предыдущая", callback_data=f"page_{action}_{vpn_type}_{page-1}")
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая", callback_data=f"page_{action}_{vpn_type}_{page-1}"
+            )
         )
     if page < total_pages:
         pagination.append(
-            InlineKeyboardButton(text="Следующая ➡️", callback_data=f"page_{action}_{vpn_type}_{page+1}")
+            InlineKeyboardButton(
+                text="Следующая ➡️", callback_data=f"page_{action}_{vpn_type}_{page+1}"
+            )
         )
-    
+
     if pagination:
         buttons.append(pagination)
-    
-    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{vpn_type}_menu")])
+
+    buttons.append(
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"{vpn_type}_menu")]
+    )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -332,7 +486,10 @@ def create_confirmation_keyboard(client_name, vpn_type):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{vpn_type}_{client_name}"),
+                InlineKeyboardButton(
+                    text="✅ Подтвердить",
+                    callback_data=f"confirm_{vpn_type}_{client_name}",
+                ),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_delete"),
             ]
         ]
@@ -342,7 +499,9 @@ def create_confirmation_keyboard(client_name, vpn_type):
 def create_back_keyboard(callback_data: str):
     """Создать клавиатуру с кнопкой «Назад»."""
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=callback_data)]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=callback_data)]
+        ]
     )
 
 
@@ -373,11 +532,11 @@ def create_request_access_keyboard():
 
 
 def create_request_actions_keyboard(requester_user_id: int, suggested_name: str = None):
-    """Клавиатура запроса доступа: Выбрать клиента, Ввести имя или Отклонить.
+    """Клавиатура запроса доступа: Выбрать клиента, Ввести имя, Отклонить или Заблокировать.
     suggested_name используется для callback req_pick/req_back (список и «Назад»).
     """
     uid = str(requester_user_id)
-    safe_name = (suggested_name or f"user_{uid}")[:(64 - len(f"req_pick_{uid}_"))]
+    safe_name = (suggested_name or f"user_{uid}")[: (64 - len(f"req_pick_{uid}_"))]
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -394,6 +553,10 @@ def create_request_actions_keyboard(requester_user_id: int, suggested_name: str 
                 InlineKeyboardButton(
                     text="❌ Отклонить",
                     callback_data=f"req_no_{uid}",
+                ),
+                InlineKeyboardButton(
+                    text="🚫 Заблокировать",
+                    callback_data=f"req_ban_{uid}",
                 ),
             ],
         ]
@@ -418,12 +581,14 @@ def create_request_client_list_keyboard(
         safe_name = (name or "")[:max_name_len]
         if not safe_name:
             continue
-        buttons.append([
-            InlineKeyboardButton(
-                text=name,
-                callback_data=f"req_bind_{requester_uid}_{safe_name}",
-            )
-        ])
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=name,
+                    callback_data=f"req_bind_{requester_uid}_{safe_name}",
+                )
+            ]
+        )
     pagination = []
     if page > 1:
         pagination.append(
@@ -441,11 +606,15 @@ def create_request_client_list_keyboard(
         )
     if pagination:
         buttons.append(pagination)
-    back_suggested = (suggested_name or f"user_{requester_uid}")[:(64 - len(f"req_back_{requester_uid}_"))]
-    buttons.append([
-        InlineKeyboardButton(
-            text="⬅️ Назад к запросу",
-            callback_data=f"req_back_{requester_uid}_{back_suggested}",
-        )
-    ])
+    back_suggested = (suggested_name or f"user_{requester_uid}")[
+        : (64 - len(f"req_back_{requester_uid}_"))
+    ]
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ Назад к запросу",
+                callback_data=f"req_back_{requester_uid}_{back_suggested}",
+            )
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=buttons)

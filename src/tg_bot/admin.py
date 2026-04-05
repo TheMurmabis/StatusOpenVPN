@@ -27,6 +27,7 @@ def update_admin_info(user):
     notify_enabled = existing.get("notify_enabled", True)
     notify_load_enabled = existing.get("notify_load_enabled", True)
     notify_request_enabled = existing.get("notify_request_enabled", True)
+    notify_vpn_service_enabled = existing.get("notify_vpn_service_enabled", True)
     
     admin_map[user_id] = {
         "display_name": display_name,
@@ -34,6 +35,7 @@ def update_admin_info(user):
         "notify_enabled": notify_enabled,
         "notify_load_enabled": notify_load_enabled,
         "notify_request_enabled": notify_request_enabled,
+        "notify_vpn_service_enabled": notify_vpn_service_enabled,
     }
     data["telegram_admins"] = admin_map
     save_settings(data)
@@ -115,6 +117,43 @@ def set_admin_request_notification(user_id: int, enabled: bool):
     if not isinstance(admin_entry, dict):
         admin_entry = {}
     admin_entry["notify_request_enabled"] = bool(enabled)
+    admin_map[str(user_id)] = admin_entry
+    data["telegram_admins"] = admin_map
+    save_settings(data)
+
+
+def is_any_admin_request_notification_enabled() -> bool:
+    """Включены ли уведомления о запросах хотя бы у одного администратора из ADMIN_ID."""
+    from .config import get_admin_ids
+
+    for aid in get_admin_ids():
+        if is_admin_request_notification_enabled(aid):
+            return True
+    return False
+
+
+def is_admin_vpn_service_notification_enabled(user_id: int) -> bool:
+    """Проверить, включены ли уведомления о VPN-службах для администратора."""
+    data = load_settings()
+    admin_map = data.get("telegram_admins") or {}
+    if not isinstance(admin_map, dict):
+        return True
+    admin_entry = admin_map.get(str(user_id), {})
+    if not isinstance(admin_entry, dict):
+        return True
+    return bool(admin_entry.get("notify_vpn_service_enabled", True))
+
+
+def set_admin_vpn_service_notification(user_id: int, enabled: bool):
+    """Включить или отключить уведомления о VPN-службах для администратора."""
+    data = load_settings()
+    admin_map = data.get("telegram_admins") or {}
+    if not isinstance(admin_map, dict):
+        admin_map = {}
+    admin_entry = admin_map.get(str(user_id), {})
+    if not isinstance(admin_entry, dict):
+        admin_entry = {}
+    admin_entry["notify_vpn_service_enabled"] = bool(enabled)
     admin_map[str(user_id)] = admin_entry
     data["telegram_admins"] = admin_map
     save_settings(data)

@@ -2,7 +2,6 @@ let clientChart = null;
 let selectedClient = null;
 let selectedChartPeriod = 'month';
 const WG_STORAGE_KEY = 'wgStats.selectedClient';
-
 function getThemeColors() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     return {
@@ -40,9 +39,26 @@ async function updateClientChart() {
     if (!selectedClient) return;
 
     const basePath = window.basePath || '';
+    const params = new URLSearchParams({
+        client: selectedClient,
+        period: selectedChartPeriod
+    });
+    if (selectedChartPeriod === 'custom') {
+        const pageParams = new URLSearchParams(window.location.search);
+        const dateFrom = pageParams.get('date_from');
+        const dateTo = pageParams.get('date_to');
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+    } else if (selectedChartPeriod === 'month') {
+        const pageParams = new URLSearchParams(window.location.search);
+        const dateFrom = pageParams.get('date_from');
+        const dateTo = pageParams.get('date_to');
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+    }
     try {
         const res = await fetch(
-            `${basePath}/api/wg/client_chart?client=${encodeURIComponent(selectedClient)}&period=${selectedChartPeriod}`
+            `${basePath}/api/wg/client_chart?${params.toString()}`
         );
         const data = await res.json();
         if (data.error) {
@@ -170,6 +186,43 @@ function selectClient(clientName) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const rangeInput = document.getElementById('statsDateRange');
+    const dateFromInput = document.getElementById('statsDateFrom');
+    const dateToInput = document.getElementById('statsDateTo');
+    const calendarOpenBtn = document.getElementById('statsDateRangeOpen');
+    if (rangeInput && dateFromInput && dateToInput && typeof flatpickr !== 'undefined') {
+        const defaultDates = [];
+        if (dateFromInput.value) defaultDates.push(dateFromInput.value);
+        if (dateToInput.value) defaultDates.push(dateToInput.value);
+
+        flatpickr.localize(flatpickr.l10ns.ru);
+        const fp = flatpickr(rangeInput, {
+            mode: 'range',
+            dateFormat: 'd.m.Y',
+            locale: { ...flatpickr.l10ns.ru, rangeSeparator: ' — ' },
+            defaultDate: defaultDates,
+            positionElement: calendarOpenBtn || rangeInput,
+            onChange: function (selectedDates, dateStr, instance) {
+                if (selectedDates.length < 2) {
+                    return;
+                }
+                const [startDate, endDate] = selectedDates;
+                const formatDate = (d) => instance.formatDate(d, 'Y-m-d');
+                dateFromInput.value = formatDate(startDate);
+                dateToInput.value = formatDate(endDate);
+                if (instance.input.form) {
+                    instance.input.form.submit();
+                }
+            }
+        });
+        if (calendarOpenBtn && fp) {
+            calendarOpenBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                fp.open();
+            });
+        }
+    }
+
     const clientFilter = document.getElementById('clientFilter');
     if (clientFilter) {
         clientFilter.addEventListener('input', function () {
@@ -187,10 +240,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Инициализация периода по активной кнопке
+    // Инициализация периода по активной кнопке или URL
     const activePeriodBtn = document.querySelector('.chart-period.active');
     if (activePeriodBtn && activePeriodBtn.dataset.period) {
         selectedChartPeriod = activePeriodBtn.dataset.period;
+    } else {
+        const urlPeriod = new URLSearchParams(window.location.search).get('period');
+        if (urlPeriod) {
+            selectedChartPeriod = urlPeriod;
+        }
     }
 
     // Обновляем только локальное состояние периода (для графика) — таблица перезагрузится сама

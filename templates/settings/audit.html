@@ -1,20 +1,31 @@
 {% extends "base.html" %}
 
+{% block title %}Настройки · Журнал{% endblock %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Журнал</p>
+{% endblock %}
+
 {% block content %}
 
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-  <h2>Настройки</h2>
-</div>
+<div class="dash-mon settings-shell">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
 
-<div class="tabs mb-3">
-  <a href="{{ url_for('settings') }}" class="tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
-  <a href="{{ url_for('settings_telegram') }}" class="tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
-  <a href="{{ url_for('settings_audit') }}" class="tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
-</div>
 
-<div class="container">
-  <div class="mb-4 p-3 border rounded">
-    <h4 class="mb-3">Журнал действий</h4>
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-journal-text dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Журнал действий</span>
+    </div>
 
     <div class="d-flex align-items-center gap-2 mb-3">
       <select class="form-select form-select-sm flex-grow-1" onchange="location=this.value;">
@@ -33,7 +44,6 @@
       <div class="alert alert-info py-2 px-3 small mb-0">
         <ul class="mb-0 ps-3">
           <li>В журнале отображаются действия администраторов Telegram-бота и веб-интерфейса.</li>
-          <li>Операции, выполненные напрямую на сервере, не отображаются.</li>
         </ul>
       </div>
     </div>
@@ -83,6 +93,18 @@
               <span class="badge bg-success">Одобрено</span>
               {% elif log.action == 'request_reject' %}
               <span class="badge bg-danger">Отклонено</span>
+              {% elif log.action == 'stats_db_clear_ovpn' %}
+              <span class="badge bg-warning text-dark">Очистка OpenVPN</span>
+              {% elif log.action == 'stats_db_clear_wg' %}
+              <span class="badge bg-warning text-dark">Очистка WireGuard</span>
+              {% elif log.action == 'bot_token_change' %}
+              <span class="badge bg-dark">Токен бота</span>
+              {% elif log.action == 'bot_admins_change' %}
+              <span class="badge bg-primary">Админ Telegram</span>
+              {% elif log.action == 'user_ban' %}
+              <span class="badge bg-danger">Блокировка</span>
+              {% elif log.action == 'user_unban' %}
+              <span class="badge bg-success">Разблокировка</span>
               {% else %}
               {{ log.action }}
               {% endif %}
@@ -107,7 +129,6 @@
       </table>
     </div>
 
-    <!-- Пагинация -->
     {% if total_pages > 1 %}
     <nav aria-label="Навигация по страницам">
       <ul class="pagination justify-content-center mb-0">
@@ -139,7 +160,7 @@
       <p class="mb-0">Записей пока нет.</p>
     </div>
     {% endif %}
-  </div>
+  </section>
 </div>
 
 <script>

@@ -4,100 +4,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ server_ip }} | {% block title %}Dashboard{% endblock %}{% if app_name %} | {{ app_name }}{% endif %}</title>
+    <title>{{ server_ip }} | {% block title %}Dashboard{% endblock %}{% if app_name %} | {{ app_name }}{% endif %}
+    </title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
 </head>
 
-<body>
-    <header class="p-1">
-        <div class="container">
-            <!-- Горизонтальное меню для больших экранов -->
-            <nav class="navbar navbar-expand-lg d-none d-lg-block">
-                <div class="container-fluid">
-                    <ul class="nav nav-pills me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a href="{{ url_for('home') }}"
-                                class="link-dark nav-link {{ 'active' if active_page == 'home' else '' }}">Главная</a>
-                        </li>
-                        <li class="nav-item">
-                            <a href="{{ url_for('ovpn') }}"
-                                class="link-dark nav-link {{ 'active' if active_section == 'ovpn' else '' }}">OpenVPN</a>
-                        </li>
-                        <li class="nav-item">
-                            <a href="{{ url_for('wg') }}"
-                                class="link-dark nav-link {{ 'active' if active_section == 'wg' else '' }}">WireGuard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a href="{{ url_for('settings') }}"
-                                class="link-dark nav-link {{ 'active' if active_page == 'settings' else '' }}">Настройки</a>
-                        </li>
-                    </ul>
-                    <div class="ms-auto">
-                        {% if current_user.is_authenticated %}
-                        <a class="btn btn-warning" href="{{ url_for('logout') }}">Выйти</a>
-                        {% endif %}
-                    </div>
+<body class="app-body{% block body_extra_class %}{% endblock %}">
+    <div class="app-shell" id="appShell">
+        <script>
+            (function () {
+                try {
+                    var shell = document.getElementById('appShell');
+                    if (!shell) return;
+                    var collapsed = localStorage.getItem('statusAppSidebarCollapsed') === '1';
+                    var desktop = window.matchMedia('(min-width: 992px)').matches;
+                    if (collapsed && desktop) shell.classList.add('app-shell--sidebar-collapsed');
+                } catch (e) { /* ignore */ }
+            })();
+        </script>
+        <div class="app-sidebar-backdrop d-lg-none" id="appSidebarBackdrop" aria-hidden="true"></div>
+
+        <aside class="app-sidebar d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" id="appSidebar"
+            aria-label="Основная навигация">
+            <div class="app-sidebar__head d-flex align-items-start justify-content-between gap-2">
+                <a class="app-sidebar__brand d-flex flex-column align-items-start mb-md-0 me-md-auto text-white text-decoration-none min-w-0"
+                    href="{{ url_for('home') }}" title="{{ hostname }} · {{ server_ip }}">
+                    <span class="app-sidebar__hostname text-truncate">{{ hostname }}</span>
+                    <span class="app-sidebar__ip font-monospace small text-success">{{ server_ip }}</span>
+                </a>
+                <div class="app-sidebar__head-actions d-flex align-items-center gap-1 flex-shrink-0">
+                    <button type="button"
+                        class="app-sidebar__icon-btn app-sidebar__collapse-btn d-none d-lg-inline-flex justify-content-center"
+                        id="appSidebarToggleBtn" title="Свернуть или развернуть меню" aria-label="Свернуть или развернуть меню"
+                        aria-expanded="true" aria-controls="appSidebarNav">
+                        <i class="bi bi-list fs-5" aria-hidden="true"></i>
+                        <!-- <span class="app-sidebar__collapse-label ms-1">Свернуть</span> -->
+                    </button>
                 </div>
-            </nav>
-            <div class="d-lg-none d-flex justify-content-between align-items-center">
-                <button class="btn btn-list" type="button" data-bs-toggle="collapse" data-bs-target="#verticalMenu"
-                    aria-expanded="false" aria-controls="verticalMenu">
-                    <i class="bi bi-list fs-4"></i>
-                </button>
-                {% if current_user.is_authenticated %}
-                <a class="btn btn-warning ms-2" href="{{ url_for('logout') }}">Выйти</a>
-                {% endif %}
             </div>
-            <!-- Вертикальное меню для мобильных устройств -->
-            <div class="collapse d-lg-none" id="verticalMenu">
-                <ul class="nav flex-column p-2">
+
+            <hr class="app-sidebar__hr border-secondary my-3 opacity-50">
+
+            <nav class="app-sidebar__nav mb-auto w-100" id="appSidebarNav">
+                <ul class="nav nav-pills flex-column gap-1 mb-0 app-sidebar__list">
                     <li class="nav-item">
-                        <a href="{{ url_for('home') }}"
-                            class="link-dark nav-link {{ 'active' if active_page == 'home' else '' }}">Главная</a>
+                        <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_page == 'home' else '' }}"
+                            href="{{ url_for('home') }}" {% if active_page == 'home' %}aria-current="page"{% endif %}>
+                            <i class="bi bi-house-door-fill app-sidebar__ic me-2" aria-hidden="true"></i>
+                            <span class="app-sidebar__label">Главная</span>
+                        </a>
                     </li>
-                    <li class="nav-item">
-                        <a href="{{ url_for('ovpn') }}"
-                            class="link-dark nav-link {{ 'active' if active_section == 'ovpn' else '' }}">OpenVPN</a>
+
+                    <li class="nav-item app-sidebar__group">
+                        <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_section == 'ovpn' else '' }}"
+                            href="{{ url_for('ovpn') }}">
+                            <i class="bi bi-shield-lock-fill app-sidebar__ic me-2" aria-hidden="true"></i>
+                            <span class="app-sidebar__label">OpenVPN</span>
+                        </a>
+                        <div class="app-sidebar__panel">
+                            <nav class="nav flex-column ms-1 ps-2 border-start border-secondary border-opacity-50 gap-0 py-1">
+                                <a href="{{ url_for('ovpn') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'clients' else '' }}">Клиенты</a>
+                                <a href="{{ url_for('ovpn_client_status') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'client_status' else '' }}">Профили</a>
+                                <a href="{{ url_for('ovpn_history') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'history' else '' }}">История</a>
+                                <a href="{{ url_for('ovpn_stats') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'stats' else '' }}">Статистика</a>
+                            </nav>
+                        </div>
                     </li>
-                    <li class="nav-item">
-                        <a href="{{ url_for('wg') }}"
-                            class="link-dark nav-link {{ 'active' if active_section == 'wg' else '' }}">WireGuard</a>
+
+                    <li class="nav-item app-sidebar__group">
+                        <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_section == 'wg' else '' }}"
+                            href="{{ url_for('wg') }}">
+                            <i class="bi bi-hdd-network-fill app-sidebar__ic me-2" aria-hidden="true"></i>
+                            <span class="app-sidebar__label">WireGuard</span>
+                        </a>
+                        <div class="app-sidebar__panel">
+                            <nav class="nav flex-column ms-1 ps-2 border-start border-secondary border-opacity-50 gap-0 py-1">
+                                <a href="{{ url_for('wg') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'wg_clients' else '' }}">Клиенты</a>
+                                <a href="{{ url_for('wg_stats') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'wg_stats' else '' }}">Статистика</a>
+                            </nav>
+                        </div>
                     </li>
-                    <li class="nav-item">
-                        <a href="{{ url_for('settings') }}"
-                            class="link-dark nav-link {{ 'active' if active_page == 'settings' else '' }}">Настройки</a>
+
+                    <li class="nav-item app-sidebar__group">
+                        <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_page and active_page.startswith('settings') else '' }}"
+                            href="{{ url_for('settings') }}">
+                            <i class="bi bi-gear-wide-connected app-sidebar__ic me-2" aria-hidden="true"></i>
+                            <span class="app-sidebar__label">Настройки</span>
+                        </a>
+                        <div class="app-sidebar__panel">
+                            <nav class="nav flex-column ms-1 ps-2 border-start border-secondary border-opacity-50 gap-0 py-1">
+                                <a href="{{ url_for('settings') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings' else '' }}">Общие</a>
+                                <a href="{{ url_for('settings_telegram') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_telegram' else '' }}">Телеграм</a>
+                                <a href="{{ url_for('settings_audit') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_audit' else '' }}">Журнал</a>
+                                <a href="{{ url_for('settings_install') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_install' else '' }}">Установка</a>
+                            </nav>
+                        </div>
                     </li>
                 </ul>
+            </nav>
+            <hr class="app-sidebar__hr border-secondary my-3 opacity-50">
+
+            <div class="app-sidebar__foot d-flex flex-column gap-2 flex-shrink-0">
+
+                <a class="nav-link app-sidebar__link app-sidebar__github-foot d-flex align-items-center text-white w-100"
+                    href="https://github.com/TheMurmabis/StatusOpenVPN" target="_blank" rel="noopener noreferrer"
+                    title="Репозиторий на GitHub">
+                    <i class="fab fa-github app-sidebar__ic me-2" aria-hidden="true"></i>
+                    <span class="app-sidebar__label">GitHub</span>
+                </a>
+
+                {% if current_user.is_authenticated %}
+                <a class="nav-link app-sidebar__link app-sidebar__logout d-flex align-items-center text-white w-100"
+                    href="{{ url_for('logout') }}" title="Выйти">
+                    <i class="bi bi-box-arrow-right app-sidebar__ic me-2" aria-hidden="true"></i>
+                    <span class="app-sidebar__label">Выйти</span>
+                </a>
+                {% endif %}
+
+                <div class="app-sidebar__version text-right text-white-50 small" title="Текущая версия приложения {{ version }}">
+                    Версия {{ version }}
+                </div>
             </div>
-        </div>
-    </header>
-    <div class="d-flex" id="wrapper">
-        <div id="page-content-wrapper" class="container">
-            <main class="ms-md-auto me-md-auto col-lg-11 px-md-4 py-4">
-                <div class="content">
-                    {% block content %}
+        </aside>
+
+        <div class="app-main-wrap">
+            <header class="app-topbar">
+                <button type="button" class="app-topbar__btn d-lg-none" id="appSidebarOpenBtn"
+                    aria-label="Открыть меню" title="Меню">
+                    <i class="bi bi-list fs-4" aria-hidden="true"></i>
+                </button>
+                <div class="app-topbar__center min-w-0 flex-grow-1">
+                    {% block page_heading %}
+                    <div class="container app-topbar__center-inner">
+                        <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+                            <div class="app-topbar__titles min-w-0 flex-shrink-0">
+                                <h1 class="app-topbar__title h5 mb-0 fw-semibold text-truncate">{% block page_title %}Dashboard{% endblock %}</h1>
+                                {% block page_subtitle %}{% endblock %}
+                            </div>
+                            <div class="app-topbar__tools d-flex align-items-center gap-2 min-w-0 flex-grow-1">
+                                <div class="app-topbar__search min-w-0 flex-grow-1">{% block topbar_search %}{% endblock %}</div>
+                                <div class="app-topbar__filters-wrap d-flex align-items-center gap-2 flex-wrap justify-content-end flex-shrink-0 min-w-0">
+                                    <button type="button" class="app-topbar__filters-toggle btn btn-sm btn-outline-secondary d-lg-none"
+                                        id="appTopbarFiltersToggle" aria-expanded="false" aria-controls="appTopbarFiltersPanel"
+                                        title="Фильтры" aria-label="Показать или скрыть фильтры">
+                                        <i class="bi bi-funnel" aria-hidden="true"></i>
+                                    </button>
+                                    <div id="appTopbarFiltersPanel" class="app-topbar__filters-panel d-flex flex-wrap gap-2 justify-content-end flex-shrink-0">
+                                        {%- block topbar_filters -%}{%- endblock -%}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     {% endblock %}
                 </div>
-            </main>
+            </header>
+
+            <div class="app-page flex-grow-1">
+                <div class="container py-4">
+                    <main>
+                        <div class="content">
+                            {% block content %}
+                            {% endblock %}
+                        </div>
+                    </main>
+                </div>
+            </div>
         </div>
+
+        <nav class="app-bottom-nav d-lg-none" aria-label="Быстрые разделы">
+            <a class="app-bottom-nav__item {{ 'active' if active_page == 'home' else '' }}"
+                href="{{ url_for('home') }}">
+                <i class="bi bi-house-door-fill app-bottom-nav__icon" aria-hidden="true"></i>
+                <span class="app-bottom-nav__label">Главная</span>
+            </a>
+            <a class="app-bottom-nav__item {{ 'active' if active_section == 'ovpn' else '' }}"
+                href="{{ url_for('ovpn') }}">
+                <i class="bi bi-shield-lock-fill app-bottom-nav__icon" aria-hidden="true"></i>
+                <span class="app-bottom-nav__label">OpenVPN</span>
+            </a>
+            <a class="app-bottom-nav__item {{ 'active' if active_section == 'wg' else '' }}"
+                href="{{ url_for('wg') }}">
+                <i class="bi bi-hdd-network-fill app-bottom-nav__icon" aria-hidden="true"></i>
+                <span class="app-bottom-nav__label">WireGuard</span>
+            </a>
+            <a class="app-bottom-nav__item {{ 'active' if active_page and active_page.startswith('settings') else '' }}"
+                href="{{ url_for('settings') }}">
+                <i class="bi bi-gear-wide-connected app-bottom-nav__icon" aria-hidden="true"></i>
+                <span class="app-bottom-nav__label">Настройки</span>
+            </a>
+        </nav>
     </div>
-    <footer class="py-3 mt-4">
-        <div class="container text-center">
-            <div class="mb-1">
-                <a href="https://github.com/TheMurmabis/StatusOpenVPN" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-reset">
-                    <i class="fab fa-github"></i> {% if app_name %} {{ app_name }}{% endif %} [{{ version }}]</span>
-                </a>
-                © 2026
-            </div>
-            <div class="small text-muted">
-                Сервер: <span class="text-success">{{ server_ip }}</span>@{{ hostname }}
-            </div>
-        </div>
-    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/feather-icons"></script>

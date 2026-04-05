@@ -7,7 +7,13 @@ from aiogram import Router, types
 from aiogram.types import FSInputFile
 from aiogram.fsm.context import FSMContext
 
-from ..config import get_admin_ids, ITEMS_PER_PAGE, set_client_mapping
+from ..config import (
+    get_admin_ids,
+    ITEMS_PER_PAGE,
+    set_client_mapping,
+    ban_user,
+    remove_client_mapping,
+)
 from ..keyboards import (
     create_main_menu,
     create_client_list_keyboard,
@@ -45,6 +51,34 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
     admin_ids = get_admin_ids()
     
     try:
+        # Запрос доступа: Заблокировать (req_ban_<uid>)
+        if data.startswith("req_ban_"):
+            parts = data.split("_", 2)
+            uid = parts[2] if len(parts) > 2 else ""
+            if uid.isdigit():
+                uid_int = int(uid)
+                if uid_int == callback.from_user.id:
+                    await callback.answer("Нельзя заблокировать себя.", show_alert=True)
+                    return
+                if uid_int in admin_ids:
+                    await callback.answer("Нельзя заблокировать администратора.", show_alert=True)
+                    return
+                remove_client_mapping(uid)
+                ban_user(uid_int)
+                await callback.message.edit_text(
+                    f"🚫 Пользователь <code>{uid}</code> заблокирован. "
+                    "Бот не будет отвечать ему на сообщения и нажатия."
+                )
+                log_action(
+                    "bot",
+                    callback.from_user.id,
+                    callback.from_user.full_name,
+                    "user_ban",
+                    uid,
+                )
+            await callback.answer()
+            return
+
         # Запрос доступа: Отклонить (req_no_<uid>)
         if data.startswith("req_no_"):
             parts = data.split("_", 2)
@@ -157,7 +191,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
 
-        # Pagination
         if data.startswith("page_"):
             _, action, vpn_type, page = data.split("_", 3)
             page = int(page)
@@ -170,7 +203,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Delete handling
         if data.startswith("delete_"):
             _, vpn_type, client_name = data.split("_", 2)
             await callback.message.edit_text(
@@ -180,7 +212,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Initialize deletion list
         if data in ["2", "5"]:
             vpn_type = "openvpn" if data == "2" else "wireguard"
             clients = await get_clients(vpn_type)
@@ -198,7 +229,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Confirm deletion
         if data.startswith("confirm_"):
             _, vpn_type, client_name = data.split("_", 2)
             option = "2" if vpn_type == "openvpn" else "5"
@@ -238,7 +268,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Client list
         if data in ["3", "6"]:
             vpn_type = "openvpn" if data == "3" else "wireguard"
             clients = await get_clients(vpn_type)
@@ -250,7 +279,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Create client
         if data in ["1", "4"]:
             await state.update_data(action=data)
             await callback.message.edit_text("Введите имя нового клиента:")
@@ -258,7 +286,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Recreate files
         if data == "7":
             await callback.message.edit_text("⏳ Идет пересоздание файлов...")
             result = await execute_script("7")
@@ -273,7 +300,6 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        # Create backup
         if data == "8":
             await callback.message.edit_text("⏳ Создаю бэкап...")
             result = await execute_script("8")

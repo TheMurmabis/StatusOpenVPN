@@ -17,7 +17,9 @@ from ..server import (
     get_server_stats,
     get_services_status_text,
     get_online_clients_text,
+    VPN_MONITORED_SERVICES,
 )
+from ..bot import cancel_pending_vpn_restart, vpn_run_restart_now
 from ..audit import log_action, notify_admins
 
 router = Router()
@@ -80,6 +82,48 @@ async def handle_server_reboot_confirm(callback: types.CallbackQuery):
         return
     
     await callback.answer("")
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("vpn_ar_now_"))
+async def handle_vpn_autorestart_now(callback: types.CallbackQuery):
+    """Немедленный перезапуск VPN-службы (отменяет отложенный таймер)."""
+    admin_ids = get_admin_ids()
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    try:
+        idx = int(callback.data.rsplit("_", 1)[-1])
+    except ValueError:
+        await callback.answer("Некорректные данные", show_alert=True)
+        return
+    if not (0 <= idx < len(VPN_MONITORED_SERVICES)):
+        await callback.answer("Неизвестная служба", show_alert=True)
+        return
+    label, unit = VPN_MONITORED_SERVICES[idx]
+    ok = await vpn_run_restart_now(unit, label)
+    await callback.answer("Перезапуск выполнен" if ok else "Перезапуск не дал active", show_alert=not ok)
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("vpn_ar_cancel_"))
+async def handle_vpn_autorestart_cancel(callback: types.CallbackQuery):
+    """Отмена автоперезапуска VPN-службы до истечения 30 с."""
+    admin_ids = get_admin_ids()
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    try:
+        idx = int(callback.data.rsplit("_", 1)[-1])
+    except ValueError:
+        await callback.answer("Некорректные данные", show_alert=True)
+        return
+    if not (0 <= idx < len(VPN_MONITORED_SERVICES)):
+        await callback.answer("Неизвестная служба", show_alert=True)
+        return
+    unit = VPN_MONITORED_SERVICES[idx][1]
+    if cancel_pending_vpn_restart(unit):
+        await callback.answer("Автоперезапуск отменён")
+    else:
+        await callback.answer("Таймер уже истёк или перезапуск выполнен")
 
 
 @router.callback_query(lambda c: c.data == "server_services")

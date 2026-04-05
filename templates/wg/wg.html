@@ -2,142 +2,94 @@
 
 {% block title %}WireGuard{% endblock %}
 
+{% block page_title %}WireGuard{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Клиенты и пиры</p>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h2>Клиенты WireGuard</h2>
-    <div class="d-flex align-items-center gap-4">
+<div class="dash-mon vpn-page">
+  <header class="dash-mon__hero">
+    <div class="dash-mon__hero-top align-items-start flex-wrap gap-3 justify-content-end">
+      <div class="d-flex flex-wrap gap-3 align-items-center vpn-control-row">
         <label class="switch d-flex align-items-center gap-2 mb-0">
-            <input type="checkbox" id="auto-refresh-toggle">
-            <span class="slider round"></span>
-            <span title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
+          <input type="checkbox" id="auto-refresh-toggle">
+          <span class="slider round"></span>
+          <span class="small" title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
         </label>
         <label class="switch d-flex align-items-center gap-2 mb-0">
-            <input type="checkbox" id="online-only-toggle">
-            <span class="slider round"></span>
-            <span title="Скрывать оффлайн клиентов">Только онлайн</span>
+          <input type="checkbox" id="online-only-toggle">
+          <span class="slider round"></span>
+          <span class="small" title="Скрывать оффлайн клиентов">Только онлайн</span>
         </label>
         <label class="switch d-flex align-items-center gap-2 mb-0">
-            <input type="checkbox" id="disabled-only-toggle">
-            <span class="slider round"></span>
-            <span title="Показать только отключённых клиентов">Только отключённые</span>
+          <input type="checkbox" id="disabled-only-toggle">
+          <span class="slider round"></span>
+          <span class="small" title="Показать только отключённых клиентов">Только отключённые</span>
         </label>
+      </div>
     </div>
-</div>
+    <nav class="settings-tabs mt-3" aria-label="Разделы WireGuard">
+      <a href="{{ url_for('wg') }}" class="settings-tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
+      <a href="{{ url_for('wg_stats') }}" class="settings-tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
+    </nav>
+  </header>
 
-<div class="tabs mb-3">
-    <a href="{{ url_for('wg') }}" class="tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
-    <a href="{{ url_for('wg_stats') }}" class="tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
-</div>
-<div id="no-active-clients" class="card text-center shadow-sm my-4">
-    <div class="card-body">
-        <h5 class="card-title">Нет активных подключений</h5>
-        <p class="card-text text-muted">Клиенты оффлайн, статистика появится при подключении.</p>
-    </div>
-</div>
-<div id="wg-stats-container">
+
+  <div id="no-active-clients" class="vpn-empty-panel text-center mb-3">
+    <p class="text-muted mb-0">Нет активных подключений по выбранным фильтрам.</p>
+  </div>
+
+  <div id="wg-stats-container">
     {% for interface in stats %}
-    <div class="table-responsive w-100 mb-4">
-        <table class="table align-middle text-center">
-            <thead>
-                <tr>
-                    <th colspan="5" class="text-start fs-5 align-middle">
-                        <div class="d-flex align-items-center flex-wrap">
-                            <span class="me-2">
-                                Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
-                                interface.interface|capitalize }}
-                            </span>
-                            <span class="badge bg-dark">
-                                <strong id="online-count-{{ interface.interface }}">{{ interface.peers | selectattr('online') | list | length }}</strong>
-                                / <strong>{{ interface.peers | length }}</strong>
-                            </span>
-                        </div>
-                    </th>
-                    <th></th>
-                    <th colspan="2" title="Суточная статистика">Сегодня</th>
-                    <th colspan="2" title="Итоговая статистика">Всего</th>
-                </tr>
-                <tr>
-                    <th></th>
-                    <th>Статус</th>
-                    <th>Клиент</th>
-                    <th>Реальный IP</th>
-                    <th>Локальный IP</th>
-                    <th style="width: 200px;">Рукопожатие</th>
-                    <th title="Передано клиенту">Получено</th>
-                    <th title="Получено от клиента">Передано</th>
-                    <th title="Передано клиенту">Получено</th>
-                    <th title="Получено от клиента">Передано</th>
-                </tr>
-            </thead>
-            <tbody id="tbody-{{ interface.interface }}"></tbody>
+    <section class="dash-panel mb-3 p-0">
+      <div class="px-3 py-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2"
+        style="border-color: var(--dm-border) !important;">
+        <div class="vpn-wg-interface-hd d-flex align-items-center flex-wrap gap-2 mb-0">
+          <span>
+            Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
+            interface.interface|capitalize }}
+          </span>
+          <span class="badge bg-secondary">
+            <strong id="online-count-{{ interface.interface }}">{{ interface.peers | selectattr('online') | list | length }}</strong>
+            / <strong>{{ interface.peers | length }}</strong>
+          </span>
+        </div>
+      </div>
+      <div class="table-responsive vpn-data-table-wrap w-100">
+        <table class="table vpn-data-table align-middle text-center mb-0">
+          <thead>
+            <tr>
+              <th>Клиент</th>
+              <th>Статус</th>
+              <th>Реальный IP</th>
+              <th>Локальный IP</th>
+              <th style="width: 200px;">Рукопожатие</th>
+              <th colspan="2" title="Суточная статистика">Сегодня</th>
+              <th colspan="2" title="Итоговая статистика">Всего</th>
+              <th rowspan="2" class="text-center text-nowrap">Действия</th>
+            </tr>
+            <tr>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th></th>
+              <th title="Передано клиенту">Получено</th>
+              <th title="Получено от клиента">Передано</th>
+              <th title="Передано клиенту">Получено</th>
+              <th title="Получено от клиента">Передано</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-{{ interface.interface }}"></tbody>
         </table>
-    </div>
+      </div>
+    </section>
     {% endfor %}
+  </div>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    const stats = {{ stats|tojson }};
-    
-    stats.forEach(interface => {
-        const tbody = document.getElementById(`tbody-${interface.interface}`);
-        if (!tbody) return;
-
-        let index = 0;
-        let onlineCount = 0;
-
-        function renderChunk() {
-            if (index >= interface.peers.length) return;
-
-            const peer = interface.peers[index];
-            const tr = document.createElement("tr");
-            const isEnabled = peer.enabled !== false;
-            tr.className = !isEnabled ? "traffic-disabled wg_table" : (peer.online ? "traffic-online" : "traffic-offline wg_table");
-
-            if(peer.online && isEnabled) onlineCount++;
-
-            tr.innerHTML = `
-                <td>
-                    <label class="switch mb-0">
-                        <input type="checkbox" class="peer-toggle"
-                               data-peer="${peer.peer}"
-                               data-interface="${interface.interface}"
-                               data-client="${peer.client || 'Unknown'}"
-                               ${isEnabled ? 'checked' : ''}>
-                        <span class="slider round"></span>
-                    </label>
-                </td>
-                <td>
-                    <small class="${!isEnabled ? 'text-muted' : (peer.online ? 'text-success' : 'traffic-offline')} fs-8">
-                        ${!isEnabled ? 'Отключён' : (peer.online ? 'Онлайн' : 'Офлайн')}
-                    </small>
-                </td>
-                <td title="Peer: ${peer.masked_peer}">${peer.client}</td>
-                <td>${peer.endpoint || 'N/A'}</td>
-                <td>${peer.visible_ips ? peer.visible_ips.join(', ') : ''}</td>
-                <td>${peer.latest_handshake || 'N/A'}</td>
-                <td>${peer.daily_received || '0.0'}</td>
-                <td>${peer.daily_sent || '0.0'}</td>
-                <td>${peer.received || '0.0'}</td>
-                <td>${peer.sent || '0.0'}</td>
-            `;
-
-            tbody.appendChild(tr);
-            const countEl = document.getElementById(`online-count-${interface.interface}`);
-            if (countEl) countEl.textContent = onlineCount;
-
-            index++;
-            setTimeout(renderChunk, 5); 
-        }
-
-        renderChunk();
-    });
-});
-</script>
-
-
-
-<!-- Модальное окно подтверждения отключения -->
 <div class="modal fade" id="confirmDisableModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -146,8 +98,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
             <div class="modal-body">
-                <p>Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?</p>
-                <p class="text-muted mb-0">Клиент будет отключён от VPN. Вы сможете включить его обратно в любой момент.</p>
+                <p class="mb-0">Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?</p>
+                <p class="text-muted small mt-2 mb-0">Пир будет закомментирован в конфигурации WireGuard; при необходимости его можно снова включить из меню действий.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -157,5 +109,37 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>
 </div>
 
+<div class="modal fade" id="wgConfigDownloadModal" tabindex="-1" aria-labelledby="wgConfigDownloadModalTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="wgConfigDownloadModalTitle">Скачать конфигурацию</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Файл .conf для импорта в WireGuard или AmneziaVPN.</p>
+                <div id="wgConfigDownloadLoading" class="py-3 text-muted small">Загрузка…</div>
+                <div id="wgConfigDownloadBody" class="d-none">
+                    <label class="form-label small text-muted mb-1 d-none" for="wgConfigProfileSelect">Профиль</label>
+                    <select id="wgConfigProfileSelect" class="form-select form-select-sm mb-3 d-none"
+                        aria-label="Профиль WireGuard"></select>
+                    <div class="text-center">
+                        <button type="button" id="wgConfigDownloadBtn" class="btn btn-primary btn-sm">Скачать
+                            .conf</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.wgApi = {
+        peerToggle: "{{ url_for('toggle_wg_peer') }}",
+        clientConfig: "{{ url_for('api_wireguard_client_config') }}",
+        clientConfigDownload: "{{ url_for('api_wireguard_client_config_download') }}"
+    };
+</script>
 <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
 {% endblock %}

@@ -1,7 +1,11 @@
+import base64
 import csv
+import hashlib
+import secrets
 import sqlite3
 import requests
 import os
+import platform
 import re
 import threading
 import random
@@ -26,8 +30,10 @@ from flask_login import (
 )
 from flask import (
     Flask,
+    abort,
     make_response,
     render_template,
+    send_file,
     url_for,
     redirect,
     request,
@@ -43,6 +49,8 @@ from datetime import date, datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
 from collections import defaultdict
 
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 class ScriptNameMiddleware:
 
@@ -89,6 +97,95 @@ MAX_CPU_HISTORY = 60 * 12  # хранить 12 часов с шагом 1 мин
 DB_SAVE_INTERVAL = 300  # запись в БД каждые 5 минут
 last_db_save = 0
 
+
+def _host_static_info():
+    os_label = ""
+    try:
+        rel = platform.freedesktop_os_release()
+        os_label = (
+            rel.get("PRETTY_NAME")
+            or f"{rel.get('NAME', 'Linux')} {rel.get('VERSION', '')}".strip()
+        )
+    except (OSError, AttributeError):
+        os_label = f"{platform.system()} {platform.release()}".strip()
+    physical = psutil.cpu_count(logical=False)
+    logical = psutil.cpu_count(logical=True)
+    cpu_cores = physical if physical else (logical or 1)
+    return {"os_label": os_label, "cpu_cores": cpu_cores}
+
+
+HOST_STATIC_INFO = _host_static_info()
+
+# Службы VPN
+VPN_SYSTEMD_UNITS = (
+    ("openvpn-server@antizapret-udp.service", "Antizapret UDP", "openvpn"),
+    ("openvpn-server@antizapret-tcp.service", "Antizapret TCP", "openvpn"),
+    ("openvpn-server@vpn-udp.service", "VPN UDP", "openvpn"),
+    ("openvpn-server@vpn-tcp.service", "VPN TCP", "openvpn"),
+    ("wg-quick@antizapret.service", "Antizapret", "wireguard"),
+    ("wg-quick@vpn.service", "VPN", "wireguard"),
+)
+
+
+def get_vpn_systemd_states():
+    """Состояние ActiveState через systemctl is-active для каждого unit."""
+    rows = []
+    for unit, label, kind in VPN_SYSTEMD_UNITS:
+        state = "unknown"
+        try:
+            completed = subprocess.run(
+                ["/bin/systemctl", "is-active", unit],
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
+            st = (completed.stdout or "").strip()
+            if st:
+                state = st
+            else:
+                load = subprocess.run(
+                    ["/bin/systemctl", "show", "-p", "LoadState", "--value", unit],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                )
+                if (load.stdout or "").strip() == "not-found":
+                    state = "not-found"
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            state = "unknown"
+        rows.append(
+            {
+                "unit": unit,
+                "label": label,
+                "kind": kind,
+                "state": state,
+            }
+        )
+    return rows
+
+
+VPN_SYSTEMD_UNIT_SET = frozenset(u[0] for u in VPN_SYSTEMD_UNITS)
+
+
+def restart_vpn_systemd_unit(unit: str) -> tuple[bool, str]:
+    """Перезапуск unit из белого списка VPN. Возвращает (успех по коду systemctl, сообщение)."""
+    if unit not in VPN_SYSTEMD_UNIT_SET:
+        return False, "unknown unit"
+    try:
+        completed = subprocess.run(
+            ["/bin/systemctl", "restart", unit],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        err = (completed.stderr or completed.stdout or "").strip()
+        if completed.returncode != 0:
+            return False, err[:500] if err else "systemctl restart failed"
+        return True, "ok"
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        return False, str(e)
+
+
 SAMPLE_INTERVAL = 10  # текущая частота сбора
 MAX_HISTORY_SECONDS = 7 * 24 * 3600  # сколько секунд хранить в памяти
 LIVE_POINTS = 60
@@ -97,10 +194,55 @@ BOT_RESTART_LOCK = Lock()
 BOT_SERVICE_NAME = "telegram-bot"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ANTIZAPRET_SETUP_PATH = "/root/antizapret/setup"
+STATUSOPENVPN_SETUP_PATH = os.path.join(BASE_DIR, "setup")
 ENV_PATH = os.path.join(BASE_DIR, "src", ".env")
 SETTINGS_PATH = os.path.join(BASE_DIR, "src", "settings.json")
+SETUP_DESCRIPTIONS_PATH = os.path.join(BASE_DIR, "src", "setup_descriptions.json")
 LEGACY_ADMIN_INFO_PATH = os.path.join(BASE_DIR, "src", "telegram_admins.json")
 CLIENT_MAPPING_KEY = "CLIENT_MAPPING"
+OPENVPN_BANNED_CLIENTS_FILE = "/etc/openvpn/server/banned_clients"
+OPENVPN_CLIENT_CONNECT_SCRIPT = "/etc/openvpn/server/scripts/client-connect.sh"
+CLIENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
+CLIENT_SH_PATH = "/root/antizapret/client.sh"
+
+OPENVPN_CONFIG_PATHS = [
+    "/root/antizapret/client/openvpn/antizapret",
+    "/root/antizapret/client/openvpn/antizapret-udp",
+    "/root/antizapret/client/openvpn/antizapret-tcp",
+    "/root/antizapret/client/openvpn/antizapret-udp-only",
+    "/root/antizapret/client/openvpn/antizapret-tcp-only",
+    "/root/antizapret/client/openvpn/vpn",
+    "/root/antizapret/client/openvpn/vpn-tcp",
+    "/root/antizapret/client/openvpn/vpn-udp",
+]
+
+OPENVPN_KEYS_DIR = "/etc/openvpn/client/keys"
+OPENVPN_KEYS_DISABLED_DIR = os.path.join(OPENVPN_KEYS_DIR, "disabled")
+
+CLIENT_CONNECT_BAN_CHECK_BLOCK = (
+    'BANNED="/etc/openvpn/server/banned_clients"\n\n'
+    'if [ -f "$BANNED" ]; then\n'
+    '    if grep -q "^$common_name$" "$BANNED"; then\n'
+    '        echo "Client $common_name banned" >&2\n'
+    "        exit 1\n"
+    "    fi\n"
+    "fi\n"
+)
+
+OPENVPN_SOCKETS = {
+    "antizapret-udp": "/run/openvpn-server/antizapret-udp.sock",
+    "antizapret-tcp": "/run/openvpn-server/antizapret-tcp.sock",
+    "vpn-udp": "/run/openvpn-server/vpn-udp.sock",
+    "vpn-tcp": "/run/openvpn-server/vpn-tcp.sock",
+}
+
+PROTOCOL_TO_SOCKET = {
+    "UDP": "antizapret-udp",
+    "TCP": "antizapret-tcp",
+    "VPN-UDP": "vpn-udp",
+    "VPN-TCP": "vpn-tcp",
+}
 
 
 def read_env_values():
@@ -116,6 +258,35 @@ def read_env_values():
     except FileNotFoundError:
         return values
     return values
+
+
+def read_setup_key_value_file(path):
+    """Читает строки KEY=VALUE из файла установки. Возвращает (список пар, ошибка)."""
+    pairs = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                pairs.append((key.strip(), value.strip()))
+    except FileNotFoundError:
+        return [], "not_found"
+    except OSError as e:
+        return [], str(e)
+    return pairs, None
+
+
+def _load_setup_descriptions():
+    with open(SETUP_DESCRIPTIONS_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    return data["web_setup"], data["antizapret_setup"]
+
+
+WEB_SETUP_DESCRIPTIONS, ANTIZAPRET_SETUP_DESCRIPTIONS = _load_setup_descriptions()
 
 
 def can_start_bot(env_values=None):
@@ -167,7 +338,23 @@ DEFAULT_SETTINGS = {
     "bot_enabled": False,
     "hide_ovpn_ip": True,
     "hide_wg_ip": True,
+    "stats_retention_days": 365,
 }
+
+MONTH_OPTIONS_RU = [
+    (1, "Январь"),
+    (2, "Февраль"),
+    (3, "Март"),
+    (4, "Апрель"),
+    (5, "Май"),
+    (6, "Июнь"),
+    (7, "Июль"),
+    (8, "Август"),
+    (9, "Сентябрь"),
+    (10, "Октябрь"),
+    (11, "Ноябрь"),
+    (12, "Декабрь"),
+]
 
 
 def write_settings_data(settings_data):
@@ -211,6 +398,51 @@ def write_settings(updated_settings):
     current_settings = read_settings()
     current_settings.update(updated_settings)
     write_settings_data(current_settings)
+
+
+def parse_stats_retention_days(raw_value):
+    try:
+        days = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        return 365
+    return max(30, min(days, 3650))
+
+
+def get_stats_retention_days():
+    return parse_stats_retention_days(read_settings().get("stats_retention_days", 365))
+
+
+def get_available_stat_years(db_path, table_name, date_column):
+    years = []
+    try:
+        with sqlite3.connect(db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT substr({date_column}, 1, 4) AS y
+                FROM {table_name}
+                WHERE substr({date_column}, 1, 4) GLOB '[0-9][0-9][0-9][0-9]'
+                ORDER BY y DESC
+                """
+            ).fetchall()
+            years = [int(row[0]) for row in rows if row and row[0].isdigit()]
+    except sqlite3.Error:
+        years = []
+
+    current_year = datetime.now().year
+    if current_year not in years:
+        years.append(current_year)
+    years = sorted(set(years), reverse=True)
+    return years
+
+
+def parse_date_yyyy_mm_dd(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
 
 
 def read_admin_info():
@@ -257,6 +489,515 @@ def build_admin_display_list(admin_id_value, admin_info):
         {"id": admin_id, "display": format_admin_display(admin_id, admin_info)}
         for admin_id in admin_ids
     ]
+
+
+def _read_banned_clients():
+    banned = set()
+    try:
+        with open(OPENVPN_BANNED_CLIENTS_FILE, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                banned.add(line)
+    except FileNotFoundError:
+        return set()
+    return banned
+
+
+def _write_banned_clients(clients):
+    ordered = sorted(set(clients), key=str.lower)
+    with open(OPENVPN_BANNED_CLIENTS_FILE, "w", encoding="utf-8") as f:
+        if ordered:
+            f.write("\n".join(ordered) + "\n")
+
+
+def _ensure_client_connect_ban_check_block():
+    try:
+        with open(OPENVPN_CLIENT_CONNECT_SCRIPT, "r", encoding="utf-8") as f:
+            content = f.read()
+    except FileNotFoundError:
+        content = ""
+
+    if CLIENT_CONNECT_BAN_CHECK_BLOCK in content:
+        return
+
+    if content.startswith("#!"):
+        first_line_end = content.find("\n")
+        if first_line_end == -1:
+            shebang_line = content + "\n"
+            rest = ""
+        else:
+            shebang_line = content[: first_line_end + 1]
+            rest = content[first_line_end + 1 :]
+        new_content = (
+            shebang_line
+            + "\n"
+            + CLIENT_CONNECT_BAN_CHECK_BLOCK
+            + "\n"
+            + rest.lstrip("\n")
+        )
+    else:
+        new_content = CLIENT_CONNECT_BAN_CHECK_BLOCK + "\n" + content.lstrip("\n")
+
+    with open(OPENVPN_CLIENT_CONNECT_SCRIPT, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+
+def _extract_client_name_from_ovpn(filename):
+    name = os.path.splitext(filename)[0]
+    suffixes = ["-udp", "-tcp", "-udp-only", "-tcp-only"]
+    for suffix in suffixes:
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+
+    lowered = name.lower()
+    for prefix in ("antizapret-", "vpn-"):
+        if lowered.startswith(prefix):
+            name = name[len(prefix) :]
+            break
+
+    return name.strip() or None
+
+
+_OVPN_FILE_STEM_CORE = re.compile(
+    r"^(?:antizapret|vpn)-(?:udp|tcp|udp-only|tcp-only)-(.+)-\([^)]+\)$",
+    re.IGNORECASE,
+)
+_OVPN_FILE_STEM_SIMPLE = re.compile(
+    r"^(?:antizapret|vpn)-(?:udp|tcp|udp-only|tcp-only)-(.+)$",
+    re.IGNORECASE,
+)
+
+
+def _openvpn_client_identity_variants(name):
+    """Варианты строки имени клиента (логи, CN, короткое имя) для сопоставления с файлом."""
+    if not name:
+        return set()
+    n = name.strip()
+    out = {n, n.lower()}
+    no_ip = re.sub(r"\s*\([^)]*\)\s*$", "", n).strip()
+    if no_ip:
+        out.add(no_ip)
+        out.add(no_ip.lower())
+    c = n
+    for _ in range(8):
+        low = c.lower()
+        if low.startswith("antizapret-"):
+            c = c[11:]
+        elif low.startswith("vpn-"):
+            c = c[4:]
+        else:
+            break
+        out.add(c)
+        out.add(c.lower())
+        no_ip2 = re.sub(r"\s*\([^)]*\)\s*$", "", c).strip()
+        if no_ip2:
+            out.add(no_ip2)
+            out.add(no_ip2.lower())
+    # vpn-udp-user → user (как в имени файла vpn-udp-user-(ip).ovpn)
+    for _ in range(4):
+        added = False
+        for x in list(out):
+            low = x.lower()
+            for p in ("udp-", "tcp-", "udp-only-", "tcp-only-"):
+                if low.startswith(p):
+                    x2 = x[len(p) :].strip()
+                    if x2 and x2 not in out:
+                        out.add(x2)
+                        out.add(x2.lower())
+                        added = True
+        if not added:
+            break
+    return {x for x in out if x}
+
+
+def _openvpn_filename_identity_variants(stem):
+    """Варианты идентификатора из имени файла без расширения."""
+    if not stem:
+        return set()
+    out = {stem, stem.lower()}
+    legacy = _extract_client_name_from_ovpn(stem + ".ovpn")
+    if legacy:
+        out.add(legacy)
+        out.add(legacy.lower())
+    m = _OVPN_FILE_STEM_CORE.match(stem)
+    if m:
+        g = m.group(1).strip()
+        out.add(g)
+        out.add(g.lower())
+    else:
+        m2 = _OVPN_FILE_STEM_SIMPLE.match(stem)
+        if m2:
+            g = m2.group(1).strip()
+            out.add(g)
+            out.add(g.lower())
+    # vpn-user-(ip) / antizapret-user-(ip) в каталогах vpn/ и antizapret/
+    m3 = re.match(r"^(?:antizapret|vpn)-(.+)-\([^)]+\)$", stem, re.IGNORECASE)
+    if m3:
+        g = m3.group(1).strip()
+        out.add(g)
+        out.add(g.lower())
+    return {x for x in out if x}
+
+
+def _openvpn_client_name_matches_ovpn_file(client_name, filename):
+    """Имя клиента из UI совпадает с .ovpn (полный CN, короткое имя, как в tg cleanup_openvpn_files)."""
+    if not filename.endswith(".ovpn"):
+        return False
+    stem = os.path.splitext(filename)[0]
+    ca = _openvpn_client_identity_variants(client_name)
+    fb = _openvpn_filename_identity_variants(stem)
+    if ca & fb:
+        return True
+    cal = {x.lower() for x in ca}
+    fbl = {x.lower() for x in fb}
+    if cal & fbl:
+        return True
+    clean = (client_name or "").replace("antizapret-", "").replace("vpn-", "")
+    if len(clean) >= 3 and clean in stem:
+        return True
+    return False
+
+
+def _list_openvpn_ovpn_paths_for_client(client_name):
+    """Пути к .ovpn файлам клиента (имя из логов/скрипта и имя файла могут отличаться)."""
+    clean = (client_name or "").strip()
+    if not clean:
+        return []
+    matches = []
+    for base_dir in OPENVPN_CONFIG_PATHS:
+        if not os.path.isdir(base_dir):
+            continue
+        for root, _, files in os.walk(base_dir):
+            for filename in files:
+                if not filename.endswith(".ovpn"):
+                    continue
+                if _openvpn_client_name_matches_ovpn_file(clean, filename):
+                    matches.append(os.path.join(root, filename))
+    matches.sort()
+    return matches
+
+
+def _ovpn_profile_label(full_path):
+    """Краткая подпись профиля для UI."""
+    basename = os.path.basename(full_path)
+    parent = os.path.basename(os.path.dirname(full_path))
+    if parent:
+        return f"{basename} ({parent})"
+    return basename
+
+
+WG_CLIENT_CONFIG_DIRS = [
+    ("/root/antizapret/client/wireguard/vpn", "vpn", "wg"),
+    ("/root/antizapret/client/wireguard/antizapret", "antizapret", "wg"),
+    ("/root/antizapret/client/amneziawg/vpn", "vpn", "am"),
+    ("/root/antizapret/client/amneziawg/antizapret", "antizapret", "am"),
+]
+
+
+def _wg_conf_name_core(client_name: str) -> str:
+    return (client_name or "").strip().replace("antizapret-", "").replace("vpn-", "")
+
+
+def _wg_client_name_param_ok(name: str) -> bool:
+    """Имя клиента из UI/запроса: без path traversal, до 128 символов (не только ASCII)."""
+    raw = (name or "").strip()
+    if not raw or len(raw) > 128:
+        return False
+    if "\x00" in raw or "/" in raw or "\\" in raw:
+        return False
+    return True
+
+
+def _list_wg_conf_paths_for_client(client_name: str):
+    """Пути к .conf клиента (шаблон интерфейс-имя-(…)-wg|am.conf)."""
+    raw = (client_name or "").strip()
+    if not raw or not _wg_client_name_param_ok(raw):
+        return []
+    name_core = _wg_conf_name_core(raw)
+    if not name_core:
+        return []
+    matches = []
+    for dir_path, iface, suffix in WG_CLIENT_CONFIG_DIRS:
+        if not os.path.isdir(dir_path):
+            continue
+        pat = re.compile(
+            rf"^{re.escape(iface)}-{re.escape(name_core)}-\([^)]+\)-{re.escape(suffix)}\.conf$"
+        )
+        try:
+            for fn in os.listdir(dir_path):
+                if pat.match(fn):
+                    matches.append(os.path.join(dir_path, fn))
+        except OSError:
+            continue
+    matches.sort()
+    return matches
+
+
+def _wg_conf_profile_label(full_path: str) -> str:
+    basename = os.path.basename(full_path)
+    parent = os.path.basename(os.path.dirname(full_path))
+    if "amneziawg" in full_path:
+        kind = "AmneziaWG"
+    else:
+        kind = "WireGuard"
+    return f"{parent} · {kind} · {basename}"
+
+
+def _wg_conf_path_is_allowed(abs_path: str) -> bool:
+    abs_path = os.path.realpath(abs_path)
+    roots = [
+        os.path.realpath("/root/antizapret/client/wireguard"),
+        os.path.realpath("/root/antizapret/client/amneziawg"),
+    ]
+    for root in roots:
+        if abs_path.startswith(root + os.sep) and abs_path.endswith(".conf"):
+            return os.path.isfile(abs_path)
+    return False
+
+
+def clean_client_display_name(client_name, server_ip):
+    if not client_name:
+        return client_name
+
+    if not server_ip or not isinstance(server_ip, str):
+        return client_name
+
+    ip_pattern = re.escape(server_ip)
+    client_name = re.sub(
+        rf"[\s@\-\(\[]*{ip_pattern}(?::\d+)?[\)\]]*",
+        "",
+        client_name,
+    )
+
+    return client_name.strip()
+
+
+def get_all_openvpn_clients():
+    if not os.path.exists(CLIENT_SH_PATH):
+        clients = set()
+        for base_dir in OPENVPN_CONFIG_PATHS:
+            if not os.path.exists(base_dir):
+                continue
+            for root, _, files in os.walk(base_dir):
+                for filename in files:
+                    if not filename.endswith(".ovpn"):
+                        continue
+                    client_name = _extract_client_name_from_ovpn(filename)
+                    if client_name:
+                        clients.add(client_name)
+        return clients
+
+    try:
+        env = os.environ.copy()
+        env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        proc = subprocess.run(
+            [CLIENT_SH_PATH, "3"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+    except Exception:
+        return set()
+
+    if proc.returncode != 0:
+        return set()
+
+    clients = set()
+    for raw in (proc.stdout or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("OpenVPN client names:") or line.startswith(
+            "OpenVPN - List clients"
+        ):
+            continue
+        clients.add(line)
+    return clients
+
+
+def _list_openvpn_client_crt_files(client_name):
+    """Пути к .crt клиента в активной и отключённой директориях."""
+    paths = []
+    clean = (client_name or "").strip()
+    if not clean:
+        return paths
+    for base in (OPENVPN_KEYS_DIR, OPENVPN_KEYS_DISABLED_DIR):
+        if not os.path.isdir(base):
+            continue
+        try:
+            for filename in os.listdir(base):
+                if not filename.endswith(".crt"):
+                    continue
+                if clean in filename:
+                    paths.append(os.path.join(base, filename))
+        except OSError:
+            continue
+    return paths
+
+
+def _read_pem_cert_not_after_utc(path):
+    """Читает дату окончания действия сертификата (UTC, naive)."""
+    try:
+        with open(path, "rb") as f:
+            cert = x509.load_pem_x509_certificate(f.read(), default_backend())
+        na = getattr(cert, "not_valid_after_utc", None)
+        if na is not None:
+            na = na.replace(tzinfo=None)
+        else:
+            na = cert.not_valid_after
+        return na
+    except Exception:
+        return None
+
+
+def _get_openvpn_client_cert_expiry(client_name):
+    """По всем .crt клиента возвращает минимальный срок (самый ранний) и подпись для UI."""
+    paths = _list_openvpn_client_crt_files(client_name)
+    if not paths:
+        return None, "—"
+    earliest = None
+    for path in paths:
+        na = _read_pem_cert_not_after_utc(path)
+        if na is None:
+            continue
+        if earliest is None or na < earliest:
+            earliest = na
+    if earliest is None:
+        return None, "—"
+    return earliest, earliest.strftime("%d.%m.%Y")
+
+
+def _cert_days_left_fields(expiry_dt):
+    """Подпись остатка до окончания сертификата: дни (≥1 суток) или часы и минуты (<1 суток)."""
+    if expiry_dt is None:
+        return None, "—"
+    total = (expiry_dt - datetime.utcnow()).total_seconds()
+    if total > 0:
+        if total < 86400:
+            h = int(total // 3600)
+            m = int((total % 3600) // 60)
+            if h == 0 and m == 0:
+                return None, "< 1 мин"
+            return None, f"{h} ч {m} мин"
+        d = int(total // 86400)
+        return d, f"{d} дн."
+    tv = -total
+    if tv >= 86400:
+        d = int(tv // 86400)
+        return -d, "срок истек"
+    h = int(tv // 3600)
+    m = int((tv % 3600) // 60)
+    if h > 0:
+        return None, "срок истек"
+    if m > 0:
+        return None, "срок истек"
+    return None, "срок истек"
+
+
+def send_openvpn_command(socket_name, command, timeout=5):
+    socket_path = OPENVPN_SOCKETS.get(socket_name)
+    if not socket_path:
+        return None, f"Unknown socket: {socket_name}"
+
+    if not os.path.exists(socket_path):
+        return None, f"Socket not found: {socket_path}"
+
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(socket_path)
+
+        sock.recv(4096)
+
+        sock.sendall((command + "\n").encode())
+
+        response = b""
+        while True:
+            try:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                response += chunk
+                if b"END" in chunk or b"SUCCESS" in chunk or b"ERROR" in chunk:
+                    break
+            except socket.timeout:
+                break
+
+        sock.close()
+        return response.decode("utf-8", errors="replace"), None
+
+    except socket.error as e:
+        return None, f"Socket error: {str(e)}"
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+
+def get_openvpn_clients_from_socket(protocol):
+    socket_name = PROTOCOL_TO_SOCKET.get(protocol)
+    if not socket_name:
+        return [], f"Unknown protocol: {protocol}"
+
+    response, error = send_openvpn_command(socket_name, "status 2")
+    if error:
+        return [], error
+
+    clients = []
+    for line in response.split("\n"):
+        line = line.strip()
+
+        if line.startswith("CLIENT_LIST"):
+            parts = line.split(",")
+            if len(parts) >= 11:
+                clients.append(
+                    {
+                        "common_name": parts[1],
+                        "real_address": parts[2],
+                        "virtual_address": parts[3],
+                        "bytes_received": int(parts[5]) if parts[5].isdigit() else 0,
+                        "bytes_sent": int(parts[6]) if parts[6].isdigit() else 0,
+                        "connected_since": parts[7],
+                        "client_id": parts[10] if len(parts) > 10 else None,
+                    }
+                )
+
+    return clients, None
+
+
+def kick_openvpn_client(client_name, protocol=None):
+    protocols_to_check = (
+        [protocol] if protocol else ["UDP", "TCP", "VPN-UDP", "VPN-TCP"]
+    )
+    kicked = False
+    errors = []
+
+    for proto in protocols_to_check:
+        clients, error = get_openvpn_clients_from_socket(proto)
+        if error:
+            errors.append(f"{proto}: {error}")
+            continue
+
+        for client in clients:
+            if client["common_name"] == client_name:
+                socket_name = PROTOCOL_TO_SOCKET.get(proto)
+                if client.get("client_id"):
+                    cmd = f"client-kill {client['client_id']}"
+                else:
+                    cmd = f"kill {client_name}"
+
+                response, err = send_openvpn_command(socket_name, cmd)
+                if err:
+                    errors.append(f"{proto}: {err}")
+                elif response and "SUCCESS" in response:
+                    kicked = True
+                else:
+                    errors.append(f"{proto}: Unexpected response: {response}")
+
+    return kicked, errors
 
 
 def parse_client_mapping(env_values):
@@ -954,6 +1695,11 @@ def pluralize_clients(count):
         return f"{count} клиентов"
 
 
+def _ovpn_session_row_key(name, protocol):
+    raw = f"{name}\x1f{protocol}".encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
 # Функция для получения внешнего IP-адреса
 def get_external_ip():
     try:
@@ -1131,6 +1877,74 @@ def ensure_db():
 
     conn.commit()
     conn.close()
+
+
+# Очистка БД статистики
+STATS_DB_CLEAR_OVPN_PHRASE = "OpenVPN"
+STATS_DB_CLEAR_WG_PHRASE = "WireGuard"
+
+
+def get_ovpn_wg_database_sizes():
+    """Размеры файлов БД статистики OpenVPN и WireGuard (без путей в UI)."""
+    specs = [
+        ("ovpn", "OpenVPN", app.config["LOGS_DATABASE_PATH"]),
+        ("wg", "WireGuard", app.config["WG_STATS_PATH"]),
+    ]
+    items = []
+    total = 0
+    for key, label, path in specs:
+        try:
+            sz = os.path.getsize(path)
+        except OSError:
+            sz = 0
+        total += sz
+        items.append(
+            {
+                "key": key,
+                "label": label,
+                "bytes": sz,
+                "size_fmt": format_bytes(sz),
+            }
+        )
+    return items, total
+
+
+def _delete_tables_and_vacuum(db_path, tables):
+    with sqlite3.connect(db_path) as conn:
+        for t in tables:
+            try:
+                conn.execute(f"DELETE FROM {t}")
+            except sqlite3.OperationalError:
+                pass
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("VACUUM")
+    finally:
+        conn.close()
+
+
+def clear_openvpn_stats_database():
+    """Очищает openvpn_logs.db."""
+    try:
+        _delete_tables_and_vacuum(
+            app.config["LOGS_DATABASE_PATH"],
+            ("monthly_stats", "connection_logs", "last_client_stats"),
+        )
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def clear_wireguard_stats_database():
+    """Очищает wireguard_stats.db."""
+    try:
+        _delete_tables_and_vacuum(
+            app.config["WG_STATS_PATH"],
+            ("wg_daily_stats", "wg_intermediate", "wg_total_stats"),
+        )
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 
 def save_minute_average_to_db():
@@ -1434,19 +2248,25 @@ def update_system_info():
             interface = get_default_interface()
             network_stats = get_network_stats(interface) if interface else None
             vpn_clients = count_online_clients(file_paths)
+            vpn_services = get_vpn_systemd_states()
 
+            _mem = psutil.virtual_memory()
+            _disk = psutil.disk_usage("/")
             cached_system_info = {
-                "cpu_load": cpu_percent,
-                "memory_used": psutil.virtual_memory().used // (1024**2),
-                "memory_total": psutil.virtual_memory().total // (1024**2),
-                "disk_used": psutil.disk_usage("/").used // (1024**3),
-                "disk_total": psutil.disk_usage("/").total // (1024**3),
+                **HOST_STATIC_INFO,
+                "cpu_load": round(cpu_percent, 1),
+                "memory_used": _mem.used // (1024**2),
+                "memory_total": _mem.total // (1024**2),
+                "memory_percent": round(_mem.percent, 1),
+                "disk_used": round(_disk.used / (1024**3), 1),
+                "disk_total": round(_disk.total / (1024**3), 1),
                 "network_load": get_network_load(),
                 "uptime": format_uptime(get_uptime()),
                 "network_interface": interface or "Не найдено",
                 "rx_bytes": format_bytes(network_stats["rx"]) if network_stats else 0,
                 "tx_bytes": format_bytes(network_stats["tx"]) if network_stats else 0,
                 "vpn_clients": vpn_clients,
+                "vpn_services": vpn_services,
             }
 
             last_fetch_time = current_time
@@ -1576,6 +2396,7 @@ def inject_info():
         "version": get_git_version(),
         "base_path": request.script_root or "",
         "app_name": app_name,
+        "host_os_label": HOST_STATIC_INFO["os_label"],
     }
 
 
@@ -1583,7 +2404,7 @@ def inject_info():
 @login_required
 def home():
     server_ip = get_external_ip()
-    system_info = get_system_info()
+    system_info = get_system_info() or {**HOST_STATIC_INFO}
     hostname = socket.gethostname()
 
     return render_template(
@@ -1598,40 +2419,99 @@ def home():
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    app_message = None
-    app_error = None
-    ip_message = None
+    settings_message = None
+    settings_error = None
+    stats_db_message = None
+    stats_db_error = None
 
     if request.method == "POST":
         form_type = request.form.get("form_type")
 
-        if form_type == "app_name":
+        if form_type == "settings_all":
             app_name = request.form.get("app_name", "").strip()
-            write_settings({"app_name": app_name})
-            if app_name:
-                app_message = "Название приложения обновлено."
-            else:
-                app_message = "Название приложения убрано."
-
-        elif form_type == "ip_settings":
             hide_ovpn_ip = request.form.get("hide_ovpn_ip") == "on"
             hide_wg_ip = request.form.get("hide_wg_ip") == "on"
-            write_settings({"hide_ovpn_ip": hide_ovpn_ip, "hide_wg_ip": hide_wg_ip})
-            ip_message = "Настройки отображения IP сохранены."
+            retention_days = parse_stats_retention_days(
+                request.form.get("stats_retention_days", "365")
+            )
+            write_settings(
+                {
+                    "app_name": app_name,
+                    "hide_ovpn_ip": hide_ovpn_ip,
+                    "hide_wg_ip": hide_wg_ip,
+                    "stats_retention_days": retention_days,
+                }
+            )
+            settings_message = "Настройки сохранены."
+
+        elif form_type == "stats_db_clear_ovpn":
+            phrase = (request.form.get("confirm_phrase") or "").strip()
+            if phrase != STATS_DB_CLEAR_OVPN_PHRASE:
+                stats_db_error = "Неверная фраза. Введите: OpenVPN"
+            else:
+                ok, err = clear_openvpn_stats_database()
+                if ok:
+                    stats_db_message = "База статистики OpenVPN очищена."
+                    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+                    if client_ip and "," in client_ip:
+                        client_ip = client_ip.split(",")[0].strip()
+                    log_action(
+                        "web",
+                        current_user.username,
+                        current_user.username,
+                        "stats_db_clear_ovpn",
+                        "",
+                        client_ip or "",
+                    )
+                else:
+                    stats_db_error = f"Ошибка очистки OpenVPN: {err}"
+
+        elif form_type == "stats_db_clear_wg":
+            phrase = (request.form.get("confirm_phrase") or "").strip()
+            if phrase != STATS_DB_CLEAR_WG_PHRASE:
+                stats_db_error = "Неверная фраза. Введите: WireGuard"
+            else:
+                ok, err = clear_wireguard_stats_database()
+                if ok:
+                    stats_db_message = "База статистики WireGuard очищена."
+                    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+                    if client_ip and "," in client_ip:
+                        client_ip = client_ip.split(",")[0].strip()
+                    log_action(
+                        "web",
+                        current_user.username,
+                        current_user.username,
+                        "stats_db_clear_wg",
+                        "",
+                        client_ip or "",
+                    )
+                else:
+                    stats_db_error = f"Ошибка очистки WireGuard: {err}"
 
     settings_data = read_settings()
     current_app_name = settings_data.get("app_name", "StatusOpenVPN")
     hide_ovpn_ip = settings_data.get("hide_ovpn_ip", True)
     hide_wg_ip = settings_data.get("hide_wg_ip", True)
+    stats_retention_days = parse_stats_retention_days(
+        settings_data.get("stats_retention_days", 365)
+    )
+
+    stats_db_items, stats_db_total_bytes = get_ovpn_wg_database_sizes()
 
     return render_template(
         "settings/settings.html",
         app_name=current_app_name,
         hide_ovpn_ip=hide_ovpn_ip,
         hide_wg_ip=hide_wg_ip,
-        app_message=app_message,
-        app_error=app_error,
-        ip_message=ip_message,
+        settings_message=settings_message,
+        settings_error=settings_error,
+        stats_retention_days=stats_retention_days,
+        stats_db_items=stats_db_items,
+        stats_db_total_fmt=format_bytes(stats_db_total_bytes),
+        stats_db_message=stats_db_message,
+        stats_db_error=stats_db_error,
+        stats_clear_ovpn_phrase=STATS_DB_CLEAR_OVPN_PHRASE,
+        stats_clear_wg_phrase=STATS_DB_CLEAR_WG_PHRASE,
         active_page="settings",
     )
 
@@ -1759,6 +2639,8 @@ def settings_audit():
         "bot_toggle": "Вкл/выкл бота",
         "request_approve": "Привязка клиента",
         "request_reject": "Отклонение запроса",
+        "stats_db_clear_ovpn": "Очистка БД OpenVPN",
+        "stats_db_clear_wg": "Очистка БД WireGuard",
     }
 
     return render_template(
@@ -1769,6 +2651,61 @@ def settings_audit():
         action_filter=action_filter or "all",
         action_labels=action_labels,
         active_page="settings_audit",
+    )
+
+
+@app.route("/settings/install")
+@login_required
+def settings_install():
+    antizapret_pairs, antizapret_error = read_setup_key_value_file(ANTIZAPRET_SETUP_PATH)
+    antizapret_rows = [
+        (key, value, ANTIZAPRET_SETUP_DESCRIPTIONS.get(key, ""))
+        for key, value in antizapret_pairs
+    ]
+    web_pairs, web_error = read_setup_key_value_file(STATUSOPENVPN_SETUP_PATH)
+    web_rows = [
+        (key, value, WEB_SETUP_DESCRIPTIONS.get(key, ""))
+        for key, value in web_pairs
+    ]
+    return render_template(
+        "settings/install.html",
+        antizapret_rows=antizapret_rows,
+        antizapret_error=antizapret_error,
+        antizapret_path=ANTIZAPRET_SETUP_PATH,
+        web_rows=web_rows,
+        web_error=web_error,
+        web_path=STATUSOPENVPN_SETUP_PATH,
+        active_page="settings_install",
+    )
+
+
+@app.route("/settings/install/download")
+@login_required
+def settings_install_download():
+    """Скачивание файла параметров установки Antizapret с сервера."""
+    path = ANTIZAPRET_SETUP_PATH
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="text/plain",
+    )
+
+
+@app.route("/settings/install/download/statusopenvpn")
+@login_required
+def settings_install_download_statusopenvpn():
+    """Скачивание файла параметров установки StatusOpenVPN (веб-приложения) с сервера."""
+    path = STATUSOPENVPN_SETUP_PATH
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="text/plain",
     )
 
 
@@ -1889,6 +2826,60 @@ def api_system_info():
     return jsonify(system_info)
 
 
+@app.route("/api/vpn-service/restart", methods=["POST"])
+@login_required
+def api_restart_vpn_service():
+    data = request.get_json(silent=True) or {}
+    unit = data.get("unit")
+    if not unit or not isinstance(unit, str) or unit not in VPN_SYSTEMD_UNIT_SET:
+        return jsonify({"ok": False, "error": "Недопустимый unit"}), 400
+    ok, detail = restart_vpn_systemd_unit(unit)
+    if ok:
+        return jsonify({"ok": True, "detail": detail})
+    return jsonify({"ok": False, "error": detail}), 500
+
+
+@app.route("/api/ovpn/next_update")
+@login_required
+def api_ovpn_next_update():
+    """
+    Возвращает оценку времени следующего обновления логов OpenVPN.
+    Основано на mtime файлов status.log + фиксированный интервал 30 секунд.
+    """
+    file_paths = [
+        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
+        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
+        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
+        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
+    ]
+
+    mtimes = []
+    for path, _ in file_paths:
+        try:
+            if os.path.exists(path):
+                mtimes.append(os.path.getmtime(path))
+        except OSError:
+            continue
+
+    now_ts = time.time()
+
+    if not mtimes:
+        next_update_ts = now_ts + 30
+    else:
+        last_mtime = max(mtimes)
+        next_update_ts = last_mtime + 30
+        if next_update_ts <= now_ts:
+            next_update_ts = now_ts + 30
+
+    return jsonify(
+        {
+            "server_time": int(now_ts),
+            "next_update_ts": int(next_update_ts),
+            "interval_seconds": 30,
+        }
+    )
+
+
 @app.route("/wg")
 @login_required
 def wg():
@@ -1904,6 +2895,13 @@ def wg():
             interface_data.setdefault("peers", []).extend(disabled_peers[iface])
 
     return render_template("wg/wg.html", stats=stats, active_section="wg", active_page="wg_clients")
+
+
+@app.route("/wg/client-status")
+@login_required
+def wg_client_status():
+    """Старая страница статуса объединена с разделом «Клиенты»."""
+    return redirect(url_for("wg"))
 
 
 @app.route("/api/wg/stats")
@@ -1978,6 +2976,9 @@ def wg_stats():
         sort_by = request.args.get("sort", "client")
         order = request.args.get("order", "asc").lower()
         period = request.args.get("period", "month")
+        now = datetime.now()
+        selected_date_from = (request.args.get("date_from") or "").strip()
+        selected_date_to = (request.args.get("date_to") or "").strip()
 
         allowed_sorts = {
             "client": "client",
@@ -1987,32 +2988,68 @@ def wg_stats():
 
         sort_column = allowed_sorts.get(sort_by, "client")
         order_sql = "DESC" if order == "desc" else "ASC"
-
-        now = datetime.now()
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"за {now.strftime('%d.%m.%Y')}"
         elif period == "week":
-            date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            week_start = now - timedelta(days=7)
+            date_from = week_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {week_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
         elif period == "year":
-            date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+            year_start = now - timedelta(days=365)
+            date_from = year_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {year_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+        elif period == "custom":
+            date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
+            date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
+            if date_from_dt and date_to_dt:
+                if date_from_dt > date_to_dt:
+                    date_from_dt, date_to_dt = date_to_dt, date_from_dt
+                selected_date_from = date_from_dt.strftime("%Y-%m-%d")
+                selected_date_to = date_to_dt.strftime("%Y-%m-%d")
+                date_from = selected_date_from
+                date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+                interval_label = f"с {date_from_dt.strftime('%d.%m.%Y')} по {date_to_dt.strftime('%d.%m.%Y')}"
+            else:
+                period = "month"
+                date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+                date_to = None
+                interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
         else:
             period = "month"
             date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
 
         stats_list = []
         total_received, total_sent = 0, 0
 
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
-            query = f"""
-                SELECT client,
-                       SUM(received) as total_received,
-                       SUM(sent) as total_sent
-                FROM wg_daily_stats
-                WHERE date >= ?
-                GROUP BY client
-                ORDER BY {sort_column} {order_sql}
-            """
-            rows = conn.execute(query, (date_from,)).fetchall()
+            if date_to:
+                query = f"""
+                    SELECT client,
+                           SUM(received) as total_received,
+                           SUM(sent) as total_sent
+                    FROM wg_daily_stats
+                    WHERE date >= ? AND date < ?
+                    GROUP BY client
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (date_from, date_to)).fetchall()
+            else:
+                query = f"""
+                    SELECT client,
+                           SUM(received) as total_received,
+                           SUM(sent) as total_sent
+                    FROM wg_daily_stats
+                    WHERE date >= ?
+                    GROUP BY client
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (date_from,)).fetchall()
 
             for row in rows:
                 client, received, sent = row
@@ -2038,66 +3075,227 @@ def wg_stats():
             period=period,
             sort_by=sort_by,
             order=order_sql.lower(),
+            selected_date_from=selected_date_from,
+            selected_date_to=selected_date_to,
+            interval_label=interval_label,
         )
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {e}"
-        return render_template("wg/wg_stats.html", error_message=error_message), 500
+        return render_template(
+            "wg/wg_stats.html",
+            error_message=error_message,
+            active_section="wg",
+            active_page="wg_stats",
+        ), 500
+
+
+def _collect_openvpn_clients_unsorted():
+    """Собирает список клиентов OpenVPN без сортировки.
+    Возвращает (all_clients_list, total_received, total_sent, errors)."""
+    file_paths = [
+        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
+        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
+        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
+        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
+    ]
+
+    online_clients_raw = []
+    total_received, total_sent = 0, 0
+    errors = []
+    online_client_names = set()
+
+    for file_path, protocol in file_paths:
+        file_data, received, sent, error = read_csv(file_path, protocol)
+        if error:
+            errors.append(f"Ошибка в файле {file_path}: {error}")
+        else:
+            online_clients_raw.extend(file_data)
+            total_received += received
+            total_sent += sent
+            for client_row in file_data:
+                if client_row[0] != "UNDEF":
+                    online_client_names.add(client_row[0])
+
+    all_clients = get_all_openvpn_clients()
+    banned_clients = _read_banned_clients()
+    server_ip = get_external_ip()
+
+    all_clients_list = []
+
+    for client_row in online_clients_raw:
+        client_name = client_row[0]
+        if client_name == "UNDEF":
+            continue
+        is_blocked = client_name in banned_clients
+        all_clients_list.append(
+            {
+                "name": client_name,
+                "display_name": clean_client_display_name(client_name, server_ip),
+                "online": True,
+                "blocked": is_blocked,
+                "real_ip": client_row[1],
+                "local_ip": client_row[2],
+                "received": client_row[3],
+                "sent": client_row[4],
+                "download_speed": client_row[5],
+                "upload_speed": client_row[6],
+                "connected_since": client_row[7],
+                "duration": client_row[8],
+                "protocol": client_row[9],
+            }
+        )
+
+    for client_name in sorted(all_clients):
+        if client_name not in online_client_names:
+            is_blocked = client_name in banned_clients
+            all_clients_list.append(
+                {
+                    "name": client_name,
+                    "display_name": clean_client_display_name(
+                        client_name, server_ip
+                    ),
+                    "online": False,
+                    "blocked": is_blocked,
+                    "real_ip": "-",
+                    "local_ip": "-",
+                    "received": "-",
+                    "sent": "-",
+                    "download_speed": "-",
+                    "upload_speed": "-",
+                    "connected_since": "-",
+                    "duration": "-",
+                    "protocol": "-",
+                }
+            )
+
+    return all_clients_list, total_received, total_sent, errors
+
+
+def _build_openvpn_client_status_sorted(sort_by, order):
+    """Список клиентов для страницы статуса: сертификат, сортировка client/status/cert.
+    Возвращает (all_clients_list, errors, total_online)."""
+    all_clients_list, _, _, errors = _collect_openvpn_clients_unsorted()
+    for row in all_clients_list:
+        exp_dt, exp_label = _get_openvpn_client_cert_expiry(row["name"])
+        row["cert_expiry_dt"] = exp_dt
+        row["cert_expiry_label"] = exp_label
+        days_left, days_label = _cert_days_left_fields(exp_dt)
+        row["cert_days_left"] = days_left
+        row["cert_days_left_label"] = days_label
+
+    if sort_by == "cert":
+        valid = [x for x in all_clients_list if x["cert_expiry_dt"] is not None]
+        missing = [x for x in all_clients_list if x["cert_expiry_dt"] is None]
+        valid.sort(key=lambda x: x["cert_expiry_dt"], reverse=(order == "desc"))
+        all_clients_list = valid + missing
+    else:
+        reverse_order = order == "desc"
+
+        def sort_key(x):
+            if sort_by == "client":
+                return (x["name"].lower(),)
+            if sort_by == "status":
+                return (0 if x["online"] else 1, 0 if not x["blocked"] else 1)
+            online_priority = 0 if x["online"] else 1
+            return (online_priority, x["name"].lower())
+
+        all_clients_list.sort(key=sort_key, reverse=reverse_order)
+
+    total_online = len([c for c in all_clients_list if c["online"]])
+    return all_clients_list, errors, total_online
+
+
+def _build_openvpn_clients_sorted(sort_by, order):
+    """Собирает список клиентов OpenVPN и сортирует. Возвращает
+    (all_clients_list, total_received, total_sent, errors, total_online)."""
+    all_clients_list, total_received, total_sent, errors = (
+        _collect_openvpn_clients_unsorted()
+    )
+
+    reverse_order = order == "desc"
+
+    def sort_key(x):
+        online_priority = 0 if x["online"] else 1
+        if sort_by == "client":
+            return (online_priority, x["name"].lower())
+        elif sort_by == "realIp":
+            return (online_priority, x["real_ip"])
+        elif sort_by == "localIp":
+            return (online_priority, x["local_ip"])
+        elif sort_by == "sent":
+            return (
+                online_priority,
+                parse_bytes(x["sent"]) if x["sent"] != "-" else -1,
+            )
+        elif sort_by == "received":
+            return (
+                online_priority,
+                parse_bytes(x["received"]) if x["received"] != "-" else -1,
+            )
+        elif sort_by == "connection-time":
+            return (
+                online_priority,
+                x["connected_since"] if x["connected_since"] != "-" else "",
+            )
+        elif sort_by == "duration":
+            return (
+                online_priority,
+                x["connected_since"] if x["connected_since"] != "-" else "",
+            )
+        elif sort_by == "protocol":
+            return (online_priority, x["protocol"])
+        elif sort_by == "status":
+            return (0 if x["online"] else 1, 0 if not x["blocked"] else 1)
+        return (online_priority, x["name"].lower())
+
+    all_clients_list.sort(key=sort_key, reverse=reverse_order)
+
+    total_online = len([c for c in all_clients_list if c["online"]])
+    for c in all_clients_list:
+        c["row_key"] = _ovpn_session_row_key(c["name"], c["protocol"])
+    return all_clients_list, total_received, total_sent, errors, total_online
+
+
+@app.route("/api/ovpn/clients")
+@login_required
+def api_ovpn_clients():
+    """JSON-снимок списка OpenVPN для частичного обновления страницы /ovpn."""
+    sort_by = request.args.get("sort", "client")
+    order = request.args.get("order", "asc")
+    try:
+        all_clients_list, total_received, total_sent, errors, total_online = (
+            _build_openvpn_clients_sorted(sort_by, order)
+        )
+        online = [c for c in all_clients_list if c["online"]]
+        return jsonify(
+            {
+                "ok": True,
+                "online": online,
+                "total_received": format_bytes(total_received),
+                "total_sent": format_bytes(total_sent),
+                "total_clients_str": pluralize_clients(total_online),
+                "total_online": total_online,
+                "errors": errors,
+            }
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/ovpn")
 @login_required
 def ovpn():
     try:
-        # Пути к файлам и протоколы
-        file_paths = [
-            ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-            ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-            ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-            ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-        ]
-
-        clients = []
-        total_received, total_sent = 0, 0
-        errors = []
-
-        for file_path, protocol in file_paths:
-            file_data, received, sent, error = read_csv(file_path, protocol)
-            if error:
-                errors.append(f"Ошибка в файле {file_path}: {error}")
-            else:
-                clients.extend(file_data)
-                total_received += received
-                total_sent += sent
-
-        # Сортировка данных
         sort_by = request.args.get("sort", "client")
         order = request.args.get("order", "asc")
-        reverse_order = order == "desc"
-
-        if sort_by == "client":
-            clients.sort(key=lambda x: x[0], reverse=reverse_order)
-        elif sort_by == "realIp":
-            clients.sort(key=lambda x: x[1], reverse=reverse_order)
-        elif sort_by == "localIp":
-            clients.sort(key=lambda x: x[2], reverse=reverse_order)
-        elif sort_by == "sent":
-            clients.sort(key=lambda x: parse_bytes(x[3]), reverse=reverse_order)
-        elif sort_by == "received":
-            clients.sort(key=lambda x: parse_bytes(x[4]), reverse=reverse_order)
-        elif sort_by == "connection-time":
-            clients.sort(key=lambda x: x[7], reverse=reverse_order)
-        elif sort_by == "duration":
-            clients.sort(key=lambda x: x[7], reverse=reverse_order)
-        elif sort_by == "protocol":
-            clients.sort(key=lambda x: x[9], reverse=reverse_order)
-
-        total_clients = len(clients)
-        hide_ovpn_ip = read_settings().get("hide_ovpn_ip", True)
+        all_clients_list, total_received, total_sent, errors, total_online = (
+            _build_openvpn_clients_sorted(sort_by, order)
+        )
         return render_template(
             "ovpn/ovpn.html",
-            clients=clients,
-            total_clients_str=pluralize_clients(total_clients),
+            clients=all_clients_list,
+            total_clients_str=pluralize_clients(total_online),
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
             active_section="ovpn",
@@ -2105,7 +3303,6 @@ def ovpn():
             errors=errors,
             sort_by=sort_by,
             order=order,
-            hide_ip=hide_ovpn_ip,
         )
 
     except ZoneInfoNotFoundError:
@@ -2115,11 +3312,65 @@ def ovpn():
             "Попробуйте установить правильный часовой пояс "
             "с помощью команды: sudo dpkg-reconfigure tzdata"
         )
-        return render_template("ovpn/ovpn.html", error_message=error_message), 500
+        return render_template(
+            "ovpn/ovpn.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="clients",
+        ), 500
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {str(e)}"
-        return render_template("ovpn/ovpn.html", error_message=error_message), 500
+        return render_template(
+            "ovpn/ovpn.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="clients",
+        ), 500
+
+
+@app.route("/ovpn/client-status")
+@login_required
+def ovpn_client_status():
+    try:
+        sort_by = request.args.get("sort", "client")
+        order = request.args.get("order", "asc")
+        all_clients_list, errors, total_online = _build_openvpn_client_status_sorted(
+            sort_by, order
+        )
+        return render_template(
+            "ovpn/ovpn_client_status.html",
+            clients=all_clients_list,
+            total_clients_str=pluralize_clients(total_online),
+            active_section="ovpn",
+            active_page="client_status",
+            errors=errors,
+            sort_by=sort_by,
+            order=order,
+        )
+
+    except ZoneInfoNotFoundError:
+        error_message = (
+            "Обнаружены конфликтующие настройки часового пояса "
+            "в файлах /etc/timezone и /etc/localtime. "
+            "Попробуйте установить правильный часовой пояс "
+            "с помощью команды: sudo dpkg-reconfigure tzdata"
+        )
+        return render_template(
+            "ovpn/ovpn_client_status.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="client_status",
+        ), 500
+
+    except Exception as e:
+        error_message = f"Произошла непредвиденная ошибка: {str(e)}"
+        return render_template(
+            "ovpn/ovpn_client_status.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="client_status",
+        ), 500
 
 
 @app.route("/ovpn/history")
@@ -2176,7 +3427,12 @@ def ovpn_history():
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {str(e)}"
-        return render_template("ovpn/ovpn_history.html", error_message=error_message), 500
+        return render_template(
+            "ovpn/ovpn_history.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="history",
+        ), 500
 
 
 @app.route("/ovpn/stats")
@@ -2186,43 +3442,83 @@ def ovpn_stats():
         sort_by = request.args.get("sort", "client_name")
         order = request.args.get("order", "asc").lower()
         period = request.args.get("period", "month")
+        now = datetime.now()
+        selected_date_from = (request.args.get("date_from") or "").strip()
+        selected_date_to = (request.args.get("date_to") or "").strip()
 
         allowed_sorts = {
             "client_name": "client_name",
-            "total_bytes_sent": "SUM(total_bytes_sent)",
-            "total_bytes_received": "SUM(total_bytes_received)",
+            "total_bytes_sent": "SUM(total_bytes_received)",
+            "total_bytes_received": "SUM(total_bytes_sent)",
             "last_connected": "MAX(last_connected)",
         }
 
         sort_column = allowed_sorts.get(sort_by, "client_name")
         order_sql = "DESC" if order == "desc" else "ASC"
-
-        now = datetime.now()
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"за {now.strftime('%d.%m.%Y')}"
         elif period == "week":
-            date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            week_start = now - timedelta(days=7)
+            date_from = week_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {week_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
         elif period == "year":
-            date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+            year_start = now - timedelta(days=365)
+            date_from = year_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {year_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+        elif period == "custom":
+            date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
+            date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
+            if date_from_dt and date_to_dt:
+                if date_from_dt > date_to_dt:
+                    date_from_dt, date_to_dt = date_to_dt, date_from_dt
+                selected_date_from = date_from_dt.strftime("%Y-%m-%d")
+                selected_date_to = date_to_dt.strftime("%Y-%m-%d")
+                date_from = selected_date_from
+                date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+                interval_label = f"с {date_from_dt.strftime('%d.%m.%Y')} по {date_to_dt.strftime('%d.%m.%Y')}"
+            else:
+                period = "month"
+                date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+                date_to = None
+                interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
         else:
             period = "month"
             date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
 
         stats_list = []
         total_received, total_sent = 0, 0
 
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
-            query = f"""
-                SELECT client_name,
-                       SUM(total_bytes_sent),
-                       SUM(total_bytes_received),
-                       MAX(last_connected)
-                FROM monthly_stats
-                WHERE month >= ?
-                GROUP BY client_name
-                ORDER BY {sort_column} {order_sql}
-            """
-            rows = conn.execute(query, (date_from,)).fetchall()
+            if date_to:
+                query = f"""
+                    SELECT client_name,
+                           SUM(total_bytes_sent),
+                           SUM(total_bytes_received),
+                           MAX(last_connected)
+                    FROM monthly_stats
+                    WHERE month >= ? AND month < ?
+                    GROUP BY client_name
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (date_from, date_to)).fetchall()
+            else:
+                query = f"""
+                    SELECT client_name,
+                           SUM(total_bytes_sent),
+                           SUM(total_bytes_received),
+                           MAX(last_connected)
+                    FROM monthly_stats
+                    WHERE month >= ?
+                    GROUP BY client_name
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (date_from,)).fetchall()
 
             for client_name, sent, received, last_connected in rows:
                 total_received += received or 0
@@ -2230,8 +3526,8 @@ def ovpn_stats():
                 stats_list.append(
                     {
                         "client_name": client_name,
-                        "total_bytes_sent": format_bytes(sent),
-                        "total_bytes_received": format_bytes(received),
+                        "total_bytes_sent": format_bytes(received),
+                        "total_bytes_received": format_bytes(sent),
                         "last_connected": last_connected,
                     }
                 )
@@ -2246,11 +3542,270 @@ def ovpn_stats():
             period=period,
             sort_by=sort_by,
             order=order_sql.lower(),
+            selected_date_from=selected_date_from,
+            selected_date_to=selected_date_to,
+            interval_label=interval_label,
         )
 
     except Exception as e:
         error_message = f"Произошла непредвиденная ошибка: {e}"
-        return render_template("ovpn/ovpn_stats.html", error_message=error_message), 500
+        return render_template(
+            "ovpn/ovpn_stats.html",
+            error_message=error_message,
+            active_section="ovpn",
+            active_page="stats",
+        ), 500
+
+
+@app.route("/api/openvpn/client-block", methods=["POST"])
+@login_required
+def api_openvpn_client_block():
+    client_name = request.form.get("client_name", "").strip()
+    blocked_raw = request.form.get("blocked", "").strip().lower()
+
+    if not CLIENT_NAME_PATTERN.fullmatch(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    should_block = blocked_raw in {"1", "true", "yes", "on"}
+
+    try:
+        _ensure_client_connect_ban_check_block()
+        banned_clients = _read_banned_clients()
+
+        if should_block:
+            banned_clients.add(client_name)
+        else:
+            banned_clients.discard(client_name)
+
+        _write_banned_clients(banned_clients)
+        return jsonify(
+            {
+                "success": True,
+                "client_name": client_name,
+                "blocked": should_block,
+                "message": (
+                    "Клиент заблокирован." if should_block else "Блокировка снята."
+                ),
+            }
+        )
+    except PermissionError:
+        return (
+            jsonify(
+                {"success": False, "message": "Нет прав на запись banned_clients."}
+            ),
+            500,
+        )
+    except OSError as e:
+        return (
+            jsonify(
+                {"success": False, "message": f"Ошибка работы с banned_clients: {e}"}
+            ),
+            500,
+        )
+
+
+@app.route("/api/openvpn/client-kick", methods=["POST"])
+@login_required
+def api_openvpn_client_kick():
+    client_name = request.form.get("client_name", "").strip()
+    protocol = request.form.get("protocol", "").strip() or None
+
+    if not CLIENT_NAME_PATTERN.fullmatch(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    try:
+        _ensure_client_connect_ban_check_block()
+        banned_clients = _read_banned_clients()
+        banned_clients.add(client_name)
+        _write_banned_clients(banned_clients)
+
+        kicked, errors = kick_openvpn_client(client_name, protocol)
+
+        if kicked:
+            return jsonify(
+                {
+                    "success": True,
+                    "client_name": client_name,
+                    "kicked": True,
+                    "blocked": True,
+                    "message": "Клиент отключён и заблокирован.",
+                }
+            )
+        return jsonify(
+            {
+                "success": True,
+                "client_name": client_name,
+                "kicked": False,
+                "blocked": True,
+                "message": "Клиент заблокирован. Отключение не удалось (возможно, уже оффлайн).",
+                "errors": errors,
+            }
+        )
+
+    except PermissionError:
+        return (
+            jsonify(
+                {"success": False, "message": "Нет прав на запись banned_clients."}
+            ),
+            500,
+        )
+    except OSError as e:
+        return jsonify({"success": False, "message": f"Ошибка: {e}"}), 500
+
+
+@app.route("/api/openvpn/client-config", methods=["GET"])
+@login_required
+def api_openvpn_client_config():
+    """Список профилей .ovpn или содержимое по index."""
+    client_name = request.args.get("client_name", "").strip()
+    idx_raw = request.args.get("index", "").strip()
+
+    if not CLIENT_NAME_PATTERN.fullmatch(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    paths = _list_openvpn_ovpn_paths_for_client(client_name)
+    if idx_raw == "":
+        items = [{"index": i, "label": _ovpn_profile_label(p)} for i, p in enumerate(paths)]
+        return jsonify({"success": True, "items": items})
+
+    try:
+        idx = int(idx_raw)
+    except ValueError:
+        return jsonify({"success": False, "message": "Некорректный index."}), 400
+
+    if idx < 0 or idx >= len(paths):
+        return jsonify({"success": False, "message": "Профиль не найден."}), 404
+
+    path = paths[idx]
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "config_text": text,
+            "label": _ovpn_profile_label(path),
+            "filename": os.path.basename(path),
+        }
+    )
+
+
+@app.route("/api/openvpn/client-config/download", methods=["GET"])
+@login_required
+def api_openvpn_client_config_download():
+    """Скачивание .ovpn по имени клиента и индексу профиля."""
+    client_name = request.args.get("client_name", "").strip()
+    idx_raw = request.args.get("index", "0").strip()
+
+    if not CLIENT_NAME_PATTERN.fullmatch(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    try:
+        idx = int(idx_raw)
+    except ValueError:
+        return jsonify({"success": False, "message": "Некорректный index."}), 400
+
+    paths = _list_openvpn_ovpn_paths_for_client(client_name)
+    if idx < 0 or idx >= len(paths):
+        return jsonify({"success": False, "message": "Профиль не найден."}), 404
+
+    path = paths[idx]
+    if not os.path.isfile(path):
+        return jsonify({"success": False, "message": "Файл не найден."}), 404
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="application/x-openvpn-profile",
+    )
+
+
+@app.route("/api/wireguard/client-config", methods=["GET"])
+@login_required
+def api_wireguard_client_config():
+    """Список .conf профилей или содержимое по index (скачивание)."""
+    client_name = request.args.get("client_name", "").strip()
+    idx_raw = request.args.get("index", "").strip()
+
+    if not _wg_client_name_param_ok(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    paths = _list_wg_conf_paths_for_client(client_name)
+    if idx_raw == "":
+        items = [
+            {
+                "index": i,
+                "label": _wg_conf_profile_label(p),
+                "filename": os.path.basename(p),
+            }
+            for i, p in enumerate(paths)
+        ]
+        return jsonify({"success": True, "items": items})
+
+    try:
+        idx = int(idx_raw)
+    except ValueError:
+        return jsonify({"success": False, "message": "Некорректный index."}), 400
+
+    if idx < 0 or idx >= len(paths):
+        return jsonify({"success": False, "message": "Профиль не найден."}), 404
+
+    path = paths[idx]
+    if not _wg_conf_path_is_allowed(path):
+        return jsonify({"success": False, "message": "Недопустимый путь."}), 403
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "config_text": text,
+            "label": _wg_conf_profile_label(path),
+            "filename": os.path.basename(path),
+        }
+    )
+
+
+@app.route("/api/wireguard/client-config/download", methods=["GET"])
+@login_required
+def api_wireguard_client_config_download():
+    """Скачивание .conf по имени клиента и индексу профиля."""
+    client_name = request.args.get("client_name", "").strip()
+    idx_raw = request.args.get("index", "0").strip()
+
+    if not _wg_client_name_param_ok(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    try:
+        idx = int(idx_raw)
+    except ValueError:
+        return jsonify({"success": False, "message": "Некорректный index."}), 400
+
+    paths = _list_wg_conf_paths_for_client(client_name)
+    if idx < 0 or idx >= len(paths):
+        return jsonify({"success": False, "message": "Профиль не найден."}), 404
+
+    path = paths[idx]
+    if not _wg_conf_path_is_allowed(path):
+        return jsonify({"success": False, "message": "Недопустимый путь."}), 403
+
+    if not os.path.isfile(path):
+        return jsonify({"success": False, "message": "Файл не найден."}), 404
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="text/plain",
+    )
 
 
 @app.route("/api/ovpn/client_chart")
@@ -2258,33 +3813,64 @@ def ovpn_stats():
 def api_ovpn_client_chart():
     client_name = request.args.get("client")
     period = request.args.get("period", "month")
+    now = datetime.now()
+    selected_date_from = (request.args.get("date_from") or "").strip()
+    selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
         return jsonify({"error": "client parameter required"}), 400
 
-    now = datetime.now()
     if period == "day":
         date_from = now.strftime("%Y-%m-%d")
+        date_to = None
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        date_to = None
     elif period == "year":
         date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+        date_to = None
+    elif period == "custom":
+        date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
+        date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
+        if date_from_dt and date_to_dt:
+            if date_from_dt > date_to_dt:
+                date_from_dt, date_to_dt = date_to_dt, date_from_dt
+            date_from = date_from_dt.strftime("%Y-%m-%d")
+            date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            date_to = None
     else:
         date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        date_to = None
 
     try:
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
-            rows = conn.execute(
-                """
-                SELECT month,
-                       SUM(total_bytes_received) as rx,
-                       SUM(total_bytes_sent) as tx
-                FROM monthly_stats
-                WHERE client_name = ? AND month >= ?
-                GROUP BY month
-                ORDER BY month ASC
-                """,
-                (client_name, date_from),
-            ).fetchall()
+            if date_to:
+                rows = conn.execute(
+                    """
+                    SELECT month,
+                           SUM(total_bytes_received) as rx,
+                           SUM(total_bytes_sent) as tx
+                    FROM monthly_stats
+                    WHERE client_name = ? AND month >= ? AND month < ?
+                    GROUP BY month
+                    ORDER BY month ASC
+                    """,
+                    (client_name, date_from, date_to),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT month,
+                           SUM(total_bytes_received) as rx,
+                           SUM(total_bytes_sent) as tx
+                    FROM monthly_stats
+                    WHERE client_name = ? AND month >= ?
+                    GROUP BY month
+                    ORDER BY month ASC
+                    """,
+                    (client_name, date_from),
+                ).fetchall()
 
         labels = []
         rx_data = []
@@ -2309,33 +3895,64 @@ def api_ovpn_client_chart():
 def api_wg_client_chart():
     client_name = request.args.get("client")
     period = request.args.get("period", "month")
+    now = datetime.now()
+    selected_date_from = (request.args.get("date_from") or "").strip()
+    selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
         return jsonify({"error": "client parameter required"}), 400
 
-    now = datetime.now()
     if period == "day":
         date_from = now.strftime("%Y-%m-%d")
+        date_to = None
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        date_to = None
     elif period == "year":
         date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+        date_to = None
+    elif period == "custom":
+        date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
+        date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
+        if date_from_dt and date_to_dt:
+            if date_from_dt > date_to_dt:
+                date_from_dt, date_to_dt = date_to_dt, date_from_dt
+            date_from = date_from_dt.strftime("%Y-%m-%d")
+            date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            date_to = None
     else:
         date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        date_to = None
 
     try:
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
-            rows = conn.execute(
-                """
-                SELECT date,
-                       SUM(received) as rx,
-                       SUM(sent) as tx
-                FROM wg_daily_stats
-                WHERE client = ? AND date >= ?
-                GROUP BY date
-                ORDER BY date ASC
-                """,
-                (client_name, date_from),
-            ).fetchall()
+            if date_to:
+                rows = conn.execute(
+                    """
+                    SELECT date,
+                           SUM(received) as rx,
+                           SUM(sent) as tx
+                    FROM wg_daily_stats
+                    WHERE client = ? AND date >= ? AND date < ?
+                    GROUP BY date
+                    ORDER BY date ASC
+                    """,
+                    (client_name, date_from, date_to),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT date,
+                           SUM(received) as rx,
+                           SUM(sent) as tx
+                    FROM wg_daily_stats
+                    WHERE client = ? AND date >= ?
+                    GROUP BY date
+                    ORDER BY date ASC
+                    """,
+                    (client_name, date_from),
+                ).fetchall()
 
         labels = []
         rx_data = []

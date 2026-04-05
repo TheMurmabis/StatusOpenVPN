@@ -6,15 +6,27 @@ import os
 import time
 import sqlite3
 import subprocess
+import json
 import schedule
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "databases" , "wireguard_stats.db")
+SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 
 SAVE_TIME = "23:59"  # Время для фиксирования дневного трафика
 START_TIME = "00:00"  # Время для начала записи нового дня
 EVERY_TIME = 30  # Интервал сохранения дневного и общего трафика в секундах
 SYNS_TIME = 5  # Интервал синхронизации клиентов в минутах
+
+
+def get_stats_retention_days(default_days=365):
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
+            settings_data = json.load(settings_file)
+        days = int(settings_data.get("stats_retention_days", default_days))
+        return max(30, min(days, 3650))
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError):
+        return default_days
 
 
 def init_db():
@@ -255,7 +267,7 @@ def save_wg_stats():
 
     now = datetime.now().strftime("%H:%M:%S")
     # print(f"Сохранение статистики: {now}")
-    clean_old_daily_stats(days=365)
+    clean_old_daily_stats(days=get_stats_retention_days(default_days=365))
 
     # if not stats:
     #     print("❌ Нет данных для сохранения! Проверяем wg show...")
@@ -533,7 +545,7 @@ def main():
     today_date = datetime.now().strftime("%Y-%m-%d")
     if inter_date != today_date:
         save_daily_stats(True)
-        clean_old_daily_stats(days=365)
+        clean_old_daily_stats(days=get_stats_retention_days(default_days=365))
         time.sleep(3)
 
     while True:

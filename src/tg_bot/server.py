@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+from typing import Optional
 
 from .utils import (
     get_color_by_percent,
@@ -10,6 +11,15 @@ from .utils import (
     is_peer_online,
     read_wg_config,
 )
+
+VPN_MONITORED_SERVICES = [
+    ("OpenVPN Antizapret UDP", "openvpn-server@antizapret-udp"),
+    ("OpenVPN Antizapret TCP", "openvpn-server@antizapret-tcp"),
+    ("OpenVPN VPN UDP", "openvpn-server@vpn-udp"),
+    ("OpenVPN VPN TCP", "openvpn-server@vpn-tcp"),
+    ("WireGuard Antizapret", "wg-quick@antizapret"),
+    ("WireGuard VPN", "wg-quick@vpn"),
+]
 
 
 def _lazy_psutil():
@@ -80,31 +90,60 @@ async def get_service_state(service_name: str) -> str:
 
 async def get_services_status_text():
     """Получить текст статуса служб."""
-    services = [
-        ("StatusOpenVPN", "StatusOpenVPN.service"),
-        ("Telegram bot", "telegram-bot.service"),
-    ]
-    lines = ["<b>⚙️ Службы StatusOpenVPN:</b>", ""]
-    
-    for label, service in services:
+    lines = ["<b>⚙️ VPN-службы:</b>", ""]
+    for label, service in VPN_MONITORED_SERVICES:
         state = await get_service_state(service)
         icon = "🟢" if state == "active" else "🔴" if state == "inactive" else "🟡"
         lines.append(f"{icon} <b>{label}:</b> {state}")
-    
+    lines.extend(["", "<b>⚙️ Службы StatusOpenVPN:</b>", ""])
+    other = [
+        ("StatusOpenVPN", "StatusOpenVPN.service"),
+        ("Telegram bot", "telegram-bot.service"),
+    ]
+    for label, service in other:
+        state = await get_service_state(service)
+        icon = "🟢" if state == "active" else "🔴" if state == "inactive" else "🟡"
+        lines.append(f"{icon} <b>{label}:</b> {state}")
     return "\n".join(lines)
 
 
-def _get_openvpn_online_clients():
-    """Получить список онлайн-клиентов OpenVPN."""
-    clients = set()
+async def restart_systemd_service(service_name: str) -> tuple[bool, str]:
+    """Перезапустить unit systemd. Возвращает (успех по is-active после restart, текст статуса или ошибки)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "/bin/systemctl",
+            "restart",
+            service_name,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            err = (stderr or b"").decode().strip() or f"код {proc.returncode}"
+            return False, err
+        state = await get_service_state(service_name)
+        return state == "active", state
+    except Exception as e:
+        return False, str(e)
+
+
+def _format_connected_dt(dt: Optional[datetime.datetime]) -> str:
+    """Краткая строка времени для сообщения в Telegram."""
+    if not dt:
+        return "—"
+    return dt.strftime("%d.%m.%Y %H:%M")
+
+
+def _get_openvpn_online_entries():
+    """Онлайн-клиенты OpenVPN: имя, протокол (инстанс), время подключения."""
     file_paths = [
-        "/etc/openvpn/server/logs/antizapret-udp-status.log",
-        "/etc/openvpn/server/logs/antizapret-tcp-status.log",
-        "/etc/openvpn/server/logs/vpn-udp-status.log",
-        "/etc/openvpn/server/logs/vpn-tcp-status.log",
+        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "Antizapret UDP"),
+        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "Antizapret TCP"),
+        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN UDP"),
+        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN TCP"),
     ]
-    
-    for file_path in file_paths:
+    entries = []
+    for file_path, protocol in file_paths:
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 for line in file:
@@ -114,25 +153,42 @@ def _get_openvpn_online_clients():
                     if len(parts) < 2:
                         continue
                     client_name = parts[1].strip()
-                    if client_name:
-                        clients.add(client_name)
+                    if not client_name:
+                        continue
+                    connected = "—"
+                    if len(parts) > 7:
+                        try:
+                            raw = parts[7].strip()
+                            start_dt = datetime.datetime.strptime(
+                                raw, "%Y-%m-%d %H:%M:%S"
+                            )
+                            connected = _format_connected_dt(start_dt)
+                        except (ValueError, IndexError):
+                            pass
+                    entries.append(
+                        {
+                            "name": client_name,
+                            "protocol": f"OpenVPN · {protocol}",
+                            "connected": connected,
+                        }
+                    )
         except FileNotFoundError:
             continue
         except Exception as e:
             print(f"Ошибка чтения {file_path}: {e}")
-    
-    return sorted(clients)
+
+    entries.sort(key=lambda x: (x["name"].lower(), x["protocol"]))
+    return entries
 
 
-def _parse_wireguard_online_clients(output: str):
-    """Разобрать вывод WireGuard для онлайн-клиентов."""
-    online_clients = []
+def _parse_wireguard_online_entries(output: str):
+    """Разобрать вывод `wg show` для онлайн-пиров с протоколом и временем handshake."""
+    entries = []
     lines = (output or "").splitlines()
-    
+
     vpn_mapping = read_wg_config("/etc/wireguard/vpn.conf")
     antizapret_mapping = read_wg_config("/etc/wireguard/antizapret.conf")
-    client_mapping = {**vpn_mapping, **antizapret_mapping}
-    
+
     current_peer = None
     for line in lines:
         line = line.strip()
@@ -143,14 +199,30 @@ def _parse_wireguard_online_clients(output: str):
             handshake_raw = line.split(":", 1)[1].strip()
             handshake_time = parse_handshake_time(handshake_raw)
             if handshake_time and is_peer_online(handshake_time):
-                online_clients.append(client_mapping.get(current_peer, current_peer))
+                if current_peer in vpn_mapping:
+                    name = vpn_mapping[current_peer]
+                    proto = "WireGuard · VPN"
+                elif current_peer in antizapret_mapping:
+                    name = antizapret_mapping[current_peer]
+                    proto = "WireGuard · Antizapret"
+                else:
+                    name = current_peer
+                    proto = "WireGuard"
+                entries.append(
+                    {
+                        "name": name,
+                        "protocol": proto,
+                        "connected": _format_connected_dt(handshake_time),
+                    }
+                )
             current_peer = None
-    
-    return sorted(set(online_clients))
+
+    entries.sort(key=lambda x: (x["name"].lower(), x["protocol"]))
+    return entries
 
 
-async def get_wireguard_online_clients():
-    """Получить список онлайн-клиентов WireGuard."""
+async def _get_wireguard_online_entries():
+    """Получить список онлайн-клиентов WireGuard с деталями."""
     try:
         process = await asyncio.create_subprocess_exec(
             "/usr/bin/wg",
@@ -161,32 +233,40 @@ async def get_wireguard_online_clients():
         stdout, _ = await process.communicate()
         if process.returncode != 0:
             return []
-        return _parse_wireguard_online_clients(stdout.decode())
+        return _parse_wireguard_online_entries(stdout.decode())
     except Exception:
         return []
 
 
+def _format_online_line(entry: dict) -> str:
+    """Одна строка списка «кто онлайн»."""
+    return (
+        f"• <b>{entry['name']}</b>\n"
+        f"  <i>{entry['protocol']}</i> · с {entry['connected']}"
+    )
+
+
 async def get_online_clients_text():
     """Получить отформатированный текст онлайн-клиентов."""
-    openvpn_clients = _get_openvpn_online_clients()
-    wg_clients = await get_wireguard_online_clients()
-    
+    openvpn_entries = _get_openvpn_online_entries()
+    wg_entries = await _get_wireguard_online_entries()
+
     lines = ["<b>👥 Кто онлайн:</b>", ""]
-    
-    if openvpn_clients:
+
+    if openvpn_entries:
         lines.append("<b>OpenVPN:</b>")
-        lines.extend([f"• {client}" for client in openvpn_clients])
+        lines.extend(_format_online_line(e) for e in openvpn_entries)
     else:
         lines.append("<b>OpenVPN:</b> нет активных клиентов")
-    
+
     lines.append("")
-    
-    if wg_clients:
+
+    if wg_entries:
         lines.append("<b>WireGuard:</b>")
-        lines.extend([f"• {client}" for client in wg_clients])
+        lines.extend(_format_online_line(e) for e in wg_entries)
     else:
         lines.append("<b>WireGuard:</b> нет активных клиентов")
-    
+
     return "\n".join(lines)
 
 

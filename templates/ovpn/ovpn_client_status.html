@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Профили{% endblock %}
+
+{% block page_title %}OpenVPN{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Клиенты, профили и срок действия сертификата</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="dash-mon vpn-page">
+    <header class="dash-mon__hero">
+        <nav class="settings-tabs" aria-label="Разделы OpenVPN">
+            <a href="{{ url_for('ovpn') }}"
+                class="settings-tab {% if active_page == 'clients' %}active{% endif %}">Клиенты</a>
+            <a href="{{ url_for('ovpn_client_status') }}"
+                class="settings-tab {% if active_page == 'client_status' %}active{% endif %}">Профили</a>
+            <a href="{{ url_for('ovpn_history') }}"
+                class="settings-tab {% if active_page == 'history' %}active{% endif %}">История</a>
+            <a href="{{ url_for('ovpn_stats') }}"
+                class="settings-tab {% if active_page == 'stats' %}active{% endif %}">Статистика</a>
+        </nav>
+    </header>
+
+
+    {% if error_message %}
+    <div class="alert alert-danger" role="alert">
+        {{ error_message }}
+    </div>
+    {% else %}
+
+    {% if errors %}
+    <div class="alert alert-warning mb-3" role="alert">
+        {% for err in errors %}
+        <div>{{ err }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <section class="dash-panel mb-3">
+        <div class="table-responsive ovpn_table vpn-data-table-wrap ovpn-status-table-wrap w-100">
+            <table class="table vpn-data-table mb-0">
+                <thead>
+                    <tr>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn_client_status', sort='client', order='asc' if sort_by != 'client' or order == 'desc' else 'desc') }}">
+                                Клиент
+                                {% if sort_by == 'client' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn_client_status', sort='status', order='asc' if sort_by != 'status' or order == 'desc' else 'desc') }}">
+                                Статус
+                                {% if sort_by == 'status' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center sortable">
+                            <a
+                                href="{{ url_for('ovpn_client_status', sort='cert', order='asc' if sort_by != 'cert' or order == 'desc' else 'desc') }}">
+                                Срок действия сертификата
+                                {% if sort_by == 'cert' %}
+                                <i
+                                    class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">Осталось дней</th>
+                        <th class="text-center">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr class="text-center log-row {% if not client.online %}client-offline{% endif %} {% if client.blocked %}client-blocked{% endif %}"
+                        data-client-name="{{ client.name }}" data-online="{{ 'true' if client.online else 'false' }}"
+                        data-blocked="{{ 'true' if client.blocked else 'false' }}"
+                        data-protocol="{{ client.protocol }}">
+                        <td class="text-center vpn-table-client">{{ client.display_name or client.name }}</td>
+                        <td class="text-center">
+                            {% if client.online %}
+                            {% if client.blocked %}
+                            <span class="vpn-status-badge blocked">Заблокирован</span>
+                            {% else %}
+                            <span class="vpn-status-badge online">Онлайн</span>
+                            {% endif %}
+                            {% else %}
+                            {% if client.blocked %}
+                            <span class="vpn-status-badge blocked">Заблокирован</span>
+                            {% else %}
+                            <span class="vpn-status-badge offline">Оффлайн</span>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ client.cert_expiry_label }}</td>
+                        <td class="text-center">{{ client.cert_days_left_label }}</td>
+                        <td class="text-center actions-cell">
+                            <div class="dropdown ovpn-actions-dropdown d-inline-block">
+                                <button type="button" class="btn btn-sm btn-light border ovpn-actions-menu-btn"
+                                    data-bs-toggle="dropdown" data-bs-container="body" aria-expanded="false"
+                                    title="Действия" aria-label="Меню действий">
+                                    <i class="fa fa-ellipsis-v" aria-hidden="true"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end ovpn-actions-menu shadow-sm">
+                                    {% if client.blocked %}
+                                    <li>
+                                        <button type="button"
+                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-unblock ovpn-action-item--neutral"
+                                            data-action="unblock" data-client="{{ client.name }}"
+                                            data-client-online="{{ 'true' if client.online else 'false' }}">
+                                            <i class="fa fa-unlock fa-fw" aria-hidden="true"></i>
+                                            <span class="ovpn-action-label">Разблокировать</span>
+                                        </button>
+                                    </li>
+                                    {% elif client.online %}
+                                    <li>
+                                        <button type="button"
+                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-kick text-danger"
+                                            data-action="kick" data-client="{{ client.name }}"
+                                            data-protocol="{{ client.protocol }}" data-client-online="true">
+                                            <i class="fa fa-ban fa-fw" aria-hidden="true"></i>
+                                            <span class="ovpn-action-label">Отключить и заблокировать</span>
+                                        </button>
+                                    </li>
+                                    {% else %}
+                                    <li>
+                                        <button type="button"
+                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-block ovpn-action-item--neutral"
+                                            data-action="block" data-client="{{ client.name }}"
+                                            data-client-online="false">
+                                            <i class="fa fa-lock fa-fw" aria-hidden="true"></i>
+                                            <span class="ovpn-action-label">Заблокировать</span>
+                                        </button>
+                                    </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        <button type="button"
+                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-download-config ovpn-action-item--neutral"
+                                            data-action="download-config" data-client="{{ client.name }}">
+                                            <i class="fa fa-download fa-fw" aria-hidden="true"></i>
+                                            <span class="ovpn-action-label">Скачать конфигурацию</span>
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if clients | length == 0 %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">Нет клиентов</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="vpn-tfoot-totals text-start">
+                        <td colspan="2">Онлайн: {{ total_clients_str }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% endif %}
+
+    <div class="modal fade" id="ovpnConfigDownloadModal" tabindex="-1" aria-labelledby="ovpnConfigDownloadModalTitle"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ovpnConfigDownloadModalTitle">Скачать конфигурацию</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Выберите профиль и скачайте файл .ovpn для импорта в OpenVPN.</p>
+                    <div id="ovpnConfigDownloadLoading" class="py-3 text-muted small">Загрузка…</div>
+                    <div id="ovpnConfigDownloadBody" class="d-none">
+                        <label class="form-label small text-muted mb-1 d-none"
+                            for="ovpnConfigProfileSelect">Профиль</label>
+                        <select id="ovpnConfigProfileSelect" class="form-select form-select-sm mb-3 d-none"
+                            aria-label="Профиль OpenVPN"></select>
+                        <div class="text-center">
+                            <a href="#" id="ovpnConfigDownloadBtn" class="btn btn-primary btn-sm" download>Скачать
+                                .ovpn</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmOvpnBlockModal" tabindex="-1" aria-labelledby="confirmOvpnModalTitle"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmOvpnModalTitle">Подтверждение</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2" id="confirmOvpnModalLead"></p>
+                    <p class="text-muted mb-0 small" id="confirmOvpnModalHint"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="confirmOvpnBlockBtn">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.ovpnApi = {
+            kick: "{{ url_for('api_openvpn_client_kick') }}",
+            block: "{{ url_for('api_openvpn_client_block') }}",
+            clientConfig: "{{ url_for('api_openvpn_client_config') }}",
+            clientConfigDownload: "{{ url_for('api_openvpn_client_config_download') }}"
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/ovpn_client_actions.js') }}"></script>
+
+</div>
+
+{% endblock %}

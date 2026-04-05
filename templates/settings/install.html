@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Параметры установки{% endblock %}
+
+{% from "settings/_install_macros.html" import install_value_badge %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle app-topbar__subtitle--multiline">Параметры установки Antizapret и StatusOpenVPN (только чтение).</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="dash-mon settings-shell">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_telegram') }}"
+        class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_audit') }}"
+        class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}"
+        class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
+
+  <section class="dash-panel mb-3 p-0 overflow-hidden">
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom install-panel-header"
+      style="border-color: var(--dm-border) !important;">
+      <div class="flex-grow-1 min-w-0 install-panel-header__toggle" role="button" tabindex="0"
+        data-bs-toggle="collapse" data-bs-target="#antizapretCollapse" aria-expanded="false"
+        aria-controls="antizapretCollapse">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-funnel text-primary" aria-hidden="true"></i>
+          <span class="fw-semibold">Antizapret</span>
+        </div>
+        <small class="text-muted d-block mt-1"><code class="small">{{ antizapret_path }}</code></small>
+      </div>
+      <div class="d-flex align-items-center gap-1 flex-shrink-0 ms-2">
+        {% if antizapret_error != 'not_found' %}
+        <a href="{{ url_for('settings_install_download') }}"
+          class="btn btn-sm dash-mon__iconbtn install-panel-download"
+          title="Скачать {{ antizapret_path }}"
+          aria-label="Скачать файл Antizapret"
+          onclick="event.stopPropagation();">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        {% endif %}
+        <span class="install-panel-chevron bi bi-chevron-down collapsed" role="button" tabindex="0"
+          data-bs-toggle="collapse" data-bs-target="#antizapretCollapse" aria-expanded="false"
+          aria-controls="antizapretCollapse" aria-label="Развернуть или свернуть"></span>
+      </div>
+    </div>
+
+    <div id="antizapretCollapse" class="collapse install-collapse-panel" data-install-key="antizapret">
+
+      {% if antizapret_error == 'not_found' %}
+      <div class="p-3 text-muted small">Файл не найден</div>
+
+      {% elif antizapret_error %}
+      <div class="p-3 text-danger small">
+        Ошибка чтения: {{ antizapret_error }}
+      </div>
+
+      {% elif not antizapret_rows %}
+      <div class="p-3 text-muted small">
+        Файл пуст
+      </div>
+
+      {% else %}
+
+      <div class="list-group list-group-flush">
+
+        {% for key, value, description in antizapret_rows %}
+        <div class="list-group-item py-3">
+
+          <div class="d-flex justify-content-between align-items-start gap-2">
+
+            <div class="me-2 min-w-0">
+              <div class="fw-semibold text-monospace small mb-1">
+                {{ key }}
+              </div>
+
+              {% if description %}
+              <div class="text-muted small">
+                {{ description }}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="text-end flex-shrink-0">
+              {{ install_value_badge(key, value) }}
+            </div>
+
+          </div>
+
+        </div>
+        {% endfor %}
+
+      </div>
+
+      {% endif %}
+
+    </div>
+  </section>
+
+  <section class="dash-panel mb-3 p-0 overflow-hidden">
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom install-panel-header"
+      style="border-color: var(--dm-border) !important;">
+      <div class="flex-grow-1 min-w-0 install-panel-header__toggle" role="button" tabindex="0"
+        data-bs-toggle="collapse" data-bs-target="#statusOpenvpnCollapse" aria-expanded="false"
+        aria-controls="statusOpenvpnCollapse">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-shield-lock text-primary" aria-hidden="true"></i>
+          <span class="fw-semibold">StatusOpenVPN</span>
+        </div>
+        <small class="text-muted d-block mt-1"><code class="small">{{ web_path }}</code></small>
+      </div>
+      <div class="d-flex align-items-center gap-1 flex-shrink-0 ms-2">
+        {% if web_error != 'not_found' %}
+        <a href="{{ url_for('settings_install_download_statusopenvpn') }}"
+          class="btn btn-sm dash-mon__iconbtn install-panel-download"
+          title="Скачать {{ web_path }}"
+          aria-label="Скачать файл StatusOpenVPN"
+          onclick="event.stopPropagation();">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        {% endif %}
+        <span class="install-panel-chevron bi bi-chevron-down collapsed" role="button" tabindex="0"
+          data-bs-toggle="collapse" data-bs-target="#statusOpenvpnCollapse" aria-expanded="false"
+          aria-controls="statusOpenvpnCollapse" aria-label="Развернуть или свернуть"></span>
+      </div>
+    </div>
+
+    <div id="statusOpenvpnCollapse" class="collapse install-collapse-panel" data-install-key="statusOpenvpn">
+
+      {% if web_error == 'not_found' %}
+      <div class="p-3 text-muted small">Файл не найден</div>
+
+      {% elif web_error %}
+      <div class="p-3 text-danger small">
+        Ошибка чтения: {{ web_error }}
+      </div>
+
+      {% elif not web_rows %}
+      <div class="p-3 text-muted small">
+        Файл пуст
+      </div>
+
+      {% else %}
+
+      <div class="list-group list-group-flush">
+        {% for key, value, description in web_rows %}
+        <div class="list-group-item py-3">
+
+          <div class="d-flex justify-content-between align-items-start gap-2">
+
+            <div class="me-2 min-w-0">
+              <div class="fw-semibold text-monospace small mb-1">
+                {{ key }}
+              </div>
+
+              {% if description %}
+              <div class="text-muted small">
+                {{ description }}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="text-end flex-shrink-0">
+              {{ install_value_badge(key, value) }}
+            </div>
+
+          </div>
+
+        </div>
+        {% endfor %}
+
+      </div>
+
+      {% endif %}
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var STORAGE_KEY = 'settingsInstallPanelState';
+
+  function readState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return {};
+      var o = JSON.parse(raw);
+      return o && typeof o === 'object' ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeState(obj) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    } catch (e) {}
+  }
+
+  function syncChevron(panelId, expanded) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var header = panel.previousElementSibling;
+    if (!header || !header.classList.contains('install-panel-header')) return;
+    var chevrons = header.querySelectorAll('.install-panel-chevron');
+    chevrons.forEach(function (ch) {
+      if (expanded) {
+        ch.classList.remove('collapsed');
+      } else {
+        ch.classList.add('collapsed');
+      }
+      ch.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+    var toggles = header.querySelectorAll('[data-bs-target="#' + panelId + '"]');
+    toggles.forEach(function (el) {
+      el.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+  }
+
+  function init() {
+    document.querySelectorAll('.install-collapse-panel[data-install-key]').forEach(function (panel) {
+      var key = panel.getAttribute('data-install-key');
+      var panelId = panel.id;
+      if (!key || !panelId) return;
+
+      var state = readState();
+      var expanded = state[key] === true;
+
+      if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+        var inst = bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false });
+        if (expanded) {
+          inst.show();
+        }
+      } else if (expanded) {
+        panel.classList.add('show');
+      }
+
+      syncChevron(panelId, expanded);
+
+      panel.addEventListener('shown.bs.collapse', function () {
+        var s = readState();
+        s[key] = true;
+        writeState(s);
+        syncChevron(panelId, true);
+      });
+      panel.addEventListener('hidden.bs.collapse', function () {
+        var s = readState();
+        s[key] = false;
+        writeState(s);
+        syncChevron(panelId, false);
+      });
+    });
+  }
+
+  function run() {
+    if (document.readyState === 'complete') {
+      init();
+    } else {
+      window.addEventListener('load', init);
+    }
+  }
+  run();
+})();
+</script>
+
+{% endblock %}

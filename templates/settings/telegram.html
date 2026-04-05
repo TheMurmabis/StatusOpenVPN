@@ -1,32 +1,40 @@
 {% extends "base.html" %}
 
+{% block title %}Настройки · Телеграм{% endblock %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Телеграм</p>
+{% endblock %}
+
 {% block content %}
 
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-  <h2>Настройки</h2>
-</div>
+<div class="dash-mon settings-shell settings-shell--telegram">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
 
-<div class="tabs mb-3">
-  <a href="{{ url_for('settings') }}" class="tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
-  <a href="{{ url_for('settings_telegram') }}" class="tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
-  <a href="{{ url_for('settings_audit') }}" class="tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
-</div>
 
-<div class="container">
-
-  <div class="mb-4 p-3 border rounded">
-
-    <h4 class="mb-1">Настройки Telegram-бота</h4>
-    <p class="text-muted small mb-4">
-      Укажите токен бота. Список администраторов берётся из файла .env.
-      Запуск и остановка применяются после сохранения.
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-telegram dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Telegram-бот</span>
+    </div>
+    <p class="text-muted small mb-3">
+      Токен бота и администраторы (.env). Запуск и остановка — после сохранения.
     </p>
 
     {% if bot_message %}
-    <div class="alert alert-success" role="alert">{{ bot_message }}</div>
+    <div class="alert alert-success py-2" role="alert">{{ bot_message }}</div>
     {% endif %}
     {% if bot_error %}
-    <div class="alert alert-danger" role="alert">{{ bot_error }}</div>
+    <div class="alert alert-danger py-2" role="alert">{{ bot_error }}</div>
     {% endif %}
 
     <form method="post" autocomplete="off" id="botSettingsForm">
@@ -48,7 +56,6 @@
         </div>
       </div>
 
-      <!-- API токен -->
       <div class="form-floating mb-4 position-relative">
         <input type="text" class="form-control masked" id="bot_token" name="bot_token" placeholder="API Token"
           value="{{ bot_token }}" />
@@ -65,9 +72,8 @@
       {% endif %}
 
       <div class="row g-3 mb-4">
-        <!-- Администраторы -->
         <div class="col-12 col-lg-6">
-          <div class="border rounded p-3 h-100">
+          <div class="settings-subcard h-100">
             <label class="form-label">Администраторы</label>
 
             <div class="input-group mb-2" id="adminAddBlock">
@@ -111,9 +117,8 @@
           </div>
         </div>
 
-        <!-- Пользователи -->
         <div class="col-12 col-lg-6">
-          <div class="border rounded p-3 h-100">
+          <div class="settings-subcard h-100">
             <label class="form-label">Пользователи</label>
             <ul class="list-group mb-2">
               {% if client_mapping_list %}
@@ -135,7 +140,6 @@
         </div>
       </div>
 
-      <!-- Сохранение -->
       <div class="d-flex justify-content-end pt-3">
         <button type="submit" class="btn btn-primary px-4" id="botSaveButton"
           data-bot-active="{{ 'true' if bot_service_active else 'false' }}">
@@ -144,7 +148,7 @@
       </div>
 
     </form>
-  </div>
+  </section>
 
 </div>
 

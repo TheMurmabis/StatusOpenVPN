@@ -5,12 +5,53 @@
     --bg: #f8f9fa;
     --card-bg: #ffffff;
     --text: #2b2d42;
+    /* Резерв под фиксированный footer (py-3 + две строки текста + тень) */
+    --app-footer-reserve: 6.25rem;
+    --app-sidebar-w: 280px;
+    --app-sidebar-w-collapsed: 72px;
+    --app-sidebar-current: var(--app-sidebar-w);
+    --app-bottom-nav-h: 0px;
+    /* Flatpickr */
+    --fp-radius: 8px;
+    --fp-radius-sm: 6px;
+    --fp-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+    --fp-calendar-bg: #ffffff;
+    --fp-calendar-border: rgba(0, 0, 0, 0.09);
+    --fp-day-color: #212529;
+    --fp-day-muted: #868e96;
+    --fp-in-range: rgba(67, 97, 238, 0.16);
+    --fp-range-edge: var(--primary);
+    --fp-range-text: #ffffff;
+    --fp-today-ring: rgba(67, 97, 238, 0.45);
+    --fp-today-bg: rgba(67, 97, 238, 0.08);
+    --fp-day-hover: rgba(67, 97, 238, 0.14);
+    --fp-month-header-bg: #f8f9fb;
+    --fp-weekday-color: #6c757d;
+    --fp-nav-hover: rgba(0, 0, 0, 0.06);
+    --fp-disabled-opacity: 0.32;
 }
 
-body {
-    padding: 70px 0 60px;
-    background-color: white;
-    color: black;
+html.app-shell--lock-scroll,
+html.app-shell--lock-scroll body {
+    overflow: hidden;
+}
+
+body.app-body {
+    padding: 0;
+    min-height: 100vh;
+    background-color: #ffffff;
+    color: #212529;
+}
+
+.app-page {
+    background-color: var(--bg);
+    padding-bottom: calc(var(--app-footer-reserve) + var(--app-bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 991.98px) {
+    :root {
+        --app-bottom-nav-h: calc(3.5rem + max(0.35rem, env(safe-area-inset-bottom, 0px)));
+    }
 }
 
 body.full-height {
@@ -19,32 +60,73 @@ body.full-height {
 
 @media (prefers-color-scheme: dark) {
 
-    /* Стили для темной темы */
     :root {
+        --login-bg: #0f0f0f;
+        --login-fg: #d3d3d3;
+        --login-card: #23272b;
+        --login-card-border: #343a40;
+        --login-field: #181a1b;
+        --login-line: #272727;
+        --login-hover: #161718;
+        --login-chrome: #0a0a0a;
+        --search-input-bg: #181a1b;
+        --search-input-border: #3d4349;
+        --search-input-fg: #e9ecef;
+        --search-input-placeholder: #868e96;
+        --telegram-input-bg: #181a1b;
+        --telegram-list-bg: #25282c;
+        --telegram-form-border: #383e45;
+        --telegram-form-fg: #eceff1;
+        --telegram-form-placeholder: #9099a3;
+        --telegram-form-focus-border: #4a5568;
+
         --primary: #4361ee;
         --online: #4cc9f0;
         --offline: #f72585;
-        --bg-dark: #0f0f0f;
         --card-bg: #ffffff;
-        --text: #d3d3d3;
+        --text: var(--login-fg);
+        --fp-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+        --fp-calendar-bg: #1a1d21;
+        --fp-calendar-border: rgba(255, 255, 255, 0.1);
+        --fp-day-color: #e8eaed;
+        --fp-day-muted: #6c757d;
+        --fp-in-range: rgba(91, 124, 250, 0.28);
+        --fp-range-edge: #5b7cfa;
+        --fp-today-ring: rgba(91, 124, 250, 0.65);
+        --fp-today-bg: rgba(91, 124, 250, 0.12);
+        --fp-day-hover: rgba(91, 124, 250, 0.2);
+        --fp-month-header-bg: #121518;
+        --fp-weekday-color: #9aa0a6;
+        --fp-nav-hover: rgba(255, 255, 255, 0.08);
     }
 
-    body {
-        background-color: #0f0f0f;
-        color: #d3d3d3;
+    body.app-body {
+        background-color: var(--login-bg);
+        color: var(--login-fg);
     }
 
-    header {
-        background-color: #000000 !important;
-        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-        position: fixed;
-        top: 0;
-        width: 100%;
-        z-index: 1000;
+    body.full-height {
+        background-color: var(--login-bg);
+        color: var(--login-fg);
     }
 
-    header a:hover {
-        color: #ffffff !important;
+    .app-page {
+        background-color: var(--login-bg);
+    }
+
+    .app-topbar {
+        background-color: var(--login-chrome) !important;
+        border-bottom-color: var(--login-line) !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .app-topbar__btn {
+        color: var(--login-fg);
+    }
+
+    .app-topbar__btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
     }
 
     .nav-link.nav-link {
@@ -54,82 +136,66 @@ body.full-height {
 
     .nav-link.nav-link.active {
         color: #fff !important;
-        background-color: #181a1b !important;
+        background-color: var(--login-field) !important;
     }
 
     .nav-link.active:hover {
-        background-color: #181a1b !important;
+        background-color: var(--login-field) !important;
     }
 
     .nav-link:hover {
-        background-color: #161718 !important;
+        background-color: var(--login-hover) !important;
 
-    }
-
-    .form-container {
-        color: #000;
     }
 
     .form-control {
-        color: #d3d3d3;
-        background-color: #181a1b;
+        color: var(--login-fg);
+        background-color: var(--login-field);
         border: none;
     }
 
     .form-control:focus {
-        color: #d3d3d3;
-        background-color: #181a1b !important;
+        color: var(--login-fg);
+        background-color: var(--login-field) !important;
         border: none;
     }
 
     .form-control label {
-        color: #d3d3d3;
-        background-color: #272727 !important;
-    }
-
-    .form-container h1 {
-        color: #d3d3d3;
+        color: var(--login-fg);
+        background-color: var(--login-line) !important;
     }
 
     .form-select {
-        color: #d3d3d3;
-        background-color: #181a1b;
-        border: 1px solid #272727;
+        color: var(--login-fg);
+        background-color: var(--login-field);
+        border: 1px solid var(--login-line);
     }
 
     .form-select:focus {
-        color: #d3d3d3;
-        background-color: #181a1b;
-        border-color: #272727;
+        color: var(--login-fg);
+        background-color: var(--login-field);
+        border-color: var(--login-line);
         box-shadow: none;
     }
 
     label {
-        color: #d3d3d3
+        color: var(--login-fg)
     }
 
     .table th,
     .form-check-label,
     h2,
     a {
-        color: #d3d3d3;
+        color: var(--login-fg);
     }
 
     .table th a {
         text-decoration: none;
-    }
-
-    .table th td a:hover {
-        color: #d3d3d3;
-    }
-
-    .table th a {
-        text-decoration: none;
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
     }
 
     .table td a {
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
     }
 
     .table td a:hover {
@@ -139,17 +205,17 @@ body.full-height {
     .btn-list {
         background-color: rgb(0, 0, 0) !important;
         transition: 0.3s;
-        color: #d3d3d3;
+        color: var(--login-fg);
     }
 
     .btn-list:hover {
-        border-color: #d3d3d3;
-        color: #d3d3d3 !important;
+        border-color: var(--login-fg);
+        color: var(--login-fg) !important;
     }
 
     .btn-list:focus {
-        border-color: #d3d3d3;
-        color: #d3d3d3;
+        border-color: var(--login-fg);
+        color: var(--login-fg);
         outline: none;
         box-shadow: none;
     }
@@ -173,31 +239,38 @@ body.full-height {
     }
 
     .card {
-        border-color: #272727;
+        border-color: var(--login-line);
     }
 
     .card-body {
-        background-color: #181a1b !important;
+        background-color: var(--login-field) !important;
 
     }
 
     .card-body .card-title,
     .card-body .card-text {
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
     }
 
     .border {
-        border-color: #272727 !important;
+        border-color: var(--login-line) !important;
         border-width: 1px !important;
     }
 
     footer {
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
         background-color: #000000 !important;
     }
 
+    footer.app-footer {
+        position: static;
+        width: auto;
+        box-shadow: none;
+        border-top: 1px solid var(--login-line);
+    }
+
     footer a {
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
         text-decoration: none;
     }
 
@@ -210,41 +283,15 @@ body.full-height {
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
         background-color: #222 !important;
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
         border: 1px solid #444 !important;
-        -webkit-box-shadow: 0 0 0px 1000px #181a1b inset !important;
-        -webkit-text-fill-color: #d3d3d3 !important;
+        -webkit-box-shadow: 0 0 0px 1000px var(--login-field) inset !important;
+        -webkit-text-fill-color: var(--login-fg) !important;
         transition: background-color 5000s ease-in-out 0s;
     }
 
-    .tab {
-        color: #d3d3d3 !important;
-    }
-
-    .tab.active {
-        background-color: #181a1b !important;
-    }
-
-    .tab.active:hover {
-        background-color: #181a1b !important;
-    }
-
-    .tab:hover {
-        background-color: #161718 !important;
-    }
-
-    .tab-content {
-        display: none;
-        padding: 20px;
-        background-color: #0f0f0f !important;
-    }
-
-    .fancy-link:hover {
-        color: #0a58ca !important;
-    }
-
     .traffic-online {
-        color: #d3d3d3 !important;
+        color: var(--login-fg) !important;
     }
 
     .wg_table td,
@@ -258,26 +305,26 @@ body.full-height {
     }
 
     .ovpn_table td {
-        color: #d3d3d3;
+        color: var(--login-fg);
     }
 
     .login-wrapper {
-        background-color: #23272b !important;
-        border: 1px solid #343a40 !important;
+        background-color: var(--login-card) !important;
+        border: 1px solid var(--login-card-border) !important;
     }
 
     #toggleChartBtn,
     #toggleCpuChartBtn {
-        border-color: #272727 !important;
+        border-color: var(--login-line) !important;
     }
 
     .table-hover tbody tr:hover {
-        background-color: #23272b !important;
+        background-color: var(--login-card) !important;
     }
 
     .list-group-item {
-        color: #d3d3d3;
-        background-color: #23272b !important;
+        color: var(--login-fg);
+        background-color: var(--login-bg) !important;
     }
 
     .client-table tbody tr.table-active {
@@ -285,8 +332,8 @@ body.full-height {
     }
 
     .modal-content {
-        background-color: #181a1b;
-        color: #d3d3d3;
+        background-color: var(--login-field);
+        color: var(--login-fg);
     }
 
     .modal .btn-close {
@@ -294,21 +341,21 @@ body.full-height {
     }
 
     .pagination {
-        background-color: #0f0f0f;
+        background-color: var(--login-bg);
         border-radius: 0.25rem;
         padding: 0.25rem;
     }
 
     .pagination .page-item .page-link {
-        color: #d3d3d3 !important;
-        background-color: #181a1b !important;
-        border: 1px solid #272727 !important;
+        color: var(--login-fg) !important;
+        background-color: var(--login-field) !important;
+        border: 1px solid var(--login-line) !important;
     }
 
     .pagination .page-item.disabled .page-link {
         color: #777 !important;
-        background-color: #181a1b !important;
-        border-color: #272727 !important;
+        background-color: var(--login-field) !important;
+        border-color: var(--login-line) !important;
     }
 
     .pagination .page-item.active .page-link {
@@ -318,25 +365,758 @@ body.full-height {
     }
 
     .pagination .page-link:hover {
-        background-color: #272727;
+        background-color: var(--login-line);
         border-color: #2c3034;
         color: #fff;
+    }
+
+    .dash-code {
+        background: #1e1e1e;
+        border-color: #333;
+        color: #c9d1d9;
+    }
+
+    .dash-svc {
+        border-color: #2c2c2c;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .dash-svc__state[data-state="active"] {
+        background: rgba(25, 135, 84, 0.22);
+        color: #75b798;
+    }
+
+    .dash-svc__state[data-state="inactive"] {
+        background: rgba(108, 117, 125, 0.2);
+        color: #adb5bd;
+    }
+
+    .dash-svc__state[data-state="failed"] {
+        background: rgba(220, 53, 69, 0.22);
+        color: #f1aeb5;
+    }
+
+    .dash-svc__state[data-state="activating"],
+    .dash-svc__state[data-state="deactivating"],
+    .dash-svc__state[data-state="reloading"] {
+        background: rgba(253, 126, 20, 0.2);
+        color: #ffc078;
+    }
+
+    .dash-svc__state[data-state="not-found"],
+    .dash-svc__state[data-state="unknown"] {
+        background: rgba(108, 117, 125, 0.15);
+        color: #9ca3af;
     }
 
 }
 
 
-header {
-    background-color: #ffffff;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    position: fixed;
-    top: 0;
-    width: 100%;
-    z-index: 1000;
+/* ——— Каркас: боковая панель, верхняя полоса, мобильное нижнее меню ——— */
+.app-shell {
+    --app-sidebar-current: var(--app-sidebar-w);
+    display: flex;
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
-header a {
-    color: #000000;
+.app-shell--sidebar-collapsed {
+    --app-sidebar-current: var(--app-sidebar-w-collapsed);
+}
+
+/* Без анимации ширины до применения состояния из localStorage (нет «моргания») */
+.app-shell:not(.app-shell--sidebar-layout-ready) .app-sidebar,
+.app-shell:not(.app-shell--sidebar-layout-ready) .app-main-wrap {
+    transition: none !important;
+}
+
+.app-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1035;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.app-shell--mobile-drawer-open .app-sidebar-backdrop {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Bootstrap-подобный Sidebar (bg-dark + nav-pills); по умолчанию светлый, тёмный — в @media (prefers-color-scheme: dark) */
+.app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1040;
+    width: var(--app-sidebar-w);
+    max-width: min(88vw, 300px);
+
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.07);
+    transition:
+        transform 0.22s ease,
+        width 0.2s ease;
+    overflow: hidden;
+    /* Непрозрачный фон без обязательного .bg-dark (мобильный drawer) */
+    background-color: #ffffff !important;
+}
+
+.app-sidebar.bg-dark {
+    background-color: #ffffff !important;
+}
+
+@media (min-width: 992px) {
+    .app-sidebar {
+        max-width: none;
+        width: var(--app-sidebar-current);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .app-sidebar {
+        transform: translateX(-105%);
+        width: min(88vw, 300px);
+    }
+
+    .app-shell--mobile-drawer-open .app-sidebar {
+        transform: translateX(0);
+    }
+}
+
+.app-sidebar__icon-btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.app-topbar__btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.app-sidebar__head {
+    flex-shrink: 0;
+}
+
+.app-sidebar__brand {
+    min-width: 0;
+}
+
+.app-sidebar__hostname {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    width: 100%;
+    max-width: 100%;
+    color: inherit;
+}
+
+.app-sidebar__ip {
+    opacity: 0.95;
+}
+
+.app-sidebar__brand:hover {
+    color: #000 !important;
+}
+
+.app-sidebar__head-actions {
+    flex-shrink: 0;
+}
+
+/* Кнопки в шапке сайдбара */
+.app-sidebar .app-sidebar__icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 0.4rem;
+    background: #f1f3f5;
+    color: #495057;
+    line-height: 1;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.app-sidebar .app-sidebar__icon-btn:hover {
+    background: #e9ecef;
+    color: #212529;
+    border-color: rgba(0, 0, 0, 0.18);
+}
+
+/* Бургер / свернуть — в шапке, компактно */
+.app-sidebar__head .app-sidebar__collapse-btn.app-sidebar__icon-btn {
+    width: auto;
+    min-height: 2.25rem;
+    height: auto;
+    padding: 0.35rem 0.5rem;
+    gap: 0.25rem;
+}
+
+.app-sidebar__collapse-btn .app-sidebar__collapse-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.app-sidebar__nav {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-sidebar__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* nav-pills в стиле примера Bootstrap Sidebar */
+.app-sidebar.text-white {
+    color: #212529 !important;
+}
+
+.app-sidebar .app-sidebar__brand.text-white {
+    color: #212529 !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link {
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    /* неактивные: явно тёмный текст и лёгкий фон — не полагаться на text-white / --bs-nav-link-* */
+    background-color: rgba(0, 0, 0, 0.06) !important;
+    color: #343a40 !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link .app-sidebar__ic {
+    color: #495057 !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link:hover:not(.active) {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link:hover:not(.active) .app-sidebar__ic {
+    color: #212529 !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link.active {
+    background-color: #212529 !important;
+    color: #fff !important;
+}
+
+.app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link.active .app-sidebar__ic {
+    color: #fff !important;
+}
+
+/* «GitHub» и «Выйти» — те же стили, что у пунктов меню (вне nav-pills) */
+.app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__github-foot,
+.app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__logout {
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    padding: 0.55rem 0.75rem;
+    margin: 0;
+    color: #212529 !important;
+}
+
+.app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__github-foot:hover,
+.app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__logout:hover {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+}
+
+.app-sidebar__ic {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.app-sidebar__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+}
+
+.app-sidebar__panel {
+    display: block;
+    padding: 0.15rem 0 0.15rem 0;
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link {
+    border: none;
+    margin-bottom: 0;
+    border-radius: 0.35rem;
+    font-weight: 400;
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link.text-white-50 {
+    color: #5c636a !important;
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link:not(.active) {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link:hover {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link.active {
+    background-color: #212529 !important;
+    color: #fff !important;
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 rgba(67, 97, 238, 0.95);
+}
+
+.app-sidebar .app-sidebar__subitem.nav-link.active.text-white {
+    color: #fff !important;
+}
+
+.app-sidebar__version {
+    flex-shrink: 0;
+    line-height: 1.3;
+    opacity: 1;
+    color: #6c757d;
+    padding-top: 0.15rem;
+    word-break: break-all;
+}
+
+.app-sidebar .app-sidebar__hr {
+    border-color: rgba(0, 0, 0, 0.1) !important;
+    opacity: 1;
+}
+
+.app-sidebar .border-secondary {
+    border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    .app-sidebar {
+        border-right-color: rgba(255, 255, 255, 0.08);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .app-sidebar.bg-dark {
+        background-color: var(--login-bg) !important;
+    }
+
+    .app-sidebar.text-white {
+        color: #fff !important;
+    }
+
+    .app-sidebar .app-sidebar__brand.text-white {
+        color: #fff !important;
+    }
+
+    .app-sidebar__brand:hover {
+        color: rgba(255, 255, 255, 0.95) !important;
+    }
+
+    .app-sidebar .app-sidebar__icon-btn {
+        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.25);
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .app-sidebar .app-sidebar__icon-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link:not(.active) {
+        background-color: transparent !important;
+        color: rgba(255, 255, 255, 0.92) !important;
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link .app-sidebar__ic {
+        color: rgba(255, 255, 255, 0.88) !important;
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link:hover:not(.active) {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link:hover:not(.active) .app-sidebar__ic {
+        color: #fff !important;
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link.active {
+        background-color: rgba(255, 255, 255, 0.14) !important;
+        color: #fff !important;
+    }
+
+    .app-sidebar.bg-dark .nav-pills .nav-link.app-sidebar__link.active .app-sidebar__ic {
+        color: #fff !important;
+    }
+
+    .app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__github-foot,
+    .app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__logout {
+        color: #fff !important;
+    }
+
+    .app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__github-foot:hover,
+    .app-sidebar.bg-dark .nav-link.app-sidebar__link.app-sidebar__logout:hover {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+    }
+
+    .app-sidebar .app-sidebar__subitem.nav-link:not(.active) {
+        background-color: transparent !important;
+    }
+
+    .app-sidebar .app-sidebar__subitem.nav-link.text-white-50 {
+        color: rgba(255, 255, 255, 0.5) !important;
+    }
+
+    .app-sidebar .app-sidebar__subitem.nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(255, 255, 255, 0.95) !important;
+    }
+
+    .app-sidebar .app-sidebar__subitem.nav-link.active {
+        background-color: rgba(255, 255, 255, 0.12) !important;
+        color: #fff !important;
+        box-shadow: inset 3px 0 0 rgba(91, 124, 250, 0.75);
+    }
+
+    .app-sidebar__version {
+        color: inherit;
+        opacity: 0.75;
+    }
+
+    .app-sidebar .app-sidebar__hr {
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
+    .app-sidebar .border-secondary {
+        border-color: rgba(255, 255, 255, 0.25) !important;
+    }
+}
+
+/* Узкая панель: только иконки, без поломки вёрстки */
+.app-shell--sidebar-collapsed .app-sidebar {
+    padding: 0.5rem !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__hr {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__nav .app-sidebar__label,
+.app-shell--sidebar-collapsed .app-sidebar__logout .app-sidebar__label,
+.app-shell--sidebar-collapsed .app-sidebar__github-foot .app-sidebar__label {
+    display: none;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__collapse-label {
+    display: none;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__version {
+    display: none;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__head {
+    justify-content: center;
+    flex-wrap: nowrap;
+}
+
+/* d-flex на бренде из Bootstrap перебивает display:none — нужен !important */
+.app-shell--sidebar-collapsed .app-sidebar__brand {
+    display: none !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__hostname {
+    display: none !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__head-actions {
+    width: 100%;
+    justify-content: center;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__link {
+    justify-content: center;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__panel {
+    display: none !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__logout,
+.app-shell--sidebar-collapsed .app-sidebar__github-foot {
+    padding: 0.45rem;
+    justify-content: center;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__collapse-btn {
+    padding: 0.35rem 0.45rem;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__ic.me-2 {
+    margin-right: 0 !important;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__logout .app-sidebar__ic,
+.app-shell--sidebar-collapsed .app-sidebar__github-foot .app-sidebar__ic {
+    margin-right: 0 !important;
+}
+
+.app-sidebar__foot {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.app-main-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    margin-left: 0;
+    transition: margin-left 0.2s ease;
+}
+
+@media (min-width: 992px) {
+    .app-main-wrap {
+        margin-left: var(--app-sidebar-current);
+    }
+}
+
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1025;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 3.25rem;
+    padding: 0.35rem 0;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e6ea;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.app-topbar .app-topbar__btn {
+    margin-left: 0.5rem;
+}
+
+.app-topbar .app-topbar__actions {
+    margin-right: 0.5rem;
+}
+
+.app-topbar__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: #343a40;
+    line-height: 1;
+}
+
+.app-topbar__btn:hover {
+    background: #f1f3f5;
+    color: #000;
+}
+
+.app-topbar__center {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.app-topbar__titles {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.app-topbar__subtitle {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: #6c757d;
+}
+
+.app-topbar__subtitle--multiline {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.app-topbar__title {
+    color: #212529;
+    letter-spacing: -0.02em;
+}
+
+@media (prefers-color-scheme: dark) {
+    .app-topbar__title {
+        color: #ececec;
+    }
+
+    .app-topbar__subtitle {
+        color: #adb5bd;
+    }
+
+    .app-topbar__search .form-control {
+        background-color: var(--search-input-bg);
+        border-color: var(--search-input-border);
+        color: var(--search-input-fg);
+    }
+
+    .app-topbar__search .form-control::placeholder {
+        color: var(--search-input-placeholder);
+    }
+
+    .app-topbar__filters-panel .btn-outline-secondary {
+        color: #ced4da;
+        border-color: #495057;
+    }
+
+    .app-topbar__filters-panel .btn-outline-secondary:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.08);
+        border-color: #6c757d;
+    }
+
+    .app-topbar__filters-panel .btn-outline-secondary.active {
+        color: #fff;
+        background-color: #495057;
+        border-color: #495057;
+    }
+
+    .app-topbar__filters-toggle.active {
+        color: #fff;
+        background-color: #495057;
+        border-color: #495057;
+    }
+}
+
+.app-topbar__tools {
+    min-width: 0;
+}
+
+.app-topbar__search {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.app-topbar__search:empty {
+    display: none;
+}
+
+/* Нет фильтров — скрыть обёртку (кнопка + пустая панель) */
+.app-topbar__filters-wrap:has(.app-topbar__filters-panel:empty) {
+    display: none !important;
+}
+
+.app-topbar__search .form-control {
+    width: 100%;
+}
+
+@media (max-width: 991.98px) {
+    .app-topbar {
+        flex-wrap: wrap;
+        row-gap: 0.35rem;
+        align-items: flex-start;
+    }
+
+    .app-topbar__btn {
+        order: 1;
+    }
+
+    .app-topbar__actions {
+        order: 2;
+        margin-left: auto;
+    }
+
+    /* Заголовок + поиск + фильтры — на всю ширину под первой строкой */
+    .app-topbar__center {
+        order: 10;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .app-topbar__tools {
+        flex-wrap: wrap;
+    }
+
+    .app-topbar__filters-wrap {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    .app-topbar__filters-panel:not(.show) {
+        display: none !important;
+    }
+
+    .app-topbar__filters-panel.show {
+        display: flex !important;
+        flex-basis: 100%;
+        width: 100%;
+        max-width: 100%;
+        justify-content: flex-start !important;
+        margin-top: 0.25rem;
+    }
+
+    /* Иконка «фильтры» в топбаре — только страницы статистики (OpenVPN / WireGuard) */
+    .app-topbar__filters-toggle {
+        display: none !important;
+    }
+
+    .app-page--stats-filters .app-topbar__filters-toggle {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+@media (min-width: 992px) {
+    .app-topbar__filters-toggle {
+        display: none !important;
+    }
+
+    .app-topbar__filters-panel {
+        display: flex !important;
+    }
+}
+
+.app-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.app-footer {
+    flex-shrink: 0;
 }
 
 .nav-link.nav-link.active {
@@ -395,50 +1175,16 @@ header a {
     width: 80%;
 }
 
-.speed-column {
-    display: table-cell;
-    transition: all 0.3s ease;
-}
-
-.speed-column.hidden {
-    display: none !important;
-}
-
-.online-text {
-    color: #437700;
-}
-
-.offline-text {
-    color: #a12312;
-}
-
-.form-container {
-    max-width: 100%;
-    width: 320px;
-}
-
 #passwordHint {
     display: none;
-    font-size: 1.0em;
+    font-size: 0.9rem;
+    color: #b0b0b0;
 }
 
 #passwordHint.show {
     display: block;
     transition: opacity 0.3s ease-in-out;
     opacity: 1;
-}
-
-#themeMenu {
-    position: absolute;
-    background: white;
-    border: 1px solid #ccc;
-    padding: 10px;
-    display: none;
-}
-
-#themeMenu button {
-    display: block;
-    margin: 5px 0;
 }
 
 .forgot-password-link {
@@ -456,57 +1202,21 @@ footer {
     z-index: 1000;
 }
 
+footer.app-footer {
+    position: static;
+    width: auto;
+    box-shadow: none;
+    border-top: 1px solid #e9ecef;
+    z-index: auto;
+}
+
 footer a {
     color: #000000;
     text-decoration: none;
 }
 
-/* Стили для вкладок */
-.tabs {
-    display: flex;
-    cursor: pointer;
-    margin-bottom: 10px;
-}
-
-.tab {
-    color: #000;
-    padding: 10px 20px;
-    text-decoration: none;
-}
-
-.tab:hover {
-    color: #fff;
-    background-color: #2c3034;
-    text-decoration: none;
-}
-
-.tab.active {
-    color: #fff;
-    background-color: #2c3034;
-
-}
-
-.tab-content {
-    display: none;
-    padding: 20px;
-    background-color: #fff;
-}
-
-.tab-content.active {
-    display: block;
-}
-
 .form-check-label {
     text-align: left;
-}
-
-.fancy-link {
-    text-decoration: none;
-    color: #007bff;
-}
-
-.fancy-link:hover {
-    color: #0056b3;
 }
 
 .traffic-online {
@@ -538,13 +1248,6 @@ footer a {
     margin-bottom: 25px;
     font-weight: bold;
 }
-
-#passwordHint {
-    display: none;
-    font-size: 0.9rem;
-    color: #b0b0b0;
-}
-
 
 .btn-primary {
     background-color: #007bff;
@@ -641,25 +1344,1539 @@ footer a {
 }
 
 .pagination .page-item .page-link {
-    color: #0a0a0a; /* тёмный текст */
-    background-color: #ffffff; /* белый фон кнопок */
-    border: 1px solid #dee2e6; /* стандартная граница */
+    color: #0a0a0a;
+    /* тёмный текст */
+    background-color: #ffffff;
+    /* белый фон кнопок */
+    border: 1px solid #dee2e6;
+    /* стандартная граница */
 }
 
 .pagination .page-item.disabled .page-link {
-    color: #6c757d; 
+    color: #6c757d;
     background-color: #ffffff;
     border-color: #dee2e6;
 }
 
 .pagination .page-item.active .page-link {
-    color: #ffffff; 
+    color: #ffffff;
     background-color: #2c3034;
 
 }
 
 .pagination .page-link:hover {
-    background-color: #e9ecef; 
+    background-color: #e9ecef;
     border-color: #adb5bd;
     color: #0a0a0a;
+}
+
+/* Графики Chart.js (главная) */
+.dashboard-chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 280px;
+}
+
+.dashboard-chart-wrap--bw {
+    height: auto;
+    min-height: 0;
+}
+
+.dash-code {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.35rem;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dash-vpn-svc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.dash-svc {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.dash-svc__main {
+    flex: 1;
+    min-width: 0;
+}
+
+.dash-svc__actions {
+    flex-shrink: 0;
+}
+
+.dash-svc__state {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    line-height: 1.2;
+}
+
+.dash-svc__state[data-state="active"] {
+    background: rgba(25, 135, 84, 0.16);
+    color: #146c43;
+}
+
+.dash-svc__state[data-state="inactive"] {
+    background: rgba(108, 117, 125, 0.14);
+    color: #5c636a;
+}
+
+.dash-svc__state[data-state="failed"] {
+    background: rgba(220, 53, 69, 0.14);
+    color: #b02a37;
+}
+
+.dash-svc__state[data-state="activating"],
+.dash-svc__state[data-state="deactivating"],
+.dash-svc__state[data-state="reloading"] {
+    background: rgba(253, 126, 20, 0.14);
+    color: #ca6510;
+}
+
+.dash-svc__state[data-state="not-found"],
+.dash-svc__state[data-state="unknown"] {
+    background: rgba(108, 117, 125, 0.1);
+    color: #868e96;
+}
+
+/* ——— Grafana-style monitoring (главная) ——— */
+.dash-mon {
+    --dm-border: rgba(0, 0, 0, 0.08);
+    --dm-bg: rgba(0, 0, 0, 0.02);
+    --dm-muted: #6c757d;
+    --dm-text: #212529;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    .dash-mon {
+        --dm-border: rgba(255, 255, 255, 0.09);
+        --dm-bg: rgba(255, 255, 255, 0.03);
+        --dm-muted: #a8a8a8;
+        --dm-text: #ececec;
+    }
+}
+
+.dash-mon__hero {
+    border: 1px solid var(--dm-border);
+    border-radius: 11px;
+    background: var(--dm-bg);
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dash-mon__hero-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.dash-mon__hostname {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--dm-text);
+}
+
+.dash-mon__ip {
+    font-size: 0.75rem;
+    opacity: 0.95;
+}
+
+.dash-mon__iconbtn {
+    border: 1px solid var(--dm-border);
+    background: transparent;
+    color: var(--dm-muted);
+    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+}
+
+.dash-mon__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 1rem;
+    margin: 0;
+}
+
+@media (min-width: 768px) {
+    .dash-mon__facts {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.dash-mon__fact {
+    margin: 0;
+    min-width: 0;
+}
+
+.dash-mon__fact--wide {
+    grid-column: 1 / -1;
+}
+
+@media (min-width: 768px) {
+    .dash-mon__fact--wide {
+        grid-column: span 2;
+    }
+}
+
+.dash-mon__fact-k {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dm-muted);
+    margin: 0 0 0.1rem;
+}
+
+.dash-mon__fact-v {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--dm-text);
+    line-height: 1.35;
+}
+
+.dash-mon__sep {
+    opacity: 0.45;
+    margin: 0 0.15rem;
+}
+
+.dash-mon__unit {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--dm-muted);
+    margin-left: 0.2rem;
+}
+
+.dash-mon__vpn-sum {
+    font-size: 0.8125rem;
+}
+
+.dash-mon__linkchev {
+    color: inherit;
+    opacity: 0.7;
+    line-height: 1;
+}
+
+.dash-mon__chev {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    vertical-align: middle;
+}
+
+#dashVpnServicesToggle[aria-expanded="true"] .dash-mon__chev {
+    transform: rotate(90deg);
+}
+
+.dash-mon__vpn-collapse {
+    margin-top: -0.25rem;
+}
+
+.dash-mon__kpi {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+@media (min-width: 992px) {
+    .dash-mon__kpi {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.dash-kpi {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--dm-border);
+    border-radius: 11px;
+    background: var(--dm-bg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    min-height: 5.5rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.dash-kpi--link:hover {
+    border-color: rgba(67, 97, 238, 0.35);
+    color: inherit;
+}
+
+.dash-kpi--meter {
+    padding-top: 0.85rem;
+}
+
+.dash-kpi__graphbtn {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    z-index: 2;
+    border: 1px solid var(--dm-border);
+    border-radius: 7px;
+    padding: 0.2rem 0.4rem;
+    line-height: 1;
+    background: transparent;
+    color: var(--dm-muted);
+}
+
+.dash-kpi__graphbtn.active,
+.dash-kpi__graphbtn.btn-primary {
+    border-color: transparent;
+}
+
+#toggleCpuChartBtn.dash-kpi__graphbtn {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+}
+
+.dash-kpi__ic {
+    flex-shrink: 0;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.dash-kpi__ic--ovpn {
+    background: rgba(67, 97, 238, 0.12);
+    color: var(--primary);
+}
+
+.dash-kpi__ic--wg {
+    background: rgba(13, 110, 253, 0.12);
+    color: #0d6efd;
+}
+
+.dash-kpi__ic--cpu {
+    background: rgba(25, 135, 84, 0.12);
+    color: #198754;
+}
+
+.dash-kpi__ic--ram {
+    background: rgba(108, 117, 125, 0.14);
+    color: #495057;
+}
+
+.dash-kpi__body {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+}
+
+.dash-kpi__lbl {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dm-muted);
+}
+
+.dash-kpi__val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--dm-text);
+}
+
+.dash-kpi__pct {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.75;
+    margin-left: 0.1rem;
+}
+
+.dash-kpi__hint {
+    font-size: 0.68rem;
+    color: var(--dm-muted);
+}
+
+.dash-kpi__sub {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+.dash-meter {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    margin-top: 0.35rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    .dash-meter {
+        background: rgba(255, 255, 255, 0.08);
+    }
+}
+
+.dash-meter__fill {
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    transition: width 0.35s ease, background-color 0.2s ease;
+}
+
+.dash-meter__fill--ok {
+    background: linear-gradient(90deg, #198754, #20c997);
+}
+
+.dash-meter__fill--warn {
+    background: linear-gradient(90deg, #fd7e14, #ffc107);
+}
+
+.dash-meter__fill--crit {
+    background: linear-gradient(90deg, #dc3545, #e35d6a);
+}
+
+.dash-mon__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.dash-panel {
+    border: 1px solid var(--dm-border);
+    border-radius: 11px;
+    background: var(--dm-bg);
+    padding: 0.65rem 0.85rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.dash-panel--nest {
+    padding: 0.75rem 1rem;
+}
+
+.dash-panel--chartwrap {
+    padding: 0.65rem 0.85rem;
+}
+
+.dash-panel__hd {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.dash-panel--chartwrap .dash-panel__hd {
+    margin-bottom: 0.35rem;
+}
+
+.dash-panel__hd-ic {
+    font-size: 1rem;
+    opacity: 0.85;
+}
+
+.dash-panel__hd-t {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--dm-muted);
+}
+
+.dash-mon__chart-canvas {
+    height: 240px;
+}
+
+.dash-mon__netload p {
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--dm-border);
+}
+
+.dash-mon__netload p:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.dash-mini {
+    border: 1px solid var(--dm-border);
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+    background: rgba(0, 0, 0, 0.015);
+}
+
+@media (prefers-color-scheme: dark) {
+    .dash-mini {
+        background: rgba(255, 255, 255, 0.02);
+    }
+}
+
+.dash-mini__lbl {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+.dash-mini__val {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.dash-mon__iface {
+    max-width: 14rem;
+}
+
+/* ——— Настройки (единый стиль с главной) ——— */
+.settings-shell {
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.settings-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem;
+    border: 1px solid var(--dm-border);
+    border-radius: 11px;
+    background: var(--dm-bg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.settings-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--dm-muted);
+    border: 1px solid transparent;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-tab:hover {
+    color: var(--dm-text);
+    background: rgba(0, 0, 0, 0.04);
+    text-decoration: none;
+}
+
+.settings-tab.active {
+    color: #fff;
+    background: var(--primary);
+    border-color: rgba(67, 97, 238, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+    .settings-tab:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.settings-subcard {
+    border: 1px solid var(--dm-border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    background: rgba(0, 0, 0, 0.02);
+    height: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+    .settings-subcard {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .dash-mon.settings-shell .form-control,
+    .dash-mon.settings-shell .form-select {
+        background-color: var(--search-input-bg) !important;
+        border: 1px solid var(--search-input-border) !important;
+        color: var(--search-input-fg) !important;
+    }
+
+    .dash-mon.settings-shell .form-control::placeholder {
+        color: var(--search-input-placeholder);
+    }
+
+    .dash-mon.settings-shell .form-control:focus,
+    .dash-mon.settings-shell .form-select:focus {
+        background-color: var(--search-input-bg) !important;
+        border-color: #495057 !important;
+        color: var(--search-input-fg) !important;
+        box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
+    }
+
+    .dash-mon.settings-shell .input-group-text {
+        background-color: var(--search-input-bg);
+        border-color: var(--search-input-border);
+        color: var(--search-input-fg);
+    }
+
+
+    .dash-mon.settings-shell.settings-shell--telegram .form-control,
+    .dash-mon.settings-shell.settings-shell--telegram .form-select {
+        background-color: var(--telegram-input-bg) !important;
+
+        color: var(--telegram-form-fg) !important;
+    }
+
+    .dash-mon.settings-shell.settings-shell--telegram .form-control::placeholder {
+        color: var(--telegram-form-placeholder);
+    }
+
+    .dash-mon.settings-shell.settings-shell--telegram .form-control:focus,
+    .dash-mon.settings-shell.settings-shell--telegram .form-select:focus {
+        background-color: var(--telegram-input-bg) !important;
+        border-color: var(--telegram-form-focus-border) !important;
+        color: var(--telegram-form-fg) !important;
+        box-shadow: 0 0 0 0.2rem rgba(74, 85, 104, 0.22);
+    }
+
+    .dash-mon.settings-shell.settings-shell--telegram .input-group-text {
+        background-color: var(--telegram-input-bg);
+        color: var(--telegram-form-fg);
+    }
+
+    .dash-mon.settings-shell.settings-shell--telegram .list-group-item {
+        background-color: var(--telegram-list-bg) !important;
+        color: var(--telegram-form-fg);
+    }
+
+    .dash-mon.settings-shell.settings-shell--telegram .list-group-item.text-muted {
+        color: var(--telegram-form-placeholder) !important;
+    }
+}
+
+.install-panel-header {
+    user-select: none;
+}
+
+.install-panel-header__toggle {
+    cursor: pointer;
+    outline: none;
+}
+
+.install-panel-header__toggle:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.install-panel-download {
+    flex-shrink: 0;
+}
+
+.install-panel-download:hover {
+    color: var(--primary);
+}
+
+.install-panel-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--dm-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.install-panel-chevron:hover {
+    color: var(--dm-text);
+    background: rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+    .install-panel-chevron:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.install-panel-chevron.collapsed {
+    transform: rotate(-90deg);
+}
+
+.install-panel-chevron:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Подписи и таблица «Глубина хранения статистики» — цвета как у dash-mon */
+.dash-mon.settings-shell .settings-field-hint {
+    color: var(--dm-muted);
+}
+
+.dash-mon.settings-shell .settings-check-label {
+    color: var(--dm-text);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__caption {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dm-muted);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__table {
+    color: var(--dm-text);
+    margin-bottom: 0;
+}
+
+.dash-mon.settings-shell .settings-stats-depth__table > :not(caption) > * > * {
+    background-color: transparent;
+    border-bottom-color: var(--dm-border);
+    color: var(--dm-text);
+    box-shadow: none;
+}
+
+.dash-mon.settings-shell .settings-stats-depth__table thead th {
+    color: var(--dm-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-bottom-color: var(--dm-border);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__table tbody td {
+    border-bottom-color: var(--dm-border);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__cell-strong {
+    font-weight: 500;
+    color: var(--dm-text);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__cell-mono {
+    color: var(--dm-muted);
+}
+
+.dash-mon.settings-shell .settings-stats-depth__foot-row th {
+    border-top: 1px solid var(--dm-border) !important;
+    border-bottom: none;
+    color: var(--dm-text);
+    font-weight: 600;
+    padding-top: 0.65rem;
+    background-color: transparent;
+}
+
+.dash-mon.settings-shell .settings-stats-depth__note {
+    font-size: 0.8125rem;
+    color: var(--dm-muted);
+    line-height: 1.4;
+}
+
+/* ——— Страницы OpenVPN / WireGuard (как главная) ——— */
+.vpn-page .btn-action {
+    padding: 2px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s;
+    margin: 1px;
+}
+
+.vpn-page .btn-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* OpenVPN dropdown: нейтральные пункты — ovpn-action-item--neutral; опасное — text-danger */
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action.btn-block:not(:disabled),
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action.btn-unblock:not(:disabled),
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action.btn-kick:not(:disabled) {
+    background-color: transparent;
+}
+
+/* Не задаём opacity на ячейку с меню: иначе кнопка «⋯» выглядит «мутной».
+   Визуальное выделение строки — через фон tr.client-blocked. */
+.vpn-page tr.client-blocked td:not(.actions-cell) {
+    opacity: 0.92;
+}
+
+.vpn-page tr.client-blocked {
+    background-color: rgba(220, 53, 69, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+    .vpn-page tr.client-blocked {
+        background-color: rgba(220, 53, 69, 0.14);
+    }
+}
+
+.vpn-page .client-offline td:not(.vpn-table-client) {
+    color: var(--dm-muted);
+}
+
+.vpn-page .vpn-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.vpn-page .vpn-status-badge.online {
+    background-color: rgba(25, 135, 84, 0.18);
+    color: #146c43;
+}
+
+.vpn-page .vpn-status-badge.offline {
+    background-color: rgba(108, 117, 125, 0.2);
+    color: #5c636a;
+}
+
+.vpn-page .vpn-status-badge.blocked {
+    background-color: rgba(220, 53, 69, 0.18);
+    color: #b02a37;
+}
+
+.vpn-page .actions-cell {
+    white-space: nowrap;
+}
+
+/* Горизонтальный скролл + выпадающие меню (рендер в body) */
+.vpn-page .vpn-data-table-wrap.table-responsive,
+.vpn-page .wg-status-table-wrap.table-responsive {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Меню рендерится в body (data-bs-container) — селектор без .vpn-page */
+.dropdown-menu.ovpn-actions-menu {
+    min-width: 15rem;
+    z-index: 1060;
+    color: #212529;
+}
+
+@media (prefers-color-scheme: dark) {
+    .dropdown-menu.ovpn-actions-menu {
+        background-color: #1a1a1a;
+        color: var(--login-fg);
+        border: 1px solid #3d4248;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.45);
+    }
+
+    .dropdown-menu.ovpn-actions-menu .dropdown-divider {
+        border-top-color: #3d4248;
+    }
+}
+
+.vpn-page .ovpn-actions-menu-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--bs-secondary-color);
+    background-color: var(--bs-body-bg);
+}
+
+.vpn-page .ovpn-actions-menu-btn:hover {
+    color: var(--bs-body-color);
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+    .vpn-page .ovpn-actions-menu-btn:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action {
+    margin: 0;
+    border-radius: 0;
+    width: 100%;
+    text-align: left;
+    padding: 0.45rem 1rem;
+    font-size: 0.875rem;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.dropdown-menu.ovpn-actions-menu .dropdown-item.ovpn-action-item--neutral {
+    color: inherit;
+}
+
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action:hover:not(:disabled),
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action:focus:not(:disabled) {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+
+    .dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action:hover:not(:disabled),
+    .dropdown-menu.ovpn-actions-menu .dropdown-item.btn-action:focus:not(:disabled) {
+        background-color: var(--login-card);
+    }
+
+    .dropdown-menu.ovpn-actions-menu .dropdown-item.ovpn-action-item--neutral:hover:not(:disabled),
+    .dropdown-menu.ovpn-actions-menu .dropdown-item.ovpn-action-item--neutral:focus:not(:disabled) {
+        color: #fff;
+    }
+}
+
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-download-config {
+    background: transparent;
+}
+
+.dropdown-menu.ovpn-actions-menu .dropdown-item.btn-download-config:hover:not(:disabled) {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+    .dropdown-menu.ovpn-actions-menu .dropdown-item.btn-download-config:hover:not(:disabled) {
+        background-color: var(--login-card);
+    }
+}
+
+.vpn-page .ovpn-speed {
+    font-size: 11px;
+    color: var(--dm-muted);
+    display: block;
+    margin-top: 2px;
+}
+
+.vpn-control-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+}
+
+.vpn-tfoot-totals td {
+    background: rgba(0, 0, 0, 0.03);
+    border-top: 1px solid var(--dm-border);
+    font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+    .vpn-tfoot-totals td {
+        background: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.vpn-wg-interface-hd {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--dm-text);
+}
+
+#no-active-clients.vpn-empty-panel {
+    border: 1px solid var(--dm-border);
+    border-radius: 11px;
+    background: var(--dm-bg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    padding: 1.25rem 1rem;
+}
+
+.vpn-chart-panel .dash-panel__hd-t {
+    font-size: 0.8125rem;
+}
+
+.vpn-chart-panel__period {
+    border-top: 1px solid var(--dm-border);
+}
+
+/* ——— Таблицы OpenVPN / WireGuard (как панели главной: токены dash-mon) ——— */
+.vpn-page .vpn-data-table-wrap {
+    border-radius: 11px;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--dm-border);
+    background: var(--dm-bg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.vpn-page table.vpn-data-table {
+    --vpn-t-head: rgba(0, 0, 0, 0.035);
+    --vpn-t-hover: rgba(0, 0, 0, 0.04);
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+    color: var(--dm-text);
+    font-size: 0.875rem;
+}
+
+/* Фон закреплённого столбца = фон строки (остальные ячейки без своего background) */
+.vpn-page table.vpn-data-table tbody tr {
+    --vpn-row-bg: var(--dm-bg);
+}
+
+.vpn-page table.vpn-data-table tbody tr.traffic-disabled {
+    --vpn-row-bg: #f8f8f8;
+}
+
+.vpn-page table.vpn-data-table tbody tr.client-blocked {
+    --vpn-row-bg: rgba(220, 53, 69, 0.08);
+}
+
+.vpn-page table.vpn-data-table.client-table tbody tr.table-active {
+    --vpn-row-bg: rgba(67, 97, 238, 0.12);
+}
+
+.vpn-page table.vpn-data-table thead th {
+    background: var(--vpn-t-head);
+    color: var(--dm-muted);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    border: none;
+    border-bottom: 1px solid var(--dm-border);
+    padding: 0.7rem 0.85rem;
+    vertical-align: middle;
+}
+
+/* Первый столбец закреплён при горизонтальной прокрутке */
+.vpn-page table.vpn-data-table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.18);
+}
+
+.vpn-page table.vpn-data-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--vpn-row-bg);
+    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.12);
+}
+
+.vpn-page table.vpn-data-table tbody tr:hover td:first-child {
+    background: var(--vpn-t-hover);
+}
+
+.vpn-page table.vpn-data-table tfoot td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--vpn-t-head);
+    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.12);
+}
+
+.vpn-page table.vpn-data-table thead th a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.vpn-page table.vpn-data-table thead th a:hover {
+    color: var(--dm-text);
+}
+
+.vpn-page table.vpn-data-table tbody td {
+    border: none;
+    border-bottom: 1px solid var(--dm-border);
+    padding: 0.75rem 0.85rem;
+    vertical-align: middle;
+}
+
+.vpn-page table.vpn-data-table tbody tr:hover td {
+    background: var(--vpn-t-hover);
+}
+
+.vpn-page table.vpn-data-table td.vpn-table-client {
+    color: var(--dm-text);
+    font-weight: 600;
+}
+
+.vpn-page table.vpn-data-table .vpn-table-metric {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--dm-border);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--dm-text);
+}
+
+.vpn-page .vpn-tfoot-totals td {
+    background: var(--vpn-t-head) !important;
+    border-top: 1px solid var(--dm-border);
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+
+    /* Шапка таблицы — нейтральный серый без синего подтонa */
+    .vpn-page table.vpn-data-table {
+        --vpn-t-head: #181818;
+        --vpn-t-hover: rgba(255, 255, 255, 0.05);
+    }
+
+    .vpn-page .vpn-data-table-wrap {
+        background: var(--login-bg);
+    }
+
+    .vpn-page table.vpn-data-table tbody tr {
+        --vpn-row-bg: var(--login-bg);
+    }
+
+    .vpn-page table.vpn-data-table tbody tr.traffic-disabled {
+        --vpn-row-bg: #1a1a1a;
+    }
+
+    .vpn-page table.vpn-data-table tbody tr.client-blocked {
+        --vpn-row-bg: rgba(220, 53, 69, 0.14);
+    }
+
+    .vpn-page table.vpn-data-table.client-table tbody tr.table-active {
+        --vpn-row-bg: rgba(67, 97, 238, 0.2);
+    }
+
+    .vpn-page table.vpn-data-table .vpn-table-metric {
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Вкладки разделов на VPN-страницах — нейтральный акцент */
+.vpn-page .settings-tab.active {
+    background: rgba(0, 0, 0, 0.08) !important;
+    color: var(--dm-text) !important;
+    border-color: var(--dm-border) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    .vpn-page .settings-tabs {
+        background: #141414 !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .vpn-page .settings-tab {
+        color: #a8a8a8 !important;
+    }
+
+    .vpn-page .settings-tab:hover {
+        color: #ececec !important;
+    }
+
+    .vpn-page .settings-tab.active {
+        background: #2c2c2c !important;
+        color: #f5f5f5 !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+}
+
+/* На случай оставшегося text-primary у иконок заголовков */
+.vpn-page .dash-panel__hd-ic.text-primary {
+    color: var(--dm-muted) !important;
+}
+
+/* Тёмная тема: нижняя мобильная навигация */
+@media (prefers-color-scheme: dark) {
+    .app-bottom-nav {
+        background: rgba(14, 14, 14, 0.94) !important;
+        border-top-color: #2a2a2a !important;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .app-bottom-nav__item {
+        color: #8b9098;
+    }
+
+    .app-bottom-nav__item.active {
+        color: #7b9cff;
+    }
+
+    /* Вкладки разделов — нейтральный серый, как шапка */
+    .settings-tabs {
+        background: #141414 !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+        box-shadow: none;
+    }
+
+    .settings-tab {
+        color: #a8a8a8 !important;
+    }
+
+    .settings-tab:hover {
+        color: #ececec !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+    }
+
+    .settings-tab.active {
+        background: #2c2c2c !important;
+        color: #f5f5f5 !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+}
+
+/* Flatpickr: переменные — в :root и в @media (prefers-color-scheme: dark) в начале файла */
+.flatpickr-calendar {
+    border-radius: var(--fp-radius);
+    border: 1px solid var(--fp-calendar-border);
+    background: var(--fp-calendar-bg);
+    box-shadow: var(--fp-shadow);
+    font-family: inherit;
+    animation: fpCalFadeIn 0.18s ease-out;
+}
+
+@keyframes fpCalFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.flatpickr-months {
+    padding: 0.35rem 0.25rem 0.5rem;
+    background: var(--fp-month-header-bg);
+    border-radius: var(--fp-radius) var(--fp-radius) 0 0;
+    border-bottom: 1px solid var(--fp-calendar-border);
+}
+
+.flatpickr-months .flatpickr-month {
+    height: auto;
+    min-height: 2.25rem;
+    color: var(--fp-day-color);
+}
+
+.flatpickr-current-month {
+    padding: 0.25rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--fp-day-color);
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+    font-weight: 600;
+    color: inherit;
+    background: transparent;
+    border-radius: var(--fp-radius-sm);
+    transition: background-color 0.15s ease;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+.flatpickr-current-month input.cur-year:hover {
+    background: var(--fp-nav-hover);
+}
+
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+    top: 0.5rem !important;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--fp-radius-sm);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+    background: var(--fp-nav-hover);
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+    fill: var(--primary);
+}
+
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg {
+    width: 14px;
+    height: 14px;
+    fill: var(--fp-day-color);
+    transition: fill 0.15s ease;
+}
+
+.flatpickr-innerContainer {
+    padding: 0.35rem 0.5rem 0.65rem;
+}
+
+.flatpickr-weekdays {
+    padding: 0.35rem 0 0.25rem;
+}
+
+span.flatpickr-weekday {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fp-weekday-color);
+}
+
+.flatpickr-days {
+    width: 100%;
+}
+
+.flatpickr-day {
+    border-radius: var(--fp-radius-sm);
+    color: var(--fp-day-color);
+    font-weight: 500;
+    line-height: 1.35;
+    border: 1px solid transparent;
+    transition:
+        background-color 0.16s ease,
+        color 0.16s ease,
+        border-color 0.16s ease,
+        box-shadow 0.16s ease,
+        transform 0.12s ease;
+}
+
+.flatpickr-day:not(.flatpickr-disabled):hover {
+    background: var(--fp-day-hover);
+    cursor: pointer;
+}
+
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.notAllowed {
+    opacity: var(--fp-disabled-opacity);
+    color: var(--fp-day-muted);
+    cursor: not-allowed;
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+    opacity: 0.42;
+    color: var(--fp-day-muted);
+}
+
+.flatpickr-day.today:not(.startRange):not(.endRange):not(.inRange) {
+    border-color: var(--fp-today-ring);
+    background: var(--fp-today-bg);
+    font-weight: 600;
+}
+
+.flatpickr-day.today:hover:not(.startRange):not(.endRange):not(.inRange) {
+    background: var(--fp-day-hover);
+}
+
+/* Диапазон: «полоса» между датами (перебиваем дефолтный .selected у flatpickr) */
+.flatpickr-day.inRange,
+.flatpickr-day.prevMonthDay.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.selected.inRange:not(.startRange):not(.endRange) {
+    background: var(--fp-in-range);
+    color: var(--fp-day-color);
+    border-color: transparent;
+    border-radius: 0;
+    box-shadow:
+        -4px 0 0 var(--fp-in-range),
+        4px 0 0 var(--fp-in-range);
+}
+
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    background: var(--fp-range-edge);
+    color: var(--fp-range-text);
+    border-color: var(--fp-range-edge);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.flatpickr-day.startRange {
+    border-radius: var(--fp-radius-sm) 0 0 var(--fp-radius-sm);
+}
+
+.flatpickr-day.endRange {
+    border-radius: 0 var(--fp-radius-sm) var(--fp-radius-sm) 0;
+}
+
+.flatpickr-day.startRange.endRange {
+    border-radius: var(--fp-radius-sm);
+}
+
+/* В range-режиме у всех дней в диапазоне есть .selected — фон задаём только для концов и inRange */
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    position: relative;
+    z-index: 2;
+}
+
+.flatpickr-day:not(.flatpickr-disabled):active {
+    transform: scale(0.96);
+}
+
+@media (max-width: 575.98px) {
+    .flatpickr-calendar {
+        max-width: calc(100vw - 1.25rem);
+        width: min(100%, 22rem);
+    }
+
+    .flatpickr-rContainer {
+        width: 100%;
+    }
+
+    .flatpickr-day {
+        max-width: none;
+        height: 2.5rem;
+        line-height: 2.5rem;
+    }
+
+    .flatpickr-current-month {
+        font-size: 0.9rem;
+    }
+}
+
+/* Скрытая форма выбора интервала (stats): календарь открывается с кнопки в тулбаре */
+.stats-date-range-offscreen {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* Поле периода на страницах статистики */
+.vpn-page .fp-range-input-wrap {
+    position: relative;
+    display: block;
+}
+
+.vpn-page .fp-range-input-wrap .fp-range-input__ic {
+    position: absolute;
+    left: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 2;
+    font-size: 0.95rem;
+    line-height: 1;
+    opacity: 0.5;
+    color: var(--dm-muted, #6c757d);
+    transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.vpn-page .fp-range-input-wrap .fp-range-input {
+    padding-left: 2.4rem;
+    border-radius: var(--fp-radius-sm);
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        background-color 0.15s ease;
+}
+
+.vpn-page .fp-range-input-wrap:focus-within .fp-range-input__ic {
+    opacity: 0.85;
+    color: var(--primary);
+}
+
+.vpn-page .fp-range-input-wrap .fp-range-input:focus {
+    border-color: rgba(67, 97, 238, 0.45);
+    box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+    .vpn-page .fp-range-input-wrap .fp-range-input:focus {
+        border-color: rgba(91, 124, 250, 0.55);
+        box-shadow: 0 0 0 0.2rem rgba(91, 124, 250, 0.15);
+    }
+}
+
+/* Нижнее мобильное меню (как в нативных приложениях) */
+.app-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1030;
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+    min-height: 3.5rem;
+    padding: 0.35rem 0.25rem max(0.35rem, env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.06);
+}
+
+.app-bottom-nav__item {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    max-width: 5.5rem;
+    margin: 0 auto;
+    padding: 0.2rem 0.25rem;
+    color: #6c757d;
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.1;
+    border-radius: 0.5rem;
+    transition:
+        color 0.15s ease,
+        background-color 0.15s ease;
+}
+
+.app-bottom-nav__item:active {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.app-bottom-nav__icon {
+    font-size: 1.35rem;
+    line-height: 1;
+    transition: transform 0.15s ease;
+}
+
+.app-bottom-nav__label {
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.app-bottom-nav__item.active {
+    color: var(--primary);
+}
+
+.app-bottom-nav__item.active .app-bottom-nav__icon {
+    transform: scale(1.05);
 }

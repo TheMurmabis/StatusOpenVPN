@@ -2,7 +2,6 @@ let clientChart = null;
 let selectedClient = null;
 let selectedChartPeriod = 'month';
 const OVPN_STORAGE_KEY = 'ovpnStats.selectedClient';
-
 function getThemeColors() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     return {
@@ -43,9 +42,26 @@ async function updateClientChart() {
     if (!selectedClient) return;
 
     const basePath = window.basePath || '';
+    const params = new URLSearchParams({
+        client: selectedClient,
+        period: selectedChartPeriod
+    });
+    if (selectedChartPeriod === 'custom') {
+        const pageParams = new URLSearchParams(window.location.search);
+        const dateFrom = pageParams.get('date_from');
+        const dateTo = pageParams.get('date_to');
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+    } else if (selectedChartPeriod === 'month') {
+        const pageParams = new URLSearchParams(window.location.search);
+        const dateFrom = pageParams.get('date_from');
+        const dateTo = pageParams.get('date_to');
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+    }
     try {
         const res = await fetch(
-            `${basePath}/api/ovpn/client_chart?client=${encodeURIComponent(selectedClient)}&period=${selectedChartPeriod}`
+            `${basePath}/api/ovpn/client_chart?${params.toString()}`
         );
         const data = await res.json();
         if (data.error) {
@@ -142,7 +158,7 @@ function selectClient(clientName) {
 
     if (selectedClient === clientName) {
         selectedClient = null;
-        try { localStorage.removeItem(OVPN_STORAGE_KEY); } catch (e) {}
+        try { localStorage.removeItem(OVPN_STORAGE_KEY); } catch (e) { }
         container.style.display = 'none';
         document.querySelectorAll('.client-table tbody tr').forEach(r => r.classList.remove('table-active'));
         if (clientChart) {
@@ -153,7 +169,7 @@ function selectClient(clientName) {
     }
 
     selectedClient = clientName;
-    try { localStorage.setItem(OVPN_STORAGE_KEY, clientName); } catch (e) {}
+    try { localStorage.setItem(OVPN_STORAGE_KEY, clientName); } catch (e) { }
     nameEl.textContent = clientName;
     container.style.display = 'block';
 
@@ -173,6 +189,50 @@ function selectClient(clientName) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const rangeInput = document.getElementById('statsDateRange');
+    const dateFromInput = document.getElementById('statsDateFrom');
+    const dateToInput = document.getElementById('statsDateTo');
+    const calendarOpenBtn = document.getElementById('statsDateRangeOpen');
+    if (rangeInput && dateFromInput && dateToInput && typeof flatpickr !== 'undefined') {
+        const defaultDates = [];
+        if (dateFromInput.value) defaultDates.push(dateFromInput.value);
+        if (dateToInput.value) defaultDates.push(dateToInput.value);
+
+        flatpickr.localize(flatpickr.l10ns.ru);
+        const fp = flatpickr("#statsDateRange", {
+            mode: 'range',
+            dateFormat: 'Y-m-d',
+            altInput: true,
+            altFormat: 'd.m.Y',
+            locale: { ...flatpickr.l10ns.ru, rangeSeparator: ' — ' },
+            maxDate: "today",
+            monthSelectorType: "static",
+            prevArrow: "<span>&lt;</span>",
+            nextArrow: "<span>&gt;</span>",
+            defaultDate: defaultDates,
+            positionElement: calendarOpenBtn || rangeInput,
+            onChange: function (selectedDates, dateStr, instance) {
+                if (selectedDates.length < 2) {
+                    return;
+                }
+                const [startDate, endDate] = selectedDates;
+                const formatDate = (d) => instance.formatDate(d, 'Y-m-d');
+                dateFromInput.value = formatDate(startDate);
+                dateToInput.value = formatDate(endDate);
+                updateClientChart();
+                if (instance.input.form) {
+                    instance.input.form.submit();
+                }
+            }
+        });
+        if (calendarOpenBtn && fp) {
+            calendarOpenBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                fp.open();
+            });
+        }
+    }
+
     document.querySelectorAll('.connection-time[data-utc]').forEach(cell => {
         const utcDate = new Date(cell.dataset.utc);
         cell.textContent = utcDate.toLocaleString(undefined, {
@@ -201,10 +261,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Инициализация периода графика по активной кнопке
+    // Инициализация периода графика по активной кнопке или URL
     const activePeriodBtn = document.querySelector('.chart-period.active');
     if (activePeriodBtn && activePeriodBtn.dataset.period) {
         selectedChartPeriod = activePeriodBtn.dataset.period;
+    } else {
+        const urlPeriod = new URLSearchParams(window.location.search).get('period');
+        if (urlPeriod) {
+            selectedChartPeriod = urlPeriod;
+        }
     }
 
     // Обработчики переключения периода (кнопки около фильтра)
