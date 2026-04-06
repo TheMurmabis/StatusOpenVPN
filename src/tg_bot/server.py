@@ -2,7 +2,7 @@
 
 import asyncio
 import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 from .utils import (
     get_color_by_percent,
@@ -181,6 +181,47 @@ def _get_openvpn_online_entries():
     return entries
 
 
+def _wg_online_proto_and_name(
+    public_key: str,
+    iface: Optional[str],
+    vpn_mapping: dict,
+    antizapret_mapping: dict,
+) -> Tuple[str, str]:
+    """
+    Подпись и имя для пира WireGuard.
+
+    Главный критерий — интерфейс из `wg show` (фактический туннель), чтобы не
+    путать VPN и Antizapret при дубликате одного PublicKey в обоих .conf.
+    Если интерфейс не распознан — fallback по наличию ключа в конфигах.
+    """
+    n = (iface or "").strip().lower()
+
+    def name_vpn_first() -> str:
+        return (
+            vpn_mapping.get(public_key)
+            or antizapret_mapping.get(public_key)
+            or public_key
+        )
+
+    def name_az_first() -> str:
+        return (
+            antizapret_mapping.get(public_key)
+            or vpn_mapping.get(public_key)
+            or public_key
+        )
+
+    if n == "vpn":
+        return "WireGuard · VPN", name_vpn_first()
+    if n == "antizapret":
+        return "WireGuard · Antizapret", name_az_first()
+
+    if public_key in vpn_mapping:
+        return "WireGuard · VPN", name_vpn_first()
+    if public_key in antizapret_mapping:
+        return "WireGuard · Antizapret", name_az_first()
+    return "WireGuard", public_key
+
+
 def _parse_wireguard_online_entries(output: str):
     """Разобрать вывод `wg show` для онлайн-пиров с протоколом и временем handshake."""
     entries = []
@@ -190,8 +231,12 @@ def _parse_wireguard_online_entries(output: str):
     antizapret_mapping = read_wg_config("/etc/wireguard/antizapret.conf")
 
     current_peer = None
+    current_interface: Optional[str] = None
     for line in lines:
         line = line.strip()
+        if line.startswith("interface:"):
+            current_interface = line.split(":", 1)[1].strip()
+            continue
         if line.startswith("peer:"):
             current_peer = line.split(":", 1)[1].strip()
             continue
@@ -199,15 +244,12 @@ def _parse_wireguard_online_entries(output: str):
             handshake_raw = line.split(":", 1)[1].strip()
             handshake_time = parse_handshake_time(handshake_raw)
             if handshake_time and is_peer_online(handshake_time):
-                if current_peer in vpn_mapping:
-                    name = vpn_mapping[current_peer]
-                    proto = "WireGuard · VPN"
-                elif current_peer in antizapret_mapping:
-                    name = antizapret_mapping[current_peer]
-                    proto = "WireGuard · Antizapret"
-                else:
-                    name = current_peer
-                    proto = "WireGuard"
+                proto, name = _wg_online_proto_and_name(
+                    current_peer,
+                    current_interface,
+                    vpn_mapping,
+                    antizapret_mapping,
+                )
                 entries.append(
                     {
                         "name": name,
