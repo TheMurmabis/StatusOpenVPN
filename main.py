@@ -47,7 +47,7 @@ from src.tg_bot.audit import log_action, get_logs, get_logs_count
 from flask_bcrypt import Bcrypt
 from datetime import date, datetime, timezone, timedelta
 from zoneinfo._common import ZoneInfoNotFoundError
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -3172,6 +3172,38 @@ def _collect_openvpn_clients_unsorted():
     return all_clients_list, total_received, total_sent, errors
 
 
+def _dedupe_openvpn_client_status_rows(rows):
+    """Одна строка на уникальное имя клиента."""
+    groups = OrderedDict()
+    for row in rows:
+        name = row["name"]
+        if name not in groups:
+            groups[name] = []
+        groups[name].append(row)
+
+    out = []
+    for grp in groups.values():
+        if len(grp) == 1:
+            out.append(grp[0])
+            continue
+        merged = dict(grp[0])
+        merged["online"] = any(r["online"] for r in grp)
+        merged["blocked"] = any(r["blocked"] for r in grp)
+        online_protocols = [
+            r["protocol"]
+            for r in grp
+            if r["online"] and r.get("protocol") not in (None, "-", "")
+        ]
+        if len(online_protocols) > 1:
+            merged["protocol"] = ""
+        elif len(online_protocols) == 1:
+            merged["protocol"] = online_protocols[0]
+        else:
+            merged["protocol"] = grp[0]["protocol"]
+        out.append(merged)
+    return out
+
+
 def _build_openvpn_client_status_sorted(sort_by, order):
     """Список клиентов для страницы статуса: сертификат, сортировка client/status/cert.
     Возвращает (all_clients_list, errors, total_online)."""
@@ -3183,6 +3215,8 @@ def _build_openvpn_client_status_sorted(sort_by, order):
         days_left, days_label = _cert_days_left_fields(exp_dt)
         row["cert_days_left"] = days_left
         row["cert_days_left_label"] = days_label
+
+    all_clients_list = _dedupe_openvpn_client_status_rows(all_clients_list)
 
     if sort_by == "cert":
         valid = [x for x in all_clients_list if x["cert_expiry_dt"] is not None]
