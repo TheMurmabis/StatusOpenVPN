@@ -2,6 +2,21 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.3.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.2) - 06.04.2026
+
+### StatusOpenVPN
+
+**Исправлено/улучшено:**
+- Ошибка совместимости пакетов установки.
+- Отображение фильтров графики для мобильных.
+
+
+### TelegramBot
+
+**Исправлено/улучшено:**
+- Отображение протокола Wireguard в разделе "Кто онлайн"
+
+
 ## [v1.3.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.1) - 06.04.2026
 
 ### StatusOpenVPN
