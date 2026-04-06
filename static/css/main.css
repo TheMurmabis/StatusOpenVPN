@@ -1809,6 +1809,37 @@ footer a {
     height: 240px;
 }
 
+/* vnstat / графики: фильтры не выходят за край на мобильных */
+.dash-mon__vnstat-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .dash-mon__vnstat-filters {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .dash-mon__vnstat-filters-period {
+        margin-left: auto;
+    }
+}
+
+.dash-mon__filter-scroll {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
 .dash-mon__netload p {
     margin-bottom: 0.35rem;
     padding-bottom: 0.35rem;

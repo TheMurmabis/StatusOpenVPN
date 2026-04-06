@@ -137,11 +137,13 @@
     <div id="cpuChartContainer" class="dash-panel dash-panel--chartwrap" style="display: none;">
       <div class="dash-panel__hd">
         <span class="dash-panel__hd-t">ЦП / ОЗУ</span>
-        <div id="cpu-period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
-          <button type="button" class="btn btn-outline-secondary cpu-period active" data-period="live">Live</button>
-          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="hour">Час</button>
-          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="day">Сутки</button>
-          <button type="button" class="btn btn-outline-secondary cpu-period" data-period="week">Неделя</button>
+        <div class="dash-mon__filter-scroll ms-auto min-w-0">
+          <div id="cpu-period-filters" class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary cpu-period active" data-period="live">Live</button>
+            <button type="button" class="btn btn-outline-secondary cpu-period" data-period="hour">Час</button>
+            <button type="button" class="btn btn-outline-secondary cpu-period" data-period="day">Сутки</button>
+            <button type="button" class="btn btn-outline-secondary cpu-period" data-period="week">Неделя</button>
+          </div>
         </div>
       </div>
       <div class="dashboard-chart-wrap dash-mon__chart-canvas">
@@ -161,13 +163,17 @@
     </section>
 
     <div id="bwChartContainer" class="dash-panel dash-panel--chartwrap" style="display: none;">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div id="interface-filters" class="btn-group btn-group-sm overflow-auto flex-shrink-0" style="white-space: nowrap;" role="group"></div>
-        <div id="period-filters" class="btn-group btn-group-sm overflow-auto flex-shrink-0" role="group">
-          <button type="button" class="btn btn-outline-secondary period" data-period="hour">Час</button>
-          <button type="button" class="btn btn-outline-secondary period" data-period="day">Сутки</button>
-          <button type="button" class="btn btn-outline-secondary period" data-period="week">Неделя</button>
-          <button type="button" class="btn btn-outline-secondary period" data-period="month">Месяц</button>
+      <div class="dash-mon__vnstat-filters mb-2">
+        <div class="dash-mon__filter-scroll w-100">
+          <div id="interface-filters" class="btn-group btn-group-sm" role="group"></div>
+        </div>
+        <div class="dash-mon__filter-scroll w-100 dash-mon__vnstat-filters-period">
+          <div id="period-filters" class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary period" data-period="hour">Час</button>
+            <button type="button" class="btn btn-outline-secondary period" data-period="day">Сутки</button>
+            <button type="button" class="btn btn-outline-secondary period" data-period="week">Неделя</button>
+            <button type="button" class="btn btn-outline-secondary period" data-period="month">Месяц</button>
+          </div>
         </div>
       </div>
       <div class="d-flex align-items-center flex-wrap gap-2 mb-2 small text-muted">
