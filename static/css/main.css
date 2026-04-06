@@ -1809,11 +1809,16 @@ footer a {
     height: 240px;
 }
 
-/* vnstat / графики: фильтры не выходят за край на мобильных */
 .dash-mon__vnstat-filters {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.dash-mon__vnstat-filters-iface,
+.dash-mon__vnstat-filters-period {
     width: 100%;
     min-width: 0;
 }
@@ -1823,11 +1828,19 @@ footer a {
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: 0.5rem;
     }
 
+    .dash-mon__vnstat-filters-iface {
+        width: auto;
+        flex: 1 1 0%;
+        min-width: 0;
+    }
+
     .dash-mon__vnstat-filters-period {
+        width: auto;
+        flex: 0 0 auto;
         margin-left: auto;
     }
 }
