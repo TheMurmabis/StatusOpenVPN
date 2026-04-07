@@ -117,6 +117,8 @@ Description=Run logs.py script
 
 [Service]
 Type=oneshot
+Environment=PYTHONIOENCODING=utf-8
+Environment=LANG=C.UTF-8
 ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
 EOF
 

@@ -17,6 +17,7 @@ DEFAULT_PORT=1234
 ENV_FILE="$TARGET_DIR/src/.env"
 SSL_SCRIPT="$TARGET_DIR/scripts/ssl.sh"
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
+LOGS_SERVICE="/etc/systemd/system/logs.service"
 SERVER_URL=""
 INTERFACES=("antizapret-tcp" "vpn-tcp" "antizapret-udp" "vpn-udp" "vpn" "antizapret")
 
@@ -117,6 +118,14 @@ if ! grep -q 'SECRET_KEY=' "$SERVICE_FILE"; then
     # Перечитываем systemd и перезапускаем сервис
     sudo systemctl daemon-reexec
     sudo systemctl restart StatusOpenVPN.service
+fi
+
+# === Обновление logs.service (Environment) ===
+if [ -f "$LOGS_SERVICE" ]; then
+    if ! grep -qxF '^Environment=PYTHONIOENCODING=utf-8$' "$LOGS_SERVICE" || \
+       ! grep -qxF '^Environment=LANG=C.UTF-8$' "$LOGS_SERVICE"; then
+        sudo sed -i '/^Type=oneshot/a Environment=PYTHONIOENCODING=utf-8\nEnvironment=LANG=C.UTF-8' "$LOGS_SERVICE"
+    fi
 fi
 
 # === Логика HTTPS ===
@@ -369,7 +378,7 @@ fi
 sudo systemctl enable wg_stats
 sudo systemctl restart wg_stats
 sudo systemctl enable --now logs.timer
-sudo systemctl restart logs.timer logs.service
+sudo systemctl restart logs.timer
 
 echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
