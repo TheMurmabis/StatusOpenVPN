@@ -2,6 +2,54 @@ let clientChart = null;
 let selectedClient = null;
 let selectedChartPeriod = 'month';
 const WG_STORAGE_KEY = 'wgStats.selectedClient';
+
+function attachCalendarWheelNavigation(fpInstance) {
+    if (!fpInstance || !fpInstance.calendarContainer) return;
+    const container = fpInstance.calendarContainer;
+    if (container.dataset.navBound === '1') return;
+
+    container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (e.deltaY > 0) {
+            fpInstance.changeMonth(1);
+        } else if (e.deltaY < 0) {
+            fpInstance.changeMonth(-1);
+        }
+    }, { passive: false });
+
+    let touchStartX = null;
+    let touchStartY = null;
+    const minSwipeDistance = 35;
+
+    container.addEventListener('touchstart', (e) => {
+        const touch = e.changedTouches && e.changedTouches[0];
+        if (!touch) return;
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+    }, { passive: true });
+
+    container.addEventListener('touchend', (e) => {
+        if (touchStartX === null || touchStartY === null) return;
+        const touch = e.changedTouches && e.changedTouches[0];
+        if (!touch) return;
+
+        const deltaX = touch.clientX - touchStartX;
+        const deltaY = touch.clientY - touchStartY;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) >= minSwipeDistance) {
+            if (deltaX < 0) {
+                fpInstance.changeMonth(1);
+            } else {
+                fpInstance.changeMonth(-1);
+            }
+        }
+
+        touchStartX = null;
+        touchStartY = null;
+    }, { passive: true });
+
+    container.dataset.navBound = '1';
+}
 function getThemeColors() {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     return {
@@ -225,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fp.open();
             });
         }
+        attachCalendarWheelNavigation(fp);
     }
 
     const clientFilter = document.getElementById('clientFilter');

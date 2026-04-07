@@ -28,6 +28,7 @@
     --fp-month-header-bg: #f8f9fb;
     --fp-weekday-color: #6c757d;
     --fp-nav-hover: rgba(0, 0, 0, 0.06);
+    --fp-nav-color: #212529;
     --fp-disabled-opacity: 0.32;
 }
 
@@ -98,6 +99,7 @@ body.full-height {
         --fp-month-header-bg: #121518;
         --fp-weekday-color: #9aa0a6;
         --fp-nav-hover: rgba(255, 255, 255, 0.08);
+        --fp-nav-color: #e8eaed;
     }
 
     body.app-body {
@@ -2660,6 +2662,20 @@ footer a {
 .flatpickr-months .flatpickr-prev-month:hover svg,
 .flatpickr-months .flatpickr-next-month:hover svg {
     fill: var(--primary);
+}
+
+.flatpickr-months .flatpickr-prev-month span,
+.flatpickr-months .flatpickr-next-month span {
+    color: var(--fp-nav-color);
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 700;
+    transition: color 0.15s ease;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover span,
+.flatpickr-months .flatpickr-next-month:hover span {
+    color: var(--primary);
 }
 
 .flatpickr-months .flatpickr-prev-month svg,
