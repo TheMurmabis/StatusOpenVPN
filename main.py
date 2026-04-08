@@ -1,7 +1,5 @@
 import base64
 import csv
-import hashlib
-import secrets
 import sqlite3
 import requests
 import os
@@ -244,6 +242,13 @@ PROTOCOL_TO_SOCKET = {
     "VPN-TCP": "vpn-tcp",
 }
 
+PROTOCOL_TO_SERVER_CONFIG = {
+    "UDP": "/etc/openvpn/server/antizapret-udp.conf",
+    "TCP": "/etc/openvpn/server/antizapret-tcp.conf",
+    "VPN-UDP": "/etc/openvpn/server/vpn-udp.conf",
+    "VPN-TCP": "/etc/openvpn/server/vpn-tcp.conf",
+}
+
 
 def read_env_values():
     values = {}
@@ -278,6 +283,25 @@ def read_setup_key_value_file(path):
     except OSError as e:
         return [], str(e)
     return pairs, None
+
+
+def get_openvpn_server_ports():
+    """Возвращает порты OpenVPN-серверов по метке протокола."""
+    ports = {}
+    for protocol, config_path in PROTOCOL_TO_SERVER_CONFIG.items():
+        try:
+            with open(config_path, "r", encoding="utf-8") as conf_file:
+                for raw_line in conf_file:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    match = re.match(r"^port\s+(\d+)\b", line)
+                    if match:
+                        ports[protocol] = match.group(1)
+                        break
+        except (FileNotFoundError, OSError):
+            continue
+    return ports
 
 
 def _load_setup_descriptions():
@@ -3099,6 +3123,7 @@ def _collect_openvpn_clients_unsorted():
         ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
         ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
     ]
+    server_ports = get_openvpn_server_ports()
 
     online_clients_raw = []
     total_received, total_sent = 0, 0
@@ -3143,6 +3168,7 @@ def _collect_openvpn_clients_unsorted():
                 "connected_since": client_row[7],
                 "duration": client_row[8],
                 "protocol": client_row[9],
+                "server_port": server_ports.get(client_row[9], ""),
             }
         )
 
@@ -3166,6 +3192,7 @@ def _collect_openvpn_clients_unsorted():
                     "connected_since": "-",
                     "duration": "-",
                     "protocol": "-",
+                    "server_port": "",
                 }
             )
 
@@ -3482,8 +3509,8 @@ def ovpn_stats():
 
         allowed_sorts = {
             "client_name": "client_name",
-            "total_bytes_sent": "SUM(total_bytes_received)",
-            "total_bytes_received": "SUM(total_bytes_sent)",
+            "total_bytes_sent": "SUM(total_bytes_sent)",
+            "total_bytes_received": "SUM(total_bytes_received)",
             "last_connected": "MAX(last_connected)",
         }
 
@@ -3560,8 +3587,8 @@ def ovpn_stats():
                 stats_list.append(
                     {
                         "client_name": client_name,
-                        "total_bytes_sent": format_bytes(received),
-                        "total_bytes_received": format_bytes(sent),
+                        "total_bytes_sent": format_bytes(sent),
+                        "total_bytes_received": format_bytes(received),
                         "last_connected": last_connected,
                     }
                 )

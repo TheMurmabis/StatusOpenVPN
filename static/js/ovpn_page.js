@@ -47,18 +47,30 @@ document.addEventListener("DOMContentLoaded", () => {
             connected_since: c.connected_since,
             duration: c.duration,
             protocol: c.protocol,
+            server_port: c.server_port || "",
         });
     }
 
+    function extractClientPort(realIp) {
+        if (!realIp || realIp === "-" || !realIp.includes(":")) {
+            return "";
+        }
+        return realIp.split(":")[1] || "";
+    }
+
+    function protocolCellTitle(client) {
+        const clientPort = extractClientPort(client.real_ip);
+        return `Порт клиента: ${clientPort || "-"}`;
+    }
+
+    /** Как в ovpn.html: div с протоколом, при наличии портов — small только с серверным портом. */
     function protocolCellHtml(client) {
-        if (!client.real_ip || client.real_ip === "-" || !client.real_ip.includes(":")) {
-            return client.protocol;
+        const serverPort = client.server_port || "";
+        const clientPort = extractClientPort(client.real_ip);
+        if (!serverPort && !clientPort) {
+            return `<div>${client.protocol}</div>`;
         }
-        const port = client.real_ip.split(":")[1];
-        if (port) {
-            return `${client.protocol} (${port})`;
-        }
-        return client.protocol;
+        return `<div>${client.protocol}</div><small class="text-muted d-block">(${serverPort || "-"})</small>`;
     }
 
     function buildOvpnSessionRow(client) {
@@ -141,7 +153,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const tdProto = document.createElement("td");
         tdProto.className = "text-center";
-        tdProto.textContent = protocolCellHtml(client);
+        tdProto.title = protocolCellTitle(client);
+        tdProto.innerHTML = protocolCellHtml(client);
         tr.appendChild(tdProto);
 
         tr.dataset.ovpnSig = ovpnClientSignature(client);
@@ -215,7 +228,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         cells[6].textContent = client.duration;
-        cells[7].textContent = protocolCellHtml(client);
+        cells[7].title = protocolCellTitle(client);
+        cells[7].innerHTML = protocolCellHtml(client);
 
         tr.dataset.ovpnSig = ovpnClientSignature(client);
     }
@@ -337,11 +351,29 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function fetchNextUpdateTime() {
+        return fetch(`${base}/api/ovpn/next_update`, { credentials: "same-origin" })
+            .then((resp) => {
+                if (!resp.ok) throw new Error(String(resp.status));
+                return resp.json();
+            })
+            .then((data) => {
+                const serverTimeMs = data.server_time * 1000;
+                const nextUpdateMs = data.next_update_ts * 1000;
+                const localNowMs = Date.now();
+                const timeDrift = localNowMs - serverTimeMs;
+                const adjustedNextMs = nextUpdateMs + timeDrift;
+                return adjustedNextMs;
+            })
+            .catch(() => {
+                return Date.now() + REFRESH_INTERVAL_SECONDS * 1000;
+            });
+    }
+
     function startOvpnAutoRefresh() {
         if (!autoRefreshCheckbox) return;
 
-        const nextTsMs = Date.now() + REFRESH_INTERVAL_SECONDS * 1000;
-        localStorage.setItem("ovpnNextRefreshTs", String(nextTsMs));
+        let tickTimeoutId = null;
 
         function tick() {
             if (!autoRefreshCheckbox.checked) {
@@ -353,28 +385,42 @@ document.addEventListener("DOMContentLoaded", () => {
             const nowMs = Date.now();
             let targetMs = stored ? parseInt(stored, 10) : NaN;
 
-            if (!targetMs || Number.isNaN(targetMs)) {
-                targetMs = nowMs + REFRESH_INTERVAL_SECONDS * 1000;
-                localStorage.setItem("ovpnNextRefreshTs", String(targetMs));
+            if (!targetMs || Number.isNaN(targetMs) || targetMs < nowMs - 60000) {
+                fetchNextUpdateTime().then((nextMs) => {
+                    localStorage.setItem("ovpnNextRefreshTs", String(nextMs));
+                    scheduleTick();
+                });
+                return;
             }
 
             let diffSec = Math.round((targetMs - nowMs) / 1000);
 
             if (diffSec <= 0) {
-                const newNext = nowMs + REFRESH_INTERVAL_SECONDS * 1000;
-                localStorage.setItem("ovpnNextRefreshTs", String(newNext));
                 updateCountdown(0);
                 fetchOvpnPartialUpdate().finally(() => {
-                    setTimeout(tick, 1000);
+                    fetchNextUpdateTime().then((nextMs) => {
+                        localStorage.setItem("ovpnNextRefreshTs", String(nextMs));
+                        scheduleTick();
+                    });
                 });
                 return;
             }
 
             updateCountdown(diffSec);
-            setTimeout(tick, 1000);
+            scheduleTick();
         }
 
-        tick();
+        function scheduleTick() {
+            if (tickTimeoutId) {
+                clearTimeout(tickTimeoutId);
+            }
+            tickTimeoutId = setTimeout(tick, 1000);
+        }
+
+        fetchNextUpdateTime().then((nextMs) => {
+            localStorage.setItem("ovpnNextRefreshTs", String(nextMs));
+            tick();
+        });
     }
 
     function stopOvpnAutoRefresh() {

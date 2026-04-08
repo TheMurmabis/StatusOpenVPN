@@ -188,13 +188,12 @@
                         <td class="text-center">-</td>
                         {% endif %}
                         <td class="text-center">{{ client.duration }}</td>
-                        {% set port = client.real_ip.split(':')[1] if client.real_ip != '-' and ':' in client.real_ip
-                        else '' %}
-                        <td class="text-center">
-                            {% if port %}
-                            {{ client.protocol }} ({{ port }})
-                            {% else %}
-                            {{ client.protocol }}
+                        {% set client_port = client.real_ip.split(':')[1] if client.real_ip != '-' and ':' in client.real_ip else '' %}
+                        {% set server_port = client.server_port if client.server_port is defined else '' %}
+                        <td class="text-center" title="Порт клиента: {{ client_port or '-' }}">
+                            <div>{{ client.protocol }}</div>
+                            {% if server_port or client_port %}
+                            <small class="text-muted d-block">({{ server_port or '-' }})</small>
                             {% endif %}
                         </td>
                     </tr>
@@ -205,11 +204,10 @@
                     </tr>
                     {% endif %}
                     <tr class="vpn-tfoot-totals text-start">
-                        <td colspan="2" id="ovpn-footer-online">Онлайн: {{ total_clients_str }}</td>
-                        <td colspan="2"></td>
+                        <td colspan="3" id="ovpn-footer-online">Онлайн: {{ total_clients_str }}</td>
                         <td class="text-center" id="ovpn-footer-received">{{ total_received }}</td>
                         <td class="text-center" id="ovpn-footer-sent">{{ total_sent }}</td>
-                        <td colspan="2"></td>
+                        <td colspan="3"></td>
                     </tr>
                 </tbody>
             </table>
