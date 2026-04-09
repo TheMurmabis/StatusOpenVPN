@@ -2502,6 +2502,12 @@ footer a {
     font-size: 0.8125rem;
 }
 
+/* Итоговая строка находится в tbody, поэтому для sticky-ячейки нужен отдельный стиль */
+.vpn-page table.vpn-data-table tbody tr.vpn-tfoot-totals td:first-child {
+    background: var(--vpn-t-head) !important;
+    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.12);
+}
+
 @media (prefers-color-scheme: dark) {
 
     /* Шапка таблицы — нейтральный серый без синего подтонa */
