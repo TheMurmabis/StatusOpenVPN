@@ -2373,6 +2373,7 @@ footer a {
 .vpn-page table.vpn-data-table {
     --vpn-t-head: rgba(0, 0, 0, 0.035);
     --vpn-t-hover: rgba(0, 0, 0, 0.04);
+    --vpn-sticky-head-bg: #f3f3f3;
     margin-bottom: 0;
     border-collapse: separate;
     border-spacing: 0;
@@ -2381,21 +2382,28 @@ footer a {
     font-size: 0.875rem;
 }
 
-/* Фон закреплённого столбца = фон строки (остальные ячейки без своего background) */
 .vpn-page table.vpn-data-table tbody tr {
     --vpn-row-bg: var(--dm-bg);
+    --vpn-sticky-bg: #ffffff;
+    --vpn-sticky-hover-bg: #f5f5f5;
 }
 
 .vpn-page table.vpn-data-table tbody tr.traffic-disabled {
     --vpn-row-bg: #f8f8f8;
+    --vpn-sticky-bg: #f8f8f8;
+    --vpn-sticky-hover-bg: #eeeeee;
 }
 
 .vpn-page table.vpn-data-table tbody tr.client-blocked {
     --vpn-row-bg: rgba(220, 53, 69, 0.08);
+    --vpn-sticky-bg: #fff3f5;
+    --vpn-sticky-hover-bg: #ffe9ed;
 }
 
 .vpn-page table.vpn-data-table.client-table tbody tr.table-active {
     --vpn-row-bg: rgba(67, 97, 238, 0.12);
+    --vpn-sticky-bg: #edf1ff;
+    --vpn-sticky-hover-bg: #e3e9ff;
 }
 
 .vpn-page table.vpn-data-table thead th {
@@ -2416,6 +2424,8 @@ footer a {
     position: sticky;
     left: 0;
     z-index: 4;
+    background-color: var(--vpn-sticky-head-bg) !important;
+    background-image: none !important;
     box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.18);
 }
 
@@ -2423,12 +2433,23 @@ footer a {
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--vpn-row-bg);
+    background-color: var(--vpn-sticky-bg) !important;
+    background-image: none !important;
     box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.12);
 }
 
 .vpn-page table.vpn-data-table tbody tr:hover td:first-child {
-    background: var(--vpn-t-hover);
+    background-color: var(--vpn-sticky-hover-bg) !important;
+    background-image: none !important;
+}
+
+.vpn-page table.vpn-data-table.client-table tbody tr.table-active td:first-child {
+    background-color: var(--vpn-sticky-bg) !important;
+    background-image: none !important;
+}
+
+.vpn-page table.vpn-data-table.client-table tbody tr.table-active td {
+    background-color: var(--vpn-row-bg) !important;
 }
 
 .vpn-page table.vpn-data-table tfoot td:first-child {
@@ -2487,6 +2508,7 @@ footer a {
     .vpn-page table.vpn-data-table {
         --vpn-t-head: #181818;
         --vpn-t-hover: rgba(255, 255, 255, 0.05);
+        --vpn-sticky-head-bg: #181818;
     }
 
     .vpn-page .vpn-data-table-wrap {
@@ -2495,22 +2517,46 @@ footer a {
 
     .vpn-page table.vpn-data-table tbody tr {
         --vpn-row-bg: var(--login-bg);
+        --vpn-sticky-bg: var(--login-bg);
+        --vpn-sticky-hover-bg: #1a1a1a;
     }
 
     .vpn-page table.vpn-data-table tbody tr.traffic-disabled {
         --vpn-row-bg: #1a1a1a;
+        --vpn-sticky-bg: #1a1a1a;
+        --vpn-sticky-hover-bg: #202020;
     }
 
     .vpn-page table.vpn-data-table tbody tr.client-blocked {
         --vpn-row-bg: rgba(220, 53, 69, 0.14);
+        --vpn-sticky-bg: #291316;
+        --vpn-sticky-hover-bg: #32181c;
     }
 
     .vpn-page table.vpn-data-table.client-table tbody tr.table-active {
         --vpn-row-bg: rgba(67, 97, 238, 0.2);
+        --vpn-sticky-bg: #17203d;
+        --vpn-sticky-hover-bg: #1b2647;
     }
 
     .vpn-page table.vpn-data-table .vpn-table-metric {
         border-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .vpn-page table.vpn-data-table tbody tr:hover td {
+        background: unset;
+    }
+
+    .vpn-page table.vpn-data-table tbody tr:active td {
+        background: var(--vpn-row-bg) !important;
+    }
+
+    .vpn-page table.vpn-data-table tbody tr:hover td:first-child,
+    .vpn-page table.vpn-data-table tbody tr:active td:first-child {
+        background-color: var(--vpn-sticky-bg) !important;
+        background-image: none !important;
     }
 }
 
