@@ -29,6 +29,13 @@ def get_stats_retention_days(default_days=365):
         return default_days
 
 
+def get_retention_windows(total_days):
+    hourly_days = max(1, round(total_days * 30 / 365))
+    daily_days = max(hourly_days, round(total_days * 90 / 365))
+    monthly_days = max(daily_days, total_days)
+    return hourly_days, daily_days, monthly_days
+
+
 def init_db():
     """Инициализация базы данных"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -70,6 +77,34 @@ def init_db():
                 total_sent INTEGER NOT NULL,
                 interface TEXT NOT NULL,
                 PRIMARY KEY (peer, interface)
+            )
+        """
+        )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wg_hourly_stats (
+                hour TEXT NOT NULL,
+                peer TEXT NOT NULL,
+                client TEXT NOT NULL,
+                received INTEGER NOT NULL,
+                sent INTEGER NOT NULL,
+                interface TEXT NOT NULL,
+                PRIMARY KEY (hour, peer, interface)
+            )
+        """
+        )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wg_monthly_stats (
+                month TEXT NOT NULL,
+                peer TEXT NOT NULL,
+                client TEXT NOT NULL,
+                received INTEGER NOT NULL,
+                sent INTEGER NOT NULL,
+                interface TEXT NOT NULL,
+                PRIMARY KEY (month, peer, interface)
             )
         """
         )
@@ -420,6 +455,31 @@ def save_daily_stats(dailysave=False):
                                 ),
                             )
 
+                        hour = datetime.now().strftime("%Y-%m-%d %H:00")
+                        daily_rx = convert_to_bytes(received_diff)
+                        daily_tx = convert_to_bytes(sent_diff)
+                        cursor.execute(
+                            """SELECT COALESCE(SUM(received), 0), COALESCE(SUM(sent), 0)
+                            FROM wg_hourly_stats
+                            WHERE peer = ? AND interface = ?
+                              AND substr(hour, 1, 10) = ? AND hour != ?""",
+                            (peer, interface, date, hour),
+                        )
+                        prev_rx, prev_tx = cursor.fetchone()
+                        cursor.execute(
+                            """INSERT OR REPLACE INTO wg_hourly_stats
+                            (hour, peer, client, received, sent, interface)
+                            VALUES (?, ?, ?, ?, ?, ?)""",
+                            (
+                                hour,
+                                peer,
+                                client,
+                                max(0, daily_rx - prev_rx),
+                                max(0, daily_tx - prev_tx),
+                                interface,
+                            ),
+                        )
+
                 conn.commit()
                 return True
 
@@ -506,27 +566,45 @@ timer_stop = schedule.every().day.at(SAVE_TIME).do(stop_timers)
 timer_start = schedule.every().day.at(START_TIME).do(start_timers)
 
 
-def clean_old_daily_stats(days=7):
-    """Удаление старых записей из wg_daily_stats"""
-    cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+def clean_old_daily_stats(days=365):
+    """Агрегация и удаление старых записей из всех таблиц статистики WG."""
+    hourly_days, daily_days, monthly_days = get_retention_windows(days)
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         try:
-            # Проверка наличия записей старше cutoff_date
             cursor.execute(
-                """SELECT 1 FROM wg_daily_stats WHERE date < ? LIMIT 1""",
-                (cutoff_date,),
+                """
+                INSERT INTO wg_monthly_stats (month, peer, client, received, sent, interface)
+                SELECT substr(date, 1, 7), peer, MAX(client),
+                       SUM(received), SUM(sent), interface
+                FROM wg_daily_stats
+                GROUP BY peer, interface, substr(date, 1, 7)
+                ON CONFLICT(month, peer, interface) DO UPDATE SET
+                    received = excluded.received,
+                    sent = excluded.sent,
+                    client = excluded.client
+                """
             )
-            if cursor.fetchone():
-                # Есть записи, можно удалять
-                cursor.execute(
-                    """DELETE FROM wg_daily_stats WHERE date < ?""", (cutoff_date,)
-                )
-                conn.commit()
-                print(f"Удалено записей старше {cutoff_date}")
+
+            thirty_days_ago = (datetime.now() - timedelta(days=hourly_days)).strftime("%Y-%m-%d")
+            cursor.execute(
+                "DELETE FROM wg_hourly_stats WHERE hour < ?", (thirty_days_ago,)
+            )
+
+            ninety_days_ago = (datetime.now() - timedelta(days=daily_days)).strftime("%Y-%m-%d")
+            cursor.execute(
+                "DELETE FROM wg_daily_stats WHERE date < ?", (ninety_days_ago,)
+            )
+
+            one_year_ago = (datetime.now() - timedelta(days=monthly_days)).strftime("%Y-%m")
+            cursor.execute(
+                "DELETE FROM wg_monthly_stats WHERE month < ?", (one_year_ago,)
+            )
+
+            conn.commit()
         except sqlite3.Error as e:
-            print(f"Ошибка при очистке старых записей: {e}")
+            print(f"Ошибка при очистке/агрегации: {e}")
             conn.rollback()
 
 

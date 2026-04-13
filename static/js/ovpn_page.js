@@ -266,8 +266,26 @@ document.addEventListener("DOMContentLoaded", () => {
         if (onlineEl) {
             onlineEl.textContent = `Онлайн: ${data.total_clients_str}`;
         }
-        if (recvEl) recvEl.textContent = data.total_received;
-        if (sentEl) sentEl.textContent = data.total_sent;
+        if (recvEl) {
+            recvEl.textContent = '';
+            recvEl.appendChild(document.createTextNode(data.total_received));
+            if (data.total_download_speed && data.total_download_speed !== '0.00 B/s') {
+                const sp = document.createElement('span');
+                sp.className = 'ovpn-speed';
+                sp.textContent = '\u2009\u2193 ' + data.total_download_speed;
+                recvEl.appendChild(sp);
+            }
+        }
+        if (sentEl) {
+            sentEl.textContent = '';
+            sentEl.appendChild(document.createTextNode(data.total_sent));
+            if (data.total_upload_speed && data.total_upload_speed !== '0.00 B/s') {
+                const sp = document.createElement('span');
+                sp.className = 'ovpn-speed';
+                sp.textContent = '\u2009\u2191 ' + data.total_upload_speed;
+                sentEl.appendChild(sp);
+            }
+        }
 
         if (online.length === 0) {
             tbody.querySelectorAll(".ovpn-session-row").forEach((tr) => tr.remove());

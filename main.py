@@ -1863,7 +1863,6 @@ def read_csv(file_path, protocol):
                     "timestamp": current_time,
                 }
 
-                # Добавляем данные клиента
                 data.append(
                     [
                         client_name,
@@ -1876,6 +1875,8 @@ def read_csv(file_path, protocol):
                         format_date(row[7]),
                         duration,
                         protocol,
+                        max(download_speed, 0),
+                        max(upload_speed, 0),
                     ]
                 )
 
@@ -1952,7 +1953,7 @@ def clear_openvpn_stats_database():
     try:
         _delete_tables_and_vacuum(
             app.config["LOGS_DATABASE_PATH"],
-            ("monthly_stats", "connection_logs", "last_client_stats"),
+            ("daily_stats", "monthly_stats", "yearly_stats", "connection_logs", "last_client_stats"),
         )
         return True, None
     except Exception as e:
@@ -1964,7 +1965,7 @@ def clear_wireguard_stats_database():
     try:
         _delete_tables_and_vacuum(
             app.config["WG_STATS_PATH"],
-            ("wg_daily_stats", "wg_intermediate", "wg_total_stats"),
+            ("wg_hourly_stats", "wg_daily_stats", "wg_monthly_stats", "wg_intermediate", "wg_total_stats"),
         )
         return True, None
     except Exception as e:
@@ -2999,10 +3000,17 @@ def wg_stats():
     try:
         sort_by = request.args.get("sort", "client")
         order = request.args.get("order", "asc").lower()
-        period = request.args.get("period", "month")
+        period = request.args.get("period", "day")
         now = datetime.now()
+        today = now.date()
         selected_date_from = (request.args.get("date_from") or "").strip()
         selected_date_to = (request.args.get("date_to") or "").strip()
+
+        def format_period_date(dt_value):
+            label = dt_value.strftime("%d.%m.%Y")
+            if dt_value.date() == today:
+                return f"{label} (сегодня)"
+            return label
 
         allowed_sorts = {
             "client": "client",
@@ -3015,17 +3023,22 @@ def wg_stats():
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"за {now.strftime('%d.%m.%Y')}"
+            interval_label = f"за {format_period_date(now)}"
         elif period == "week":
             week_start = now - timedelta(days=7)
             date_from = week_start.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {week_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"с {format_period_date(week_start)} по {format_period_date(now)}"
+        elif period == "month":
+            month_start = now - timedelta(days=30)
+            date_from = month_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {format_period_date(month_start)} по {format_period_date(now)}"
         elif period == "year":
             year_start = now - timedelta(days=365)
             date_from = year_start.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {year_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"с {format_period_date(year_start)} по {format_period_date(now)}"
         elif period == "custom":
             date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
             date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
@@ -3036,30 +3049,69 @@ def wg_stats():
                 selected_date_to = date_to_dt.strftime("%Y-%m-%d")
                 date_from = selected_date_from
                 date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-                interval_label = f"с {date_from_dt.strftime('%d.%m.%Y')} по {date_to_dt.strftime('%d.%m.%Y')}"
+                if date_from_dt.date() == date_to_dt.date():
+                    interval_label = f"за {format_period_date(date_from_dt)}"
+                else:
+                    interval_label = f"с {format_period_date(date_from_dt)} по {format_period_date(date_to_dt)}"
             else:
-                period = "month"
-                date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+                period = "day"
+                date_from = now.strftime("%Y-%m-%d")
                 date_to = None
-                interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+                interval_label = f"за {format_period_date(now)}"
         else:
-            period = "month"
-            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            period = "day"
+            date_from = now.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"за {format_period_date(now)}"
+
+        is_single_day = period == "day" or (
+            period == "custom"
+            and selected_date_from
+            and selected_date_from == selected_date_to
+        )
 
         stats_list = []
         total_received, total_sent = 0, 0
 
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
-            if date_to:
+            if is_single_day:
+                target_date = date_from
+                query = f"""
+                    SELECT client,
+                           SUM(received) as total_received,
+                           SUM(sent) as total_sent
+                    FROM wg_hourly_stats
+                    WHERE substr(hour, 1, 10) = ?
+                      AND interface != 'warp'
+                    GROUP BY client
+                    HAVING SUM(received) > 0 OR SUM(sent) > 0
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (target_date,)).fetchall()
+            elif period == "year":
+                year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
+                query = f"""
+                    SELECT client,
+                           SUM(received) as total_received,
+                           SUM(sent) as total_sent
+                    FROM wg_monthly_stats
+                    WHERE month >= ?
+                      AND interface != 'warp'
+                    GROUP BY client
+                    HAVING SUM(received) > 0 OR SUM(sent) > 0
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (year_month_from,)).fetchall()
+            elif date_to:
                 query = f"""
                     SELECT client,
                            SUM(received) as total_received,
                            SUM(sent) as total_sent
                     FROM wg_daily_stats
                     WHERE date >= ? AND date < ?
+                      AND interface != 'warp'
                     GROUP BY client
+                    HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
                 """
                 rows = conn.execute(query, (date_from, date_to)).fetchall()
@@ -3070,7 +3122,9 @@ def wg_stats():
                            SUM(sent) as total_sent
                     FROM wg_daily_stats
                     WHERE date >= ?
+                      AND interface != 'warp'
                     GROUP BY client
+                    HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
                 """
                 rows = conn.execute(query, (date_from,)).fetchall()
@@ -3086,6 +3140,8 @@ def wg_stats():
                         "client": client,
                         "total_received": format_bytes(received),
                         "total_sent": format_bytes(sent),
+                        "total_received_raw": received,
+                        "total_sent_raw": sent,
                     }
                 )
 
@@ -3127,6 +3183,7 @@ def _collect_openvpn_clients_unsorted():
 
     online_clients_raw = []
     total_received, total_sent = 0, 0
+    total_download_speed_raw, total_upload_speed_raw = 0.0, 0.0
     errors = []
     online_client_names = set()
 
@@ -3141,6 +3198,8 @@ def _collect_openvpn_clients_unsorted():
             for client_row in file_data:
                 if client_row[0] != "UNDEF":
                     online_client_names.add(client_row[0])
+                    total_download_speed_raw += client_row[10]
+                    total_upload_speed_raw += client_row[11]
 
     all_clients = get_all_openvpn_clients()
     banned_clients = _read_banned_clients()
@@ -3196,7 +3255,14 @@ def _collect_openvpn_clients_unsorted():
                 }
             )
 
-    return all_clients_list, total_received, total_sent, errors
+    return (
+        all_clients_list,
+        total_received,
+        total_sent,
+        errors,
+        total_download_speed_raw,
+        total_upload_speed_raw,
+    )
 
 
 def _dedupe_openvpn_client_status_rows(rows):
@@ -3234,7 +3300,7 @@ def _dedupe_openvpn_client_status_rows(rows):
 def _build_openvpn_client_status_sorted(sort_by, order):
     """Список клиентов для страницы статуса: сертификат, сортировка client/status/cert.
     Возвращает (all_clients_list, errors, total_online)."""
-    all_clients_list, _, _, errors = _collect_openvpn_clients_unsorted()
+    all_clients_list, _, _, errors, _, _ = _collect_openvpn_clients_unsorted()
     for row in all_clients_list:
         exp_dt, exp_label = _get_openvpn_client_cert_expiry(row["name"])
         row["cert_expiry_dt"] = exp_dt
@@ -3270,7 +3336,7 @@ def _build_openvpn_client_status_sorted(sort_by, order):
 def _build_openvpn_clients_sorted(sort_by, order):
     """Собирает список клиентов OpenVPN и сортирует. Возвращает
     (all_clients_list, total_received, total_sent, errors, total_online)."""
-    all_clients_list, total_received, total_sent, errors = (
+    all_clients_list, total_received, total_sent, errors, total_dl_speed, total_ul_speed = (
         _collect_openvpn_clients_unsorted()
     )
 
@@ -3315,7 +3381,7 @@ def _build_openvpn_clients_sorted(sort_by, order):
     total_online = len([c for c in all_clients_list if c["online"]])
     for c in all_clients_list:
         c["row_key"] = _ovpn_session_row_key(c["name"], c["protocol"])
-    return all_clients_list, total_received, total_sent, errors, total_online
+    return all_clients_list, total_received, total_sent, errors, total_online, total_dl_speed, total_ul_speed
 
 
 @app.route("/api/ovpn/clients")
@@ -3325,7 +3391,7 @@ def api_ovpn_clients():
     sort_by = request.args.get("sort", "client")
     order = request.args.get("order", "asc")
     try:
-        all_clients_list, total_received, total_sent, errors, total_online = (
+        all_clients_list, total_received, total_sent, errors, total_online, total_dl_speed, total_ul_speed = (
             _build_openvpn_clients_sorted(sort_by, order)
         )
         online = [c for c in all_clients_list if c["online"]]
@@ -3337,6 +3403,8 @@ def api_ovpn_clients():
                 "total_sent": format_bytes(total_sent),
                 "total_clients_str": pluralize_clients(total_online),
                 "total_online": total_online,
+                "total_download_speed": f"{format_bytes(total_dl_speed)}/s",
+                "total_upload_speed": f"{format_bytes(total_ul_speed)}/s",
                 "errors": errors,
             }
         )
@@ -3350,7 +3418,7 @@ def ovpn():
     try:
         sort_by = request.args.get("sort", "client")
         order = request.args.get("order", "asc")
-        all_clients_list, total_received, total_sent, errors, total_online = (
+        all_clients_list, total_received, total_sent, errors, total_online, total_dl_speed, total_ul_speed = (
             _build_openvpn_clients_sorted(sort_by, order)
         )
         return render_template(
@@ -3359,6 +3427,8 @@ def ovpn():
             total_clients_str=pluralize_clients(total_online),
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
+            total_download_speed=f"{format_bytes(total_dl_speed)}/s",
+            total_upload_speed=f"{format_bytes(total_ul_speed)}/s",
             active_section="ovpn",
             active_page="clients",
             errors=errors,
@@ -3502,10 +3572,17 @@ def ovpn_stats():
     try:
         sort_by = request.args.get("sort", "client_name")
         order = request.args.get("order", "asc").lower()
-        period = request.args.get("period", "month")
+        period = request.args.get("period", "day")
         now = datetime.now()
+        today = now.date()
         selected_date_from = (request.args.get("date_from") or "").strip()
         selected_date_to = (request.args.get("date_to") or "").strip()
+
+        def format_period_date(dt_value):
+            label = dt_value.strftime("%d.%m.%Y")
+            if dt_value.date() == today:
+                return f"{label} (сегодня)"
+            return label
 
         allowed_sorts = {
             "client_name": "client_name",
@@ -3519,17 +3596,22 @@ def ovpn_stats():
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"за {now.strftime('%d.%m.%Y')}"
+            interval_label = f"за {format_period_date(now)}"
         elif period == "week":
             week_start = now - timedelta(days=7)
             date_from = week_start.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {week_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"с {format_period_date(week_start)} по {format_period_date(now)}"
+        elif period == "month":
+            month_start = now - timedelta(days=30)
+            date_from = month_start.strftime("%Y-%m-%d")
+            date_to = None
+            interval_label = f"с {format_period_date(month_start)} по {format_period_date(now)}"
         elif period == "year":
             year_start = now - timedelta(days=365)
             date_from = year_start.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {year_start.strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"с {format_period_date(year_start)} по {format_period_date(now)}"
         elif period == "custom":
             date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
             date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
@@ -3540,23 +3622,58 @@ def ovpn_stats():
                 selected_date_to = date_to_dt.strftime("%Y-%m-%d")
                 date_from = selected_date_from
                 date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-                interval_label = f"с {date_from_dt.strftime('%d.%m.%Y')} по {date_to_dt.strftime('%d.%m.%Y')}"
+                if date_from_dt.date() == date_to_dt.date():
+                    interval_label = f"за {format_period_date(date_from_dt)}"
+                else:
+                    interval_label = f"с {format_period_date(date_from_dt)} по {format_period_date(date_to_dt)}"
             else:
-                period = "month"
-                date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+                period = "day"
+                date_from = now.strftime("%Y-%m-%d")
                 date_to = None
-                interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+                interval_label = f"за {format_period_date(now)}"
         else:
-            period = "month"
-            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            period = "day"
+            date_from = now.strftime("%Y-%m-%d")
             date_to = None
-            interval_label = f"с {(now - timedelta(days=30)).strftime('%d.%m.%Y')} по {now.strftime('%d.%m.%Y')}"
+            interval_label = f"за {format_period_date(now)}"
+
+        is_single_day = period == "day" or (
+            period == "custom"
+            and selected_date_from
+            and selected_date_from == selected_date_to
+        )
 
         stats_list = []
         total_received, total_sent = 0, 0
 
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
-            if date_to:
+            if is_single_day:
+                target_date = date_from
+                query = f"""
+                    SELECT client_name,
+                           SUM(total_bytes_sent),
+                           SUM(total_bytes_received),
+                           MAX(last_connected)
+                    FROM daily_stats
+                    WHERE substr(hour, 1, 10) = ?
+                    GROUP BY client_name
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (target_date,)).fetchall()
+            elif period == "year":
+                year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
+                query = f"""
+                    SELECT client_name,
+                           SUM(total_bytes_sent),
+                           SUM(total_bytes_received),
+                           MAX(last_connected)
+                    FROM yearly_stats
+                    WHERE month >= ?
+                    GROUP BY client_name
+                    ORDER BY {sort_column} {order_sql}
+                """
+                rows = conn.execute(query, (year_month_from,)).fetchall()
+            elif date_to:
                 query = f"""
                     SELECT client_name,
                            SUM(total_bytes_sent),
@@ -3589,6 +3706,8 @@ def ovpn_stats():
                         "client_name": client_name,
                         "total_bytes_sent": format_bytes(sent),
                         "total_bytes_received": format_bytes(received),
+                        "total_bytes_sent_raw": sent or 0,
+                        "total_bytes_received_raw": received or 0,
                         "last_connected": last_connected,
                     }
                 )
@@ -3873,40 +3992,87 @@ def api_wireguard_client_config_download():
 @login_required
 def api_ovpn_client_chart():
     client_name = request.args.get("client")
-    period = request.args.get("period", "month")
+    period = request.args.get("period", "day")
     now = datetime.now()
     selected_date_from = (request.args.get("date_from") or "").strip()
     selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
         return jsonify({"error": "client parameter required"}), 400
 
+    is_single_day = False
+
     if period == "day":
-        date_from = now.strftime("%Y-%m-%d")
-        date_to = None
+        target_date = now.strftime("%Y-%m-%d")
+        is_single_day = True
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
         date_to = None
-    elif period == "year":
-        date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    elif period == "month":
+        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
         date_to = None
+    elif period == "year":
+        year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
     elif period == "custom":
         date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
         date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
         if date_from_dt and date_to_dt:
             if date_from_dt > date_to_dt:
                 date_from_dt, date_to_dt = date_to_dt, date_from_dt
-            date_from = date_from_dt.strftime("%Y-%m-%d")
-            date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+            if date_from_dt == date_to_dt:
+                target_date = date_from_dt.strftime("%Y-%m-%d")
+                is_single_day = True
+            else:
+                date_from = date_from_dt.strftime("%Y-%m-%d")
+                date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
-            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-            date_to = None
+            target_date = now.strftime("%Y-%m-%d")
+            is_single_day = True
     else:
-        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-        date_to = None
+        target_date = now.strftime("%Y-%m-%d")
+        is_single_day = True
 
     try:
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
-            if date_to:
+            if is_single_day:
+                rows = conn.execute(
+                    """
+                    SELECT hour,
+                           SUM(total_bytes_received) as rx,
+                           SUM(total_bytes_sent) as tx
+                    FROM daily_stats
+                    WHERE client_name = ? AND substr(hour, 1, 10) = ?
+                    GROUP BY hour
+                    ORDER BY hour ASC
+                    """,
+                    (client_name, target_date),
+                ).fetchall()
+                hour_data = {h: (rx or 0, tx or 0) for h, rx, tx in rows}
+                all_hours = [f"{target_date} {h:02d}:00" for h in range(24)]
+                if target_date == now.strftime("%Y-%m-%d"):
+                    all_hours = [
+                        f"{target_date} {h:02d}:00"
+                        for h in range(now.hour + 1)
+                    ]
+                labels = all_hours
+                rx_data = [hour_data.get(h, (0, 0))[0] for h in all_hours]
+                tx_data = [hour_data.get(h, (0, 0))[1] for h in all_hours]
+            elif period == "year":
+                rows = conn.execute(
+                    """
+                    SELECT month,
+                           SUM(total_bytes_received) as rx,
+                           SUM(total_bytes_sent) as tx
+                    FROM yearly_stats
+                    WHERE client_name = ? AND month >= ?
+                    GROUP BY month
+                    ORDER BY month ASC
+                    """,
+                    (client_name, year_month_from),
+                ).fetchall()
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
+            elif date_to:
                 rows = conn.execute(
                     """
                     SELECT month,
@@ -3919,6 +4085,9 @@ def api_ovpn_client_chart():
                     """,
                     (client_name, date_from, date_to),
                 ).fetchall()
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
             else:
                 rows = conn.execute(
                     """
@@ -3932,14 +4101,9 @@ def api_ovpn_client_chart():
                     """,
                     (client_name, date_from),
                 ).fetchall()
-
-        labels = []
-        rx_data = []
-        tx_data = []
-        for month_val, rx, tx in rows:
-            labels.append(month_val)
-            rx_data.append(rx or 0)
-            tx_data.append(tx or 0)
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
 
         return jsonify({
             "client": client_name,
@@ -3955,40 +4119,89 @@ def api_ovpn_client_chart():
 @login_required
 def api_wg_client_chart():
     client_name = request.args.get("client")
-    period = request.args.get("period", "month")
+    period = request.args.get("period", "day")
     now = datetime.now()
     selected_date_from = (request.args.get("date_from") or "").strip()
     selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
         return jsonify({"error": "client parameter required"}), 400
 
+    is_single_day = False
+
     if period == "day":
-        date_from = now.strftime("%Y-%m-%d")
-        date_to = None
+        target_date = now.strftime("%Y-%m-%d")
+        is_single_day = True
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
         date_to = None
-    elif period == "year":
-        date_from = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    elif period == "month":
+        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
         date_to = None
+    elif period == "year":
+        year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
     elif period == "custom":
         date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
         date_to_dt = parse_date_yyyy_mm_dd(selected_date_to)
         if date_from_dt and date_to_dt:
             if date_from_dt > date_to_dt:
                 date_from_dt, date_to_dt = date_to_dt, date_from_dt
-            date_from = date_from_dt.strftime("%Y-%m-%d")
-            date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+            if date_from_dt == date_to_dt:
+                target_date = date_from_dt.strftime("%Y-%m-%d")
+                is_single_day = True
+            else:
+                date_from = date_from_dt.strftime("%Y-%m-%d")
+                date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
-            date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-            date_to = None
+            target_date = now.strftime("%Y-%m-%d")
+            is_single_day = True
     else:
-        date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-        date_to = None
+        target_date = now.strftime("%Y-%m-%d")
+        is_single_day = True
 
     try:
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
-            if date_to:
+            if is_single_day:
+                rows = conn.execute(
+                    """
+                    SELECT hour,
+                           SUM(received) as rx,
+                           SUM(sent) as tx
+                    FROM wg_hourly_stats
+                    WHERE client = ? AND substr(hour, 1, 10) = ?
+                      AND interface != 'warp'
+                    GROUP BY hour
+                    ORDER BY hour ASC
+                    """,
+                    (client_name, target_date),
+                ).fetchall()
+                hour_data = {h: (rx or 0, tx or 0) for h, rx, tx in rows}
+                all_hours = [f"{target_date} {h:02d}:00" for h in range(24)]
+                if target_date == now.strftime("%Y-%m-%d"):
+                    all_hours = [
+                        f"{target_date} {h:02d}:00"
+                        for h in range(now.hour + 1)
+                    ]
+                labels = all_hours
+                rx_data = [hour_data.get(h, (0, 0))[0] for h in all_hours]
+                tx_data = [hour_data.get(h, (0, 0))[1] for h in all_hours]
+            elif period == "year":
+                rows = conn.execute(
+                    """
+                    SELECT month,
+                           SUM(received) as rx,
+                           SUM(sent) as tx
+                    FROM wg_monthly_stats
+                    WHERE client = ? AND month >= ?
+                      AND interface != 'warp'
+                    GROUP BY month
+                    ORDER BY month ASC
+                    """,
+                    (client_name, year_month_from),
+                ).fetchall()
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
+            elif date_to:
                 rows = conn.execute(
                     """
                     SELECT date,
@@ -3996,11 +4209,15 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_daily_stats
                     WHERE client = ? AND date >= ? AND date < ?
+                      AND interface != 'warp'
                     GROUP BY date
                     ORDER BY date ASC
                     """,
                     (client_name, date_from, date_to),
                 ).fetchall()
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
             else:
                 rows = conn.execute(
                     """
@@ -4009,19 +4226,15 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_daily_stats
                     WHERE client = ? AND date >= ?
+                      AND interface != 'warp'
                     GROUP BY date
                     ORDER BY date ASC
                     """,
                     (client_name, date_from),
                 ).fetchall()
-
-        labels = []
-        rx_data = []
-        tx_data = []
-        for date_val, rx, tx in rows:
-            labels.append(date_val)
-            rx_data.append(rx or 0)
-            tx_data.append(tx or 0)
+                labels = [r[0] for r in rows]
+                rx_data = [r[1] or 0 for r in rows]
+                tx_data = [r[2] or 0 for r in rows]
 
         return jsonify({
             "client": client_name,

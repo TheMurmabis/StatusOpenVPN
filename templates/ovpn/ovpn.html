@@ -206,8 +206,18 @@
                     <tr class="vpn-tfoot-totals text-start">
                         <td colspan="2" id="ovpn-footer-online">Онлайн: {{ total_clients_str }}</td>
                         <td ></td>
-                        <td class="text-center" id="ovpn-footer-received">{{ total_received }}</td>
-                        <td class="text-center" id="ovpn-footer-sent">{{ total_sent }}</td>
+                        <td class="text-center" id="ovpn-footer-received">
+                            {{ total_received }}
+                            {% if total_download_speed and total_download_speed != '0.00 B/s' %}
+                            <span class="ovpn-speed">↓ {{ total_download_speed }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center" id="ovpn-footer-sent">
+                            {{ total_sent }}
+                            {% if total_upload_speed and total_upload_speed != '0.00 B/s' %}
+                            <span class="ovpn-speed">↑ {{ total_upload_speed }}</span>
+                            {% endif %}
+                        </td>
                         <td colspan="3"></td>
                     </tr>
                 </tbody>

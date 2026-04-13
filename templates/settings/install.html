@@ -265,9 +265,38 @@
   function run() {
     if (document.readyState === 'complete') {
       init();
+      formatAntizapretIsoDateValues();
     } else {
-      window.addEventListener('load', init);
+      window.addEventListener('load', function () {
+        init();
+        formatAntizapretIsoDateValues();
+      });
     }
+  }
+
+  function formatAntizapretIsoDateValues() {
+    var antizapretPanel = document.getElementById('antizapretCollapse');
+    if (!antizapretPanel) return;
+
+    var isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+    antizapretPanel.querySelectorAll('.badge').forEach(function (badgeEl) {
+      var rawText = (badgeEl.textContent || '').trim();
+      if (!isoDateRegex.test(rawText)) return;
+
+      var parsedDate = new Date(rawText);
+      if (Number.isNaN(parsedDate.getTime())) return;
+
+      badgeEl.textContent = parsedDate.toLocaleString('ru-RU', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      badgeEl.title = rawText;
+    });
   }
   run();
 })();

@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import csv
+import json
 
 from datetime import datetime, timedelta, timezone
 from tzlocal import get_localzone
@@ -16,13 +17,48 @@ LOG_FILES = [
 # Путь к базе данных
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "databases", "openvpn_logs.db")
+SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
+
+
+def get_stats_retention_days(default_days=365):
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
+            settings_data = json.load(settings_file)
+        days = int(settings_data.get("stats_retention_days", default_days))
+        return max(30, min(days, 3650))
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError):
+        return default_days
+
+
+def get_retention_windows(total_days):
+    hourly_days = max(1, round(total_days * 30 / 365))
+    daily_days = max(hourly_days, round(total_days * 90 / 365))
+    monthly_days = max(daily_days, total_days)
+    return hourly_days, daily_days, monthly_days
 
 
 def initialize_database():
     """Создаёт таблицы базы данных, если их нет."""
     conn = sqlite3.connect(DB_PATH)
 
-    # Таблица для ежемесячной статистики
+    # Основная таблица: почасовая статистика (хранение 30 дней)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS daily_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_name TEXT,
+            ip_address TEXT,
+            hour TEXT,
+            total_bytes_received INTEGER,
+            total_bytes_sent INTEGER,
+            total_connections INTEGER,
+            last_connected TEXT,
+            UNIQUE(client_name, hour, ip_address)
+        )
+        """
+    )
+
+    # Агрегированная дневная статистика (хранение 90 дней)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS monthly_stats (
@@ -36,6 +72,23 @@ def initialize_database():
             last_connected TEXT,
             UNIQUE(client_name, month, ip_address)
             )
+        """
+    )
+
+    # Агрегированная месячная статистика (хранение 365 дней)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS yearly_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_name TEXT,
+            ip_address TEXT,
+            month TEXT,
+            total_bytes_received INTEGER,
+            total_bytes_sent INTEGER,
+            total_connections INTEGER,
+            last_connected TEXT,
+            UNIQUE(client_name, month, ip_address)
+        )
         """
     )
 
@@ -179,19 +232,13 @@ def parse_log_file(log_file, protocol):
     return logs
 
 
-def save_monthly_stats(logs):
-    """Сохраняет суммарные данные в таблицу monthly_stats с дневной гранулярностью и годовым хранением."""
+def save_daily_stats(logs):
+    """Сохраняет суммарные данные в таблицу daily_stats с почасовой гранулярностью."""
 
-    current_date = datetime.today().strftime("%Y-%m-%d")
+    current_hour = datetime.today().strftime("%Y-%m-%d %H:00")
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-
-        one_year_ago = (datetime.today() - timedelta(days=365)).strftime("%Y-%m-%d")
-        cursor.execute(
-            "DELETE FROM monthly_stats WHERE month < ? OR length(month) != 10",
-            (one_year_ago,),
-        )
 
         aggregated_data = {}
 
@@ -229,7 +276,7 @@ def save_monthly_stats(logs):
                 diff_received = new_bytes_received
                 diff_sent = new_bytes_sent
 
-            key = (client_name, ip_address, current_date)
+            key = (client_name, ip_address, current_hour)
             if key not in aggregated_data:
                 aggregated_data[key] = {
                     "total_bytes_received": 0,
@@ -264,13 +311,13 @@ def save_monthly_stats(logs):
                 ),
             )
 
-        for (client_name, ip_address, date), data in aggregated_data.items():
+        for (client_name, ip_address, hour), data in aggregated_data.items():
             cursor.execute(
                 """
                 SELECT total_bytes_received, total_bytes_sent, total_connections, last_connected 
-                FROM monthly_stats WHERE client_name = ? AND ip_address = ? AND month = ?
+                FROM daily_stats WHERE client_name = ? AND ip_address = ? AND hour = ?
                 """,
-                (client_name, ip_address, date),
+                (client_name, ip_address, hour),
             )
             existing_log = cursor.fetchone()
 
@@ -287,12 +334,12 @@ def save_monthly_stats(logs):
 
                 cursor.execute(
                     """
-                    UPDATE monthly_stats
+                    UPDATE daily_stats
                     SET total_bytes_received = total_bytes_received + ?, 
                         total_bytes_sent = total_bytes_sent + ?, 
                         total_connections = total_connections + ?,
                         last_connected = ?
-                    WHERE client_name = ? AND ip_address = ? AND month = ?
+                    WHERE client_name = ? AND ip_address = ? AND hour = ?
                     """,
                     (
                         data["total_bytes_received"],
@@ -301,25 +348,98 @@ def save_monthly_stats(logs):
                         last_connected,
                         client_name,
                         ip_address,
-                        date,
+                        hour,
                     ),
                 )
             else:
                 cursor.execute(
                     """
-                    INSERT INTO monthly_stats (client_name, ip_address, month, total_bytes_received, total_bytes_sent, total_connections, last_connected)
+                    INSERT INTO daily_stats (client_name, ip_address, hour, total_bytes_received, total_bytes_sent, total_connections, last_connected)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         client_name,
                         ip_address,
-                        date,
+                        hour,
                         data["total_bytes_received"],
                         data["total_bytes_sent"],
                         data["total_connections"],
                         data["last_connected"].isoformat(),
                     ),
                 )
+        conn.commit()
+
+
+def aggregate_to_monthly():
+    """Агрегирует почасовые данные из daily_stats в дневные данные в monthly_stats."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO monthly_stats
+                (client_name, ip_address, month,
+                 total_bytes_received, total_bytes_sent,
+                 total_connections, last_connected)
+            SELECT client_name, ip_address, substr(hour, 1, 10),
+                   SUM(total_bytes_received), SUM(total_bytes_sent),
+                   SUM(total_connections), MAX(last_connected)
+            FROM daily_stats
+            GROUP BY client_name, ip_address, substr(hour, 1, 10)
+            ON CONFLICT(client_name, month, ip_address) DO UPDATE SET
+                total_bytes_received = excluded.total_bytes_received,
+                total_bytes_sent = excluded.total_bytes_sent,
+                total_connections = excluded.total_connections,
+                last_connected = excluded.last_connected
+            """
+        )
+        conn.commit()
+
+
+def aggregate_to_yearly():
+    """Агрегирует дневные данные из monthly_stats в месячные данные в yearly_stats."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO yearly_stats
+                (client_name, ip_address, month,
+                 total_bytes_received, total_bytes_sent,
+                 total_connections, last_connected)
+            SELECT client_name, ip_address, substr(month, 1, 7),
+                   SUM(total_bytes_received), SUM(total_bytes_sent),
+                   SUM(total_connections), MAX(last_connected)
+            FROM monthly_stats
+            GROUP BY client_name, ip_address, substr(month, 1, 7)
+            ON CONFLICT(client_name, month, ip_address) DO UPDATE SET
+                total_bytes_received = excluded.total_bytes_received,
+                total_bytes_sent = excluded.total_bytes_sent,
+                total_connections = excluded.total_connections,
+                last_connected = excluded.last_connected
+            """
+        )
+        conn.commit()
+
+
+def cleanup_old_stats(total_days=None):
+    """Очищает устаревшие записи из всех таблиц статистики."""
+    retention_days = total_days or get_stats_retention_days(default_days=365)
+    hourly_days, daily_days, monthly_days = get_retention_windows(retention_days)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        hourly_cutoff = (datetime.today() - timedelta(days=hourly_days)).strftime("%Y-%m-%d")
+        cursor.execute("DELETE FROM daily_stats WHERE hour < ?", (hourly_cutoff,))
+
+        daily_cutoff = (datetime.today() - timedelta(days=daily_days)).strftime("%Y-%m-%d")
+        cursor.execute(
+            "DELETE FROM monthly_stats WHERE month < ? OR length(month) != 10",
+            (daily_cutoff,),
+        )
+
+        monthly_cutoff = (datetime.today() - timedelta(days=monthly_days)).strftime("%Y-%m")
+        cursor.execute("DELETE FROM yearly_stats WHERE month < ?", (monthly_cutoff,))
+
         conn.commit()
 
 
@@ -396,8 +516,11 @@ def process_logs():
     all_logs = []
     for log_file, protocol in LOG_FILES:
         all_logs.extend(parse_log_file(log_file, protocol))
-    save_monthly_stats(all_logs)
+    save_daily_stats(all_logs)
     save_connection_logs(all_logs)
+    aggregate_to_monthly()
+    aggregate_to_yearly()
+    cleanup_old_stats()
 
 
 if __name__ == "__main__":

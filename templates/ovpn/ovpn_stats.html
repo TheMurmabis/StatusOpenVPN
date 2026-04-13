@@ -17,6 +17,11 @@
 
 {% block topbar_filters %}
 <div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
+  <a href="?period=day&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+    data-period="day"
+    class="btn chart-period {% if period == 'day' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
+    День
+  </a>
   <a href="?period=week&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
     data-period="week"
     class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
@@ -75,7 +80,8 @@
   <div class="collapse mb-3" id="statsHint">
     <div class="alert alert-info py-2 px-3 small mb-0">
       <ul class="mb-0 ps-3">
-        <li>значения в таблице суммированы за выбранный период (Неделя / Месяц / Год / Пользовательский интервал);</li>
+        <li>значения в таблице суммированы за выбранный период (День / Неделя / Месяц / Год / Пользовательский интервал);</li>
+        <li>при выборе одного дня график строится с почасовым интервалом;</li>
         <li>для пользовательского интервала нажмите кнопку с календарём и выберите обе даты (с и по).</li>
         <li>для детального графика по клиенту кликните по его строке в таблице;</li>
         <li>поле поиска фильтрует клиентов по части имени.</li>
@@ -89,19 +95,37 @@
         <i class="bi bi-graph-up dash-panel__hd-ic" aria-hidden="true"></i>
         <span class="dash-panel__hd-t">Трафик клиента: <code id="chartClientName">—</code></span>
       </div>
-      <div class="dashboard-chart-wrap">
+      <div class="d-flex flex-wrap gap-2 mb-2 small">
+        <span class="small text-body-secondary" id="chartKpiTotal">Итого: —</span>
+        <span class="small text-body-secondary" id="chartKpiAvg">Среднее: —</span>
+        <span class="small text-body-secondary" id="chartKpiPeak">Пик: —</span>
+      </div>
+      <div class="d-flex gap-2 justify-content-end mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="exportChartPngBtn">PNG</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="exportChartCsvBtn">CSV</button>
+      </div>
+      <div class="dashboard-chart-wrap" id="clientChartWrap">
+        <div class="chart-skeleton-overlay" id="chartSkeleton" aria-hidden="true">
+          <div class="chart-skeleton-shimmer"></div>
+        </div>
         <canvas id="clientChart" height="250"></canvas>
       </div>
     </div>
     <div class="vpn-chart-panel__period text-end py-2 px-3 small mb-0 text-body-secondary" role="status">
-      Период: <strong>{{ interval_label }}</strong>.
+      Период: <strong id="chartPeriodLabel">{{ interval_label }}</strong>.
     </div>
   </div>
 
   <section class="dash-panel mb-3 p-0">
-    <div class="dash-panel__hd px-3 pt-3 pb-2 mb-0 border-bottom" style="border-color: var(--dm-border) !important;">
-      <i class="bi bi-table dash-panel__hd-ic" aria-hidden="true"></i>
-      <span class="dash-panel__hd-t">Сводка по клиентам</span>
+    <div class="dash-panel__hd px-3 pt-3 pb-2 mb-0 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--dm-border) !important;">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-table dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Сводка по клиентам</span>
+      </div>
+      <label class="form-check-label d-flex align-items-center gap-2 small mb-0">
+        <input type="checkbox" id="multiSelectToggle" class="form-check-input">
+        <span>Выбрать несколько</span>
+      </label>
     </div>
     <div class="table-responsive ovpn_table log_table vpn-data-table-wrap w-100">
       <table class="table client-table vpn-data-table table-sm align-middle mb-0">
@@ -173,9 +197,9 @@
 
 {% endif %}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart.js/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/flatpickr/js/flatpickr.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/flatpickr/l10n/ru.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ovpn_stats.js') }}"></script>
 
 </div>

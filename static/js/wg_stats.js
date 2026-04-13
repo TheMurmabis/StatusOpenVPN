@@ -1,7 +1,114 @@
 let clientChart = null;
-let selectedClient = null;
-let selectedChartPeriod = 'month';
+let selectedClients = [];
+let selectedChartPeriod = 'day';
 const WG_STORAGE_KEY = 'wgStats.selectedClient';
+const MULTI_MAX_CLIENTS = 5;
+const MULTI_COLORS = ['#4e79a7', '#e15759', '#76b7b2', '#f28e2b', '#59a14f'];
+let chartRawLabels = [];
+let chartRxSeries = [];
+let chartTxSeries = [];
+let chartDateOverride = null;
+
+function ymd(dateObj) {
+    return dateObj.toISOString().slice(0, 10);
+}
+
+function getPeriodParams(period, overrideRange = null) {
+    const params = new URLSearchParams({ period });
+    if (overrideRange && overrideRange.from && overrideRange.to) {
+        params.set('period', 'custom');
+        params.set('date_from', overrideRange.from);
+        params.set('date_to', overrideRange.to);
+        return params;
+    }
+    const pageParams = new URLSearchParams(window.location.search);
+    if (period === 'custom' || period === 'month') {
+        const dateFrom = pageParams.get('date_from');
+        const dateTo = pageParams.get('date_to');
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+    }
+    return params;
+}
+
+function getEffectivePeriod(period, params) {
+    if (period !== 'custom') return period;
+    const from = params.get('date_from');
+    const to = params.get('date_to');
+    if (!from || !to) return 'day';
+    if (from && to && from === to) return 'day';
+    return 'custom';
+}
+
+function isMultiMode() {
+    const toggle = document.getElementById('multiSelectToggle');
+    return !!(toggle && toggle.checked);
+}
+
+function getActiveClientName() {
+    return selectedClients.length ? selectedClients[0] : null;
+}
+
+function persistSelectedClients() {
+    try {
+        localStorage.setItem(WG_STORAGE_KEY, JSON.stringify(selectedClients));
+    } catch (e) {}
+}
+
+function updateRowSelectionUI() {
+    document.querySelectorAll('.client-table tbody tr').forEach((r) => {
+        r.classList.toggle('table-active', selectedClients.includes(r.dataset.client));
+    });
+}
+
+function updateKpi(rx, tx) {
+    const totalNow = rx.reduce((a, b) => a + b, 0) + tx.reduce((a, b) => a + b, 0);
+    const points = Math.max(rx.length, 1);
+    const avg = totalNow / points;
+    const peak = rx.map((v, i) => v + (tx[i] || 0)).reduce((a, b) => Math.max(a, b), 0);
+
+    const totalEl = document.getElementById('chartKpiTotal');
+    const avgEl = document.getElementById('chartKpiAvg');
+    const peakEl = document.getElementById('chartKpiPeak');
+    if (totalEl) totalEl.textContent = `Итого: ${humanizeBytes(totalNow)}`;
+    if (avgEl) avgEl.textContent = `Среднее: ${humanizeBytes(avg)}`;
+    if (peakEl) peakEl.textContent = `Пик: ${humanizeBytes(peak)}`;
+}
+
+function setChartLoading(isLoading) {
+    const wrap = document.getElementById('clientChartWrap');
+    if (!wrap) return;
+    wrap.classList.toggle('is-loading', !!isLoading);
+}
+
+function formatDateRu(ymdValue) {
+    const d = new Date(`${ymdValue}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return ymdValue;
+    return d.toLocaleDateString('ru-RU');
+}
+
+function updateChartPeriodLabel(effectivePeriod, params) {
+    const labelEl = document.getElementById('chartPeriodLabel');
+    if (!labelEl) return;
+
+    let text = '';
+    if (effectivePeriod === 'day') {
+        const day = params.get('date_from') || new Date().toISOString().slice(0, 10);
+        text = `за ${formatDateRu(day)}`;
+    } else {
+        const from = params.get('date_from');
+        const to = params.get('date_to');
+        if (from && to) {
+            text = from === to
+                ? `за ${formatDateRu(from)}`
+                : `с ${formatDateRu(from)} по ${formatDateRu(to)}`;
+        }
+    }
+
+    if (text) {
+        labelEl.textContent = text;
+    }
+}
 
 function attachCalendarWheelNavigation(fpInstance) {
     if (!fpInstance || !fpInstance.calendarContainer) return;
@@ -78,66 +185,107 @@ function humanizeBytes(bytes) {
 }
 
 function formatLabel(dateStr, period) {
+    if (period === 'day') {
+        const parts = dateStr.split(' ');
+        if (parts.length >= 2) return parts[1];
+        return dateStr;
+    }
+    if (period === 'year') {
+        const parts = dateStr.split('-');
+        if (parts.length >= 2) {
+            const names = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+            const idx = parseInt(parts[1], 10) - 1;
+            if (idx >= 0 && idx < 12) return names[idx] + ' ' + parts[0];
+        }
+        return dateStr;
+    }
     const d = new Date(dateStr + 'T00:00:00');
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
 }
 
 async function updateClientChart() {
-    if (!selectedClient) return;
+    const activeClient = getActiveClientName();
+    if (!activeClient) return;
 
     const basePath = window.basePath || '';
-    const params = new URLSearchParams({
-        client: selectedClient,
-        period: selectedChartPeriod
-    });
-    if (selectedChartPeriod === 'custom') {
-        const pageParams = new URLSearchParams(window.location.search);
-        const dateFrom = pageParams.get('date_from');
-        const dateTo = pageParams.get('date_to');
-        if (dateFrom) params.set('date_from', dateFrom);
-        if (dateTo) params.set('date_to', dateTo);
-    } else if (selectedChartPeriod === 'month') {
-        const pageParams = new URLSearchParams(window.location.search);
-        const dateFrom = pageParams.get('date_from');
-        const dateTo = pageParams.get('date_to');
-        if (dateFrom) params.set('date_from', dateFrom);
-        if (dateTo) params.set('date_to', dateTo);
-    }
+    const params = getPeriodParams(selectedChartPeriod, chartDateOverride);
+    params.set('client', activeClient);
+    const effectivePeriod = getEffectivePeriod(selectedChartPeriod, params);
+    setChartLoading(true);
     try {
-        const res = await fetch(
-            `${basePath}/api/wg/client_chart?${params.toString()}`
+        const multiMode = isMultiMode();
+        const targetClients = multiMode ? selectedClients.slice(0, MULTI_MAX_CLIENTS) : [activeClient];
+        const responses = await Promise.all(
+            targetClients.map(async (clientName) => {
+                const p = getPeriodParams(selectedChartPeriod, chartDateOverride);
+                p.set('client', clientName);
+                const res = await fetch(`${basePath}/api/wg/client_chart?${p.toString()}`);
+                const data = await res.json();
+                return { clientName, data };
+            })
         );
-        const data = await res.json();
-        if (data.error) {
-            console.error(data.error);
+        if (!responses.length || responses[0].data.error) {
+            console.error(responses[0]?.data?.error || 'No data');
             return;
         }
 
-        const labels = data.labels.map(l => formatLabel(l, selectedChartPeriod));
+        chartRawLabels = responses[0].data.labels.slice();
+        const labels = chartRawLabels.map(l => formatLabel(l, effectivePeriod));
         const colors = getThemeColors();
-        const xAxisTitle = (selectedChartPeriod === 'day') ? 'Время' : 'Дата';
+        const xAxisTitle = (effectivePeriod === 'day') ? 'Время' : 'Дата';
+        updateChartPeriodLabel(effectivePeriod, params);
+        let datasets = [];
 
-        const datasets = [
-            {
-                label: 'Получено',
-                data: data.rx_bytes,
-                fill: true,
-                borderColor: colors.rx.border,
-                backgroundColor: colors.rx.fill,
+        if (multiMode) {
+            const combinedByClient = responses.map(({ clientName, data }, idx) => {
+                const series = chartRawLabels.map((label) => {
+                    const i = data.labels.indexOf(label);
+                    return i >= 0 ? (data.rx_bytes[i] || 0) + (data.tx_bytes[i] || 0) : 0;
+                });
+                return { clientName, series, idx };
+            });
+            const aggregate = chartRawLabels.map((_, i) =>
+                combinedByClient.reduce((acc, s) => acc + (s.series[i] || 0), 0)
+            );
+            chartRxSeries = aggregate.slice();
+            chartTxSeries = new Array(aggregate.length).fill(0);
+            datasets = combinedByClient.map((item) => ({
+                label: `${item.clientName}`,
+                data: item.series,
+                fill: false,
+                borderColor: MULTI_COLORS[item.idx % MULTI_COLORS.length],
+                backgroundColor: MULTI_COLORS[item.idx % MULTI_COLORS.length],
                 tension: 0.2,
                 pointRadius: 2
-            },
-            {
-                label: 'Передано',
-                data: data.tx_bytes,
-                fill: true,
-                borderColor: colors.tx.border,
-                backgroundColor: colors.tx.fill,
-                tension: 0.2,
-                pointRadius: 2
-            }
-        ];
+            }));
+            updateKpi(aggregate, []);
+        } else {
+            const data = responses[0].data;
+            chartRxSeries = data.rx_bytes.slice();
+            chartTxSeries = data.tx_bytes.slice();
+            datasets = [
+                {
+                    label: 'Получено',
+                    data: data.rx_bytes,
+                    fill: true,
+                    borderColor: colors.rx.border,
+                    backgroundColor: colors.rx.fill,
+                    tension: 0.2,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Передано',
+                    data: data.tx_bytes,
+                    fill: true,
+                    borderColor: colors.tx.border,
+                    backgroundColor: colors.tx.fill,
+                    tension: 0.2,
+                    pointRadius: 2
+                }
+            ];
+            updateKpi(data.rx_bytes, data.tx_bytes);
+        }
 
         if (clientChart) {
             clientChart.data.labels = labels;
@@ -160,6 +308,24 @@ async function updateClientChart() {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
+                    onClick: function (_, elements) {
+                        if (!elements.length) return;
+                        if (!chartRawLabels.length) return;
+                        if (effectivePeriod === 'day') return;
+                        const pointIndex = elements[0].index;
+                        const clicked = chartRawLabels[pointIndex];
+                        if (!clicked) return;
+                        if (effectivePeriod === 'year') {
+                            const [yy, mm] = clicked.split('-');
+                            const start = new Date(Number(yy), Number(mm) - 1, 1);
+                            const end = new Date(Number(yy), Number(mm), 0);
+                            chartDateOverride = { from: ymd(start), to: ymd(end) };
+                        } else {
+                            chartDateOverride = { from: clicked.slice(0, 10), to: clicked.slice(0, 10) };
+                        }
+                        selectedChartPeriod = 'custom';
+                        updateClientChart();
+                    },
                     scales: {
                         y: {
                             title: { display: true, text: 'Трафик', color: colors.text },
@@ -194,6 +360,8 @@ async function updateClientChart() {
         }
     } catch (e) {
         console.error('Ошибка при загрузке графика клиента:', e);
+    } finally {
+        setChartLoading(false);
     }
 }
 
@@ -201,11 +369,30 @@ function selectClient(clientName) {
     const container = document.getElementById('clientChartContainer');
     const nameEl = document.getElementById('chartClientName');
 
-    if (selectedClient === clientName) {
-        selectedClient = null;
-        try { localStorage.removeItem(WG_STORAGE_KEY); } catch (e) {}
+    if (isMultiMode()) {
+        if (selectedClients.includes(clientName)) {
+            selectedClients = selectedClients.filter((c) => c !== clientName);
+        } else {
+            if (selectedClients.length >= MULTI_MAX_CLIENTS) {
+                alert(`Можно выбрать максимум ${MULTI_MAX_CLIENTS} клиентов`);
+                return;
+            }
+            selectedClients.push(clientName);
+        }
+        persistSelectedClients();
+    } else {
+        if (getActiveClientName() === clientName) {
+            selectedClients = [];
+            try { localStorage.removeItem(WG_STORAGE_KEY); } catch (e) {}
+        } else {
+            selectedClients = [clientName];
+            persistSelectedClients();
+        }
+    }
+
+    if (!selectedClients.length) {
         container.style.display = 'none';
-        document.querySelectorAll('.client-table tbody tr').forEach(r => r.classList.remove('table-active'));
+        updateRowSelectionUI();
         if (clientChart) {
             clientChart.destroy();
             clientChart = null;
@@ -213,14 +400,11 @@ function selectClient(clientName) {
         return;
     }
 
-    selectedClient = clientName;
-    try { localStorage.setItem(WG_STORAGE_KEY, clientName); } catch (e) {}
-    nameEl.textContent = clientName;
+    nameEl.textContent = isMultiMode()
+        ? selectedClients.join(', ')
+        : selectedClients[0];
     container.style.display = 'block';
-
-    document.querySelectorAll('.client-table tbody tr').forEach(r => {
-        r.classList.toggle('table-active', r.dataset.client === clientName);
-    });
+    updateRowSelectionUI();
 
     if (clientChart) {
         clientChart.destroy();
@@ -231,6 +415,23 @@ function selectClient(clientName) {
         updateClientChart();
         container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 10);
+}
+
+function downloadCsv() {
+    if (!chartRawLabels.length) return;
+    const lines = ['label,rx_bytes,tx_bytes,total_bytes'];
+    chartRawLabels.forEach((label, idx) => {
+        const rx = chartRxSeries[idx] || 0;
+        const tx = chartTxSeries[idx] || 0;
+        lines.push(`${label},${rx},${tx},${rx + tx}`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wg-${(isMultiMode() ? 'multi' : (getActiveClientName() || 'client'))}-chart.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -293,6 +494,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    const multiToggle = document.getElementById('multiSelectToggle');
+    if (multiToggle) {
+        multiToggle.addEventListener('change', () => {
+            if (!multiToggle.checked && selectedClients.length > 1) {
+                selectedClients = selectedClients.slice(0, 1);
+                persistSelectedClients();
+            }
+            const container = document.getElementById('clientChartContainer');
+            const nameEl = document.getElementById('chartClientName');
+            if (selectedClients.length) {
+                container.style.display = 'block';
+                nameEl.textContent = multiToggle.checked ? selectedClients.join(', ') : selectedClients[0];
+                updateRowSelectionUI();
+                updateClientChart();
+            } else {
+                updateRowSelectionUI();
+            }
+        });
+    }
+
+    const pngBtn = document.getElementById('exportChartPngBtn');
+    if (pngBtn) {
+        pngBtn.addEventListener('click', () => {
+            if (!clientChart) return;
+            const a = document.createElement('a');
+            a.href = clientChart.toBase64Image();
+            a.download = `wg-${(isMultiMode() ? 'multi' : (getActiveClientName() || 'client'))}-chart.png`;
+            a.click();
+        });
+    }
+    const csvBtn = document.getElementById('exportChartCsvBtn');
+    if (csvBtn) {
+        csvBtn.addEventListener('click', downloadCsv);
+    }
+
     // Инициализация периода по активной кнопке или URL
     const activePeriodBtn = document.querySelector('.chart-period.active');
     if (activePeriodBtn && activePeriodBtn.dataset.period) {
@@ -313,11 +549,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Восстановление ранее выбранного клиента после перезагрузки/смены периода
     try {
-        const savedClient = localStorage.getItem(WG_STORAGE_KEY);
-        if (savedClient) {
-            const row = document.querySelector(`.client-table tbody tr[data-client="${savedClient}"]`);
-            if (row) {
-                selectClient(savedClient);
+        const savedRaw = localStorage.getItem(WG_STORAGE_KEY);
+        if (savedRaw) {
+            let parsed = [];
+            try {
+                const maybeArray = JSON.parse(savedRaw);
+                if (Array.isArray(maybeArray)) parsed = maybeArray;
+                else if (typeof maybeArray === 'string' && maybeArray) parsed = [maybeArray];
+            } catch (_) {
+                parsed = [savedRaw];
+            }
+            selectedClients = parsed
+                .filter((name) => document.querySelector(`.client-table tbody tr[data-client="${name}"]`))
+                .slice(0, MULTI_MAX_CLIENTS);
+            if (!isMultiMode() && selectedClients.length > 1) {
+                selectedClients = selectedClients.slice(0, 1);
+            }
+            if (selectedClients.length) {
+                const container = document.getElementById('clientChartContainer');
+                const nameEl = document.getElementById('chartClientName');
+                container.style.display = 'block';
+                nameEl.textContent = (isMultiMode() && selectedClients.length > 1)
+                    ? selectedClients.join(', ')
+                    : selectedClients[0];
+                updateRowSelectionUI();
+                updateClientChart();
             }
         }
     } catch (e) {
