@@ -267,7 +267,7 @@ async function updateClientChart() {
             datasets = [
                 {
                     label: 'Получено',
-                    data: data.rx_bytes,
+                    data: data.tx_bytes,
                     fill: true,
                     borderColor: colors.rx.border,
                     backgroundColor: colors.rx.fill,
@@ -276,7 +276,7 @@ async function updateClientChart() {
                 },
                 {
                     label: 'Передано',
-                    data: data.tx_bytes,
+                    data: data.rx_bytes,
                     fill: true,
                     borderColor: colors.tx.border,
                     backgroundColor: colors.tx.fill,

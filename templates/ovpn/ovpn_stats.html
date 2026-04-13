@@ -140,17 +140,17 @@
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
                 Передано
-                {% if sort_by == 'total_bytes_sent' %}
+                {% if sort_by == 'total_bytes_received' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                 {% endif %}
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
                 Получено
-                {% if sort_by == 'total_bytes_received' %}
+                {% if sort_by == 'total_bytes_sent' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                 {% endif %}
               </a>
@@ -170,8 +170,8 @@
           {% if client['client_name'] != 'UNDEF' %}
           <tr data-client="{{ client['client_name'] }}" style="cursor: pointer;">
             <td class="client-name text-center vpn-table-client">{{ client['client_name'] }}</td>
-            <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_sent'] }}</span></td>
             <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_received'] }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_sent'] }}</span></td>
             <td class="text-center">
               {% if client['last_connected'] %}
               <span class="connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
@@ -186,8 +186,8 @@
         <tfoot>
           <tr class="vpn-tfoot-totals text-start">
             <td class="text-center">Итого</td>
-            <td class="text-center"><span class="vpn-table-metric">{{ total_sent }}</span></td>
             <td class="text-center"><span class="vpn-table-metric">{{ total_received }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ total_sent }}</span></td>
             <td class="text-center"></td>
           </tr>
         </tfoot>
