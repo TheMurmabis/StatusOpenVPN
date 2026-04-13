@@ -214,6 +214,8 @@ def _wg_online_proto_and_name(
         return "WireGuard · VPN", name_vpn_first()
     if n == "antizapret":
         return "WireGuard · Antizapret", name_az_first()
+    if n == "warp":
+        return "WireGuard", "WARP"
 
     if public_key in vpn_mapping:
         return "WireGuard · VPN", name_vpn_first()
