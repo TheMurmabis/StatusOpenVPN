@@ -298,12 +298,15 @@ body.full-height {
 
     .wg_table td,
     .traffic-offline {
-        color: #474747 !important;
+        color: var(--dm-muted) !important;
     }
 
     .traffic-disabled {
-        opacity: 0.5;
         background-color: #1a1a1a;
+    }
+
+    .traffic-disabled td:not(.actions-cell) {
+        opacity: 0.5;
     }
 
     .ovpn_table td {
@@ -1227,12 +1230,15 @@ footer a {
 
 .traffic-offline,
 .traffic-offline h4 {
-    color: #ccc;
+    color: var(--dm-muted);
 }
 
 .traffic-disabled {
-    opacity: 0.5;
     background-color: #f8f8f8;
+}
+
+.traffic-disabled td:not(.actions-cell) {
+    opacity: 0.5;
 }
 
 .login-wrapper {
@@ -2180,7 +2186,7 @@ footer a {
     }
 }
 
-.vpn-page .client-offline td:not(.vpn-table-client) {
+.vpn-page .client-offline td {
     color: var(--dm-muted);
 }
 
@@ -2224,14 +2230,23 @@ footer a {
     min-width: 15rem;
     z-index: 1060;
     color: #212529;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    opacity: 1 !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 @media (prefers-color-scheme: dark) {
     .dropdown-menu.ovpn-actions-menu {
-        background-color: #1a1a1a;
+        background-color: #1a1a1a !important;
+        background: #1a1a1a !important;
         color: var(--login-fg);
         border: 1px solid #3d4248;
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.45);
+        opacity: 1 !important;
     }
 
     .dropdown-menu.ovpn-actions-menu .dropdown-divider {
@@ -2419,37 +2434,39 @@ footer a {
     vertical-align: middle;
 }
 
-/* Первый столбец закреплён при горизонтальной прокрутке */
+/* Первый столбец — стандартный стиль (без sticky, фон наследуется от строки) */
 .vpn-page table.vpn-data-table thead th:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 4;
-    background-color: var(--vpn-sticky-head-bg) !important;
-    background-image: none !important;
-    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.18);
+    background: var(--vpn-t-head) !important;
+    background-color: var(--vpn-t-head) !important;
 }
 
 .vpn-page table.vpn-data-table tbody td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background-color: var(--vpn-sticky-bg) !important;
-    background-image: none !important;
-    box-shadow: 4px 0 10px -6px rgba(0, 0, 0, 0.12);
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 .vpn-page table.vpn-data-table tbody tr:hover td:first-child {
-    background-color: var(--vpn-sticky-hover-bg) !important;
-    background-image: none !important;
-}
-
-.vpn-page table.vpn-data-table.client-table tbody tr.table-active td:first-child {
-    background-color: var(--vpn-sticky-bg) !important;
-    background-image: none !important;
+    background: var(--vpn-t-hover) !important;
+    background-color: var(--vpn-t-hover) !important;
 }
 
 .vpn-page table.vpn-data-table.client-table tbody tr.table-active td {
     background-color: var(--vpn-row-bg) !important;
+}
+
+.vpn-page table.vpn-data-table.client-table tbody tr.table-active td:first-child {
+    background: var(--vpn-row-bg) !important;
+    background-color: var(--vpn-row-bg) !important;
+}
+
+.vpn-page table.vpn-data-table.client-table tbody tr.table-active:hover td:first-child {
+    background: var(--vpn-row-bg) !important;
+    background-color: var(--vpn-row-bg) !important;
+}
+
+.vpn-page table.vpn-data-table tfoot td:first-child {
+    background: var(--vpn-t-head) !important;
+    background-color: var(--vpn-t-head) !important;
 }
 
 .vpn-page table.vpn-data-table tfoot td:first-child {
@@ -2481,8 +2498,23 @@ footer a {
 }
 
 .vpn-page table.vpn-data-table td.vpn-table-client {
-    color: var(--dm-text);
     font-weight: 600;
+}
+
+/* Первый столбец для онлайн клиентов — обычный цвет */
+.vpn-page table.vpn-data-table tbody tr.traffic-online td.vpn-table-client {
+    color: var(--dm-text);
+}
+
+/* Первый столбец для офлайн клиентов — приглушённый цвет */
+.vpn-page table.vpn-data-table tbody tr.traffic-offline td.vpn-table-client,
+.vpn-page table.vpn-data-table tbody tr.client-offline td.vpn-table-client {
+    color: var(--dm-muted);
+}
+
+/* Первый столбец для заблокированных клиентов — приглушённый цвет */
+.vpn-page table.vpn-data-table tbody tr.client-blocked td.vpn-table-client {
+    color: var(--dm-muted);
 }
 
 .vpn-page table.vpn-data-table .vpn-table-metric {
@@ -2561,10 +2593,11 @@ footer a {
 
     .vpn-page table.vpn-data-table tbody tr:hover td:first-child,
     .vpn-page table.vpn-data-table tbody tr:active td:first-child {
-        background-color: var(--vpn-sticky-bg) !important;
-        background-image: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
     }
 }
+
 
 /* Вкладки разделов на VPN-страницах — нейтральный акцент */
 .vpn-page .settings-tab.active {

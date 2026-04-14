@@ -306,11 +306,13 @@ async function updateStats() {
 
             tbody.innerHTML = "";
 
+            const isWarp = iface.interface.toLowerCase() === "warp";
+
             iface.peers.forEach((peer, index) => {
                 const tr = document.createElement("tr");
                 const isEnabled = peer.enabled !== false;
                 tr.className = !isEnabled
-                    ? "traffic-disabled wg_table"
+                    ? "client-blocked wg_table"
                     : peer.online
                       ? "traffic-online"
                       : "traffic-offline wg_table";
@@ -343,7 +345,7 @@ async function updateStats() {
                     <td>${peer.daily_sent || "0.0"}</td>
                     <td>${peer.received || "0.0"}</td>
                     <td>${peer.sent || "0.0"}</td>
-                    ${buildWgActionsCell(peer, iface.interface, isEnabled)}
+                    ${isWarp ? '<td class="text-center actions-cell"></td>' : buildWgActionsCell(peer, iface.interface, isEnabled)}
                 `;
 
                 tbody.appendChild(tr);
@@ -372,7 +374,7 @@ function applyFilters() {
 
         rows.forEach((row) => {
             const isOnline = row.classList.contains("traffic-online");
-            const isDisabled = row.classList.contains("traffic-disabled");
+            const isDisabled = row.classList.contains("client-blocked");
             if (isOnline) onlineCount++;
 
             let visible = true;
