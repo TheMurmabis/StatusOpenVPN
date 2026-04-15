@@ -17,22 +17,22 @@
 
 {% block topbar_filters %}
 <div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
-  <a href="?period=day&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
+  <a href="?period=day&sort={{ sort_by }}&order={{ order }}&tz={{ selected_tz }}"
     data-period="day"
     class="btn chart-period {% if period == 'day' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     День
   </a>
-  <a href="?period=week&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
+  <a href="?period=week&sort={{ sort_by }}&order={{ order }}&tz={{ selected_tz }}"
     data-period="week"
     class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Неделя
   </a>
-  <a href="?period=month&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
+  <a href="?period=month&sort={{ sort_by }}&order={{ order }}&tz={{ selected_tz }}"
     data-period="month"
     class="btn chart-period {% if period == 'month' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Месяц
   </a>
-  <a href="?period=year&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
+  <a href="?period=year&sort={{ sort_by }}&order={{ order }}&tz={{ selected_tz }}"
     data-period="year"
     class="btn chart-period {% if period == 'year' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Год

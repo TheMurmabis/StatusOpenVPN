@@ -3072,16 +3072,22 @@ def wg_stats():
             week_start = now - timedelta(days=7)
             date_from = week_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(week_start)} по {format_period_date(now)}"
         elif period == "month":
             month_start = now - timedelta(days=30)
             date_from = month_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(month_start)} по {format_period_date(now)}"
         elif period == "year":
             year_start = now - timedelta(days=365)
             date_from = year_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(year_start)} по {format_period_date(now)}"
         elif period == "custom":
             date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
@@ -3101,11 +3107,15 @@ def wg_stats():
                 period = "day"
                 date_from = now.strftime("%Y-%m-%d")
                 date_to = None
+                selected_date_from = date_from
+                selected_date_to = date_from
                 interval_label = f"за {format_period_date(now)}"
         else:
             period = "day"
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = date_from
             interval_label = f"за {format_period_date(now)}"
 
         is_single_day = period == "day" or (
@@ -3650,16 +3660,22 @@ def ovpn_stats():
             week_start = now - timedelta(days=7)
             date_from = week_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(week_start)} по {format_period_date(now)}"
         elif period == "month":
             month_start = now - timedelta(days=30)
             date_from = month_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(month_start)} по {format_period_date(now)}"
         elif period == "year":
             year_start = now - timedelta(days=365)
             date_from = year_start.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = now.strftime("%Y-%m-%d")
             interval_label = f"с {format_period_date(year_start)} по {format_period_date(now)}"
         elif period == "custom":
             date_from_dt = parse_date_yyyy_mm_dd(selected_date_from)
@@ -3679,11 +3695,15 @@ def ovpn_stats():
                 period = "day"
                 date_from = now.strftime("%Y-%m-%d")
                 date_to = None
+                selected_date_from = date_from
+                selected_date_to = date_from
                 interval_label = f"за {format_period_date(now)}"
         else:
             period = "day"
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = date_from
             interval_label = f"за {format_period_date(now)}"
 
         is_single_day = period == "day" or (
