@@ -44,6 +44,7 @@ from src.config import Config
 from src.tg_bot.audit import log_action, get_logs, get_logs_count
 from flask_bcrypt import Bcrypt
 from datetime import date, datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from zoneinfo._common import ZoneInfoNotFoundError
 from collections import OrderedDict, defaultdict
 
@@ -467,6 +468,46 @@ def parse_date_yyyy_mm_dd(raw_value):
         return datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
         return None
+
+
+def resolve_client_timezone():
+    tz_name = (request.args.get("tz") or "").strip()
+    if tz_name:
+        try:
+            return ZoneInfo(tz_name), tz_name
+        except ZoneInfoNotFoundError:
+            pass
+
+    server_tz = get_localzone()
+    server_tz_name = getattr(server_tz, "key", None) or str(server_tz)
+    return server_tz, server_tz_name
+
+
+def _floor_to_hour(dt_value):
+    return dt_value.replace(minute=0, second=0, microsecond=0)
+
+
+def _ceil_to_hour(dt_value):
+    floored = _floor_to_hour(dt_value)
+    if dt_value == floored:
+        return floored
+    return floored + timedelta(hours=1)
+
+
+def get_server_hour_window_for_client_day(day_ymd, client_tz):
+    """Возвращает [start, end) в серверной зоне для клиентского дня."""
+    server_tz = get_localzone()
+    day_dt = datetime.strptime(day_ymd, "%Y-%m-%d")
+    start_client = day_dt.replace(tzinfo=client_tz)
+    end_client = start_client + timedelta(days=1)
+
+    start_server = _floor_to_hour(start_client.astimezone(server_tz))
+    end_server = _ceil_to_hour(end_client.astimezone(server_tz))
+
+    return (
+        start_server.strftime("%Y-%m-%d %H:00"),
+        end_server.strftime("%Y-%m-%d %H:00"),
+    )
 
 
 def read_admin_info():
@@ -3001,7 +3042,8 @@ def wg_stats():
         sort_by = request.args.get("sort", "client")
         order = request.args.get("order", "asc").lower()
         period = request.args.get("period", "day")
-        now = datetime.now()
+        client_tz, selected_tz = resolve_client_timezone()
+        now = datetime.now(client_tz)
         today = now.date()
         selected_date_from = (request.args.get("date_from") or "").strip()
         selected_date_to = (request.args.get("date_to") or "").strip()
@@ -3023,6 +3065,8 @@ def wg_stats():
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = date_from
             interval_label = f"за {format_period_date(now)}"
         elif period == "week":
             week_start = now - timedelta(days=7)
@@ -3076,18 +3120,19 @@ def wg_stats():
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
             if is_single_day:
                 target_date = date_from
+                start_hour, end_hour = get_server_hour_window_for_client_day(target_date, client_tz)
                 query = f"""
                     SELECT client,
                            SUM(received) as total_received,
                            SUM(sent) as total_sent
                     FROM wg_hourly_stats
-                    WHERE substr(hour, 1, 10) = ?
+                    WHERE hour >= ? AND hour < ?
                       AND interface != 'warp'
                     GROUP BY client
                     HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
                 """
-                rows = conn.execute(query, (target_date,)).fetchall()
+                rows = conn.execute(query, (start_hour, end_hour)).fetchall()
             elif period == "year":
                 year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
                 query = f"""
@@ -3157,6 +3202,7 @@ def wg_stats():
             order=order_sql.lower(),
             selected_date_from=selected_date_from,
             selected_date_to=selected_date_to,
+            selected_tz=selected_tz,
             interval_label=interval_label,
         )
 
@@ -3573,7 +3619,8 @@ def ovpn_stats():
         sort_by = request.args.get("sort", "client_name")
         order = request.args.get("order", "asc").lower()
         period = request.args.get("period", "day")
-        now = datetime.now()
+        client_tz, selected_tz = resolve_client_timezone()
+        now = datetime.now(client_tz)
         today = now.date()
         selected_date_from = (request.args.get("date_from") or "").strip()
         selected_date_to = (request.args.get("date_to") or "").strip()
@@ -3596,6 +3643,8 @@ def ovpn_stats():
         if period == "day":
             date_from = now.strftime("%Y-%m-%d")
             date_to = None
+            selected_date_from = date_from
+            selected_date_to = date_from
             interval_label = f"за {format_period_date(now)}"
         elif period == "week":
             week_start = now - timedelta(days=7)
@@ -3649,17 +3698,18 @@ def ovpn_stats():
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
             if is_single_day:
                 target_date = date_from
+                start_hour, end_hour = get_server_hour_window_for_client_day(target_date, client_tz)
                 query = f"""
                     SELECT client_name,
                            SUM(total_bytes_sent),
                            SUM(total_bytes_received),
                            MAX(last_connected)
                     FROM daily_stats
-                    WHERE substr(hour, 1, 10) = ?
+                    WHERE hour >= ? AND hour < ?
                     GROUP BY client_name
                     ORDER BY {sort_column} {order_sql}
                 """
-                rows = conn.execute(query, (target_date,)).fetchall()
+                rows = conn.execute(query, (start_hour, end_hour)).fetchall()
             elif period == "year":
                 year_month_from = (now - timedelta(days=365)).strftime("%Y-%m")
                 query = f"""
@@ -3724,6 +3774,7 @@ def ovpn_stats():
             order=order_sql.lower(),
             selected_date_from=selected_date_from,
             selected_date_to=selected_date_to,
+            selected_tz=selected_tz,
             interval_label=interval_label,
         )
 
@@ -3993,7 +4044,8 @@ def api_wireguard_client_config_download():
 def api_ovpn_client_chart():
     client_name = request.args.get("client")
     period = request.args.get("period", "day")
-    now = datetime.now()
+    client_tz, _ = resolve_client_timezone()
+    now = datetime.now(client_tz)
     selected_date_from = (request.args.get("date_from") or "").strip()
     selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
@@ -4003,6 +4055,8 @@ def api_ovpn_client_chart():
 
     if period == "day":
         target_date = now.strftime("%Y-%m-%d")
+        selected_date_from = target_date
+        selected_date_to = target_date
         is_single_day = True
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -4020,42 +4074,61 @@ def api_ovpn_client_chart():
                 date_from_dt, date_to_dt = date_to_dt, date_from_dt
             if date_from_dt == date_to_dt:
                 target_date = date_from_dt.strftime("%Y-%m-%d")
+                selected_date_from = target_date
+                selected_date_to = target_date
                 is_single_day = True
             else:
                 date_from = date_from_dt.strftime("%Y-%m-%d")
                 date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
             target_date = now.strftime("%Y-%m-%d")
+            selected_date_from = target_date
+            selected_date_to = target_date
             is_single_day = True
     else:
         target_date = now.strftime("%Y-%m-%d")
+        selected_date_from = target_date
+        selected_date_to = target_date
         is_single_day = True
 
     try:
         with sqlite3.connect(app.config["LOGS_DATABASE_PATH"]) as conn:
             if is_single_day:
+                start_hour, end_hour = get_server_hour_window_for_client_day(target_date, client_tz)
                 rows = conn.execute(
                     """
                     SELECT hour,
                            SUM(total_bytes_received) as rx,
                            SUM(total_bytes_sent) as tx
                     FROM daily_stats
-                    WHERE client_name = ? AND substr(hour, 1, 10) = ?
+                    WHERE client_name = ? AND hour >= ? AND hour < ?
                     GROUP BY hour
                     ORDER BY hour ASC
                     """,
-                    (client_name, target_date),
+                    (client_name, start_hour, end_hour),
                 ).fetchall()
                 hour_data = {h: (rx or 0, tx or 0) for h, rx, tx in rows}
-                all_hours = [f"{target_date} {h:02d}:00" for h in range(24)]
-                if target_date == now.strftime("%Y-%m-%d"):
-                    all_hours = [
-                        f"{target_date} {h:02d}:00"
-                        for h in range(now.hour + 1)
-                    ]
-                labels = all_hours
-                rx_data = [hour_data.get(h, (0, 0))[0] for h in all_hours]
-                tx_data = [hour_data.get(h, (0, 0))[1] for h in all_hours]
+                day_start_client = datetime.strptime(target_date, "%Y-%m-%d").replace(
+                    tzinfo=client_tz
+                )
+                day_end_client = day_start_client + timedelta(days=1)
+                now_hour_client = now.replace(minute=0, second=0, microsecond=0) + timedelta(
+                    hours=1
+                )
+                display_end_client = min(day_end_client, now_hour_client)
+                labels = []
+                rx_data = []
+                tx_data = []
+
+                point_dt_client = day_start_client
+                while point_dt_client < display_end_client:
+                    point_dt_server = point_dt_client.astimezone(get_localzone())
+                    server_hour_key = point_dt_server.strftime("%Y-%m-%d %H:00")
+                    labels.append(point_dt_client.strftime("%Y-%m-%d %H:00"))
+                    rx, tx = hour_data.get(server_hour_key, (0, 0))
+                    rx_data.append(rx or 0)
+                    tx_data.append(tx or 0)
+                    point_dt_client += timedelta(hours=1)
             elif period == "year":
                 rows = conn.execute(
                     """
@@ -4120,7 +4193,8 @@ def api_ovpn_client_chart():
 def api_wg_client_chart():
     client_name = request.args.get("client")
     period = request.args.get("period", "day")
-    now = datetime.now()
+    client_tz, _ = resolve_client_timezone()
+    now = datetime.now(client_tz)
     selected_date_from = (request.args.get("date_from") or "").strip()
     selected_date_to = (request.args.get("date_to") or "").strip()
     if not client_name:
@@ -4130,6 +4204,8 @@ def api_wg_client_chart():
 
     if period == "day":
         target_date = now.strftime("%Y-%m-%d")
+        selected_date_from = target_date
+        selected_date_to = target_date
         is_single_day = True
     elif period == "week":
         date_from = (now - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -4147,43 +4223,62 @@ def api_wg_client_chart():
                 date_from_dt, date_to_dt = date_to_dt, date_from_dt
             if date_from_dt == date_to_dt:
                 target_date = date_from_dt.strftime("%Y-%m-%d")
+                selected_date_from = target_date
+                selected_date_to = target_date
                 is_single_day = True
             else:
                 date_from = date_from_dt.strftime("%Y-%m-%d")
                 date_to = (date_to_dt + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
             target_date = now.strftime("%Y-%m-%d")
+            selected_date_from = target_date
+            selected_date_to = target_date
             is_single_day = True
     else:
         target_date = now.strftime("%Y-%m-%d")
+        selected_date_from = target_date
+        selected_date_to = target_date
         is_single_day = True
 
     try:
         with sqlite3.connect(app.config["WG_STATS_PATH"]) as conn:
             if is_single_day:
+                start_hour, end_hour = get_server_hour_window_for_client_day(target_date, client_tz)
                 rows = conn.execute(
                     """
                     SELECT hour,
                            SUM(received) as rx,
                            SUM(sent) as tx
                     FROM wg_hourly_stats
-                    WHERE client = ? AND substr(hour, 1, 10) = ?
+                    WHERE client = ? AND hour >= ? AND hour < ?
                       AND interface != 'warp'
                     GROUP BY hour
                     ORDER BY hour ASC
                     """,
-                    (client_name, target_date),
+                    (client_name, start_hour, end_hour),
                 ).fetchall()
                 hour_data = {h: (rx or 0, tx or 0) for h, rx, tx in rows}
-                all_hours = [f"{target_date} {h:02d}:00" for h in range(24)]
-                if target_date == now.strftime("%Y-%m-%d"):
-                    all_hours = [
-                        f"{target_date} {h:02d}:00"
-                        for h in range(now.hour + 1)
-                    ]
-                labels = all_hours
-                rx_data = [hour_data.get(h, (0, 0))[0] for h in all_hours]
-                tx_data = [hour_data.get(h, (0, 0))[1] for h in all_hours]
+                day_start_client = datetime.strptime(target_date, "%Y-%m-%d").replace(
+                    tzinfo=client_tz
+                )
+                day_end_client = day_start_client + timedelta(days=1)
+                now_hour_client = now.replace(minute=0, second=0, microsecond=0) + timedelta(
+                    hours=1
+                )
+                display_end_client = min(day_end_client, now_hour_client)
+                labels = []
+                rx_data = []
+                tx_data = []
+
+                point_dt_client = day_start_client
+                while point_dt_client < display_end_client:
+                    point_dt_server = point_dt_client.astimezone(get_localzone())
+                    server_hour_key = point_dt_server.strftime("%Y-%m-%d %H:00")
+                    labels.append(point_dt_client.strftime("%Y-%m-%d %H:00"))
+                    rx, tx = hour_data.get(server_hour_key, (0, 0))
+                    rx_data.append(rx or 0)
+                    tx_data.append(tx or 0)
+                    point_dt_client += timedelta(hours=1)
             elif period == "year":
                 rows = conn.execute(
                     """

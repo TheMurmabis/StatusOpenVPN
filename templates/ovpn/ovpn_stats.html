@@ -17,22 +17,22 @@
 
 {% block topbar_filters %}
 <div id="period-filters" class="btn-group btn-group-sm flex-shrink-0" role="group">
-  <a href="?period=day&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+  <a href="?period=day&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
     data-period="day"
     class="btn chart-period {% if period == 'day' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     День
   </a>
-  <a href="?period=week&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+  <a href="?period=week&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
     data-period="week"
     class="btn chart-period {% if period == 'week' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Неделя
   </a>
-  <a href="?period=month&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+  <a href="?period=month&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
     data-period="month"
     class="btn chart-period {% if period == 'month' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Месяц
   </a>
-  <a href="?period=year&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}"
+  <a href="?period=year&sort={{ sort_by }}&order={{ order }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}"
     data-period="year"
     class="btn chart-period {% if period == 'year' %}btn-outline-secondary active{% else %}btn-outline-secondary{% endif %}">
     Год
@@ -73,6 +73,7 @@
       <input type="hidden" name="order" value="{{ order }}">
       <input type="hidden" name="date_from" id="statsDateFrom" value="{{ selected_date_from }}">
       <input type="hidden" name="date_to" id="statsDateTo" value="{{ selected_date_to }}">
+      <input type="hidden" name="tz" id="statsClientTz" value="{{ selected_tz }}">
       <input id="statsDateRange" type="text" autocomplete="off" tabindex="-1">
     </form>
   </div>
@@ -132,7 +133,7 @@
         <thead>
           <tr>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=client_name&order={{ 'desc' if sort_by == 'client_name' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=client_name&order={{ 'desc' if sort_by == 'client_name' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Клиент
                 {% if sort_by == 'client_name' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
@@ -140,7 +141,7 @@
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Передано
                 {% if sort_by == 'total_bytes_received' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
@@ -148,7 +149,7 @@
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Получено
                 {% if sort_by == 'total_bytes_sent' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
@@ -156,7 +157,7 @@
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=last_connected&order={{ 'desc' if sort_by == 'last_connected' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}">
+              <a href="?period={{ period }}&sort=last_connected&order={{ 'desc' if sort_by == 'last_connected' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Последнее подключение
                 {% if sort_by == 'last_connected' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>

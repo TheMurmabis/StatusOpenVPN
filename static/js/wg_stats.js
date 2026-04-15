@@ -9,19 +9,45 @@ let chartRxSeries = [];
 let chartTxSeries = [];
 let chartDateOverride = null;
 
+function getClientTimezone() {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function getEffectiveTimezone() {
+    const fromUrl = new URLSearchParams(window.location.search).get('tz');
+    return fromUrl || getClientTimezone();
+}
+
+function ensureTimezoneInUrl() {
+    const browserTz = getClientTimezone();
+    if (!browserTz) return false;
+    const url = new URL(window.location.href);
+    const currentTz = url.searchParams.get('tz');
+    if (currentTz === browserTz) return false;
+    url.searchParams.set('tz', browserTz);
+    window.location.replace(url.toString());
+    return true;
+}
+
 function ymd(dateObj) {
     return dateObj.toISOString().slice(0, 10);
 }
 
 function getPeriodParams(period, overrideRange = null) {
     const params = new URLSearchParams({ period });
+    const pageParams = new URLSearchParams(window.location.search);
+    const tz = getEffectiveTimezone();
+    if (tz) params.set('tz', tz);
     if (overrideRange && overrideRange.from && overrideRange.to) {
         params.set('period', 'custom');
         params.set('date_from', overrideRange.from);
         params.set('date_to', overrideRange.to);
         return params;
     }
-    const pageParams = new URLSearchParams(window.location.search);
     if (period === 'custom' || period === 'month') {
         const dateFrom = pageParams.get('date_from');
         const dateTo = pageParams.get('date_to');
@@ -93,8 +119,10 @@ function updateChartPeriodLabel(effectivePeriod, params) {
 
     let text = '';
     if (effectivePeriod === 'day') {
-        const day = params.get('date_from') || new Date().toISOString().slice(0, 10);
-        text = `за ${formatDateRu(day)}`;
+        const day = params.get('date_from') || new URLSearchParams(window.location.search).get('date_from');
+        if (day) {
+            text = `за ${formatDateRu(day)}`;
+        }
     } else {
         const from = params.get('date_from');
         const to = params.get('date_to');
@@ -435,6 +463,15 @@ function downloadCsv() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (ensureTimezoneInUrl()) {
+        return;
+    }
+
+    const tzInput = document.getElementById('statsClientTz');
+    if (tzInput && !tzInput.value) {
+        tzInput.value = getEffectiveTimezone();
+    }
+
     const rangeInput = document.getElementById('statsDateRange');
     const dateFromInput = document.getElementById('statsDateFrom');
     const dateToInput = document.getElementById('statsDateTo');
