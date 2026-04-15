@@ -2470,7 +2470,6 @@ footer a {
 }
 
 .vpn-page table.vpn-data-table tfoot td:first-child {
-    position: sticky;
     left: 0;
     z-index: 2;
     background: var(--vpn-t-head);
