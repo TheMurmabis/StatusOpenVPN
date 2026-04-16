@@ -215,7 +215,9 @@ function humanizeBytes(bytes) {
 function formatLabel(dateStr, period) {
     if (period === 'day') {
         const parts = dateStr.split(' ');
-        if (parts.length >= 2) return parts[1];
+        if (parts.length >= 2) {
+            return parts[1];
+        }
         return dateStr;
     }
     if (period === 'year') {
