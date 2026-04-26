@@ -309,7 +309,7 @@ async function updateClientChart() {
             chartTxSeries = data.tx_bytes.slice();
             datasets = [
                 {
-                    label: 'Получено',
+                    label: 'Передано',
                     data: data.rx_bytes,
                     fill: true,
                     borderColor: colors.rx.border,
@@ -318,7 +318,7 @@ async function updateClientChart() {
                     pointRadius: 2
                 },
                 {
-                    label: 'Передано',
+                    label: 'Получено',
                     data: data.tx_bytes,
                     fill: true,
                     borderColor: colors.tx.border,
@@ -462,7 +462,7 @@ function selectClient(clientName) {
 
 function downloadCsv() {
     if (!chartRawLabels.length) return;
-    const lines = ['label,rx_bytes,tx_bytes,total_bytes'];
+    const lines = ['label,sent_bytes,received_bytes,total_bytes'];
     chartRawLabels.forEach((label, idx) => {
         const rx = chartRxSeries[idx] || 0;
         const tx = chartTxSeries[idx] || 0;

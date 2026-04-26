@@ -3727,6 +3727,10 @@ def ovpn_history():
 def ovpn_stats():
     try:
         sort_by = request.args.get("sort", "client_name")
+        sort_by = {
+            "total_bytes_sent": "client_bytes_sent",
+            "total_bytes_received": "client_bytes_received",
+        }.get(sort_by, sort_by)
         order = request.args.get("order", "asc").lower()
         period = request.args.get("period", "day")
         client_tz, selected_tz = resolve_client_timezone()
@@ -3743,8 +3747,8 @@ def ovpn_stats():
 
         allowed_sorts = {
             "client_name": "client_name",
-            "total_bytes_sent": "SUM(total_bytes_sent)",
-            "total_bytes_received": "SUM(total_bytes_received)",
+            "client_bytes_sent": "SUM(total_bytes_received)",
+            "client_bytes_received": "SUM(total_bytes_sent)",
             "last_connected": "MAX(last_connected)",
         }
 
@@ -3876,8 +3880,12 @@ def ovpn_stats():
                 stats_list.append(
                     {
                         "client_name": client_name,
+                        "client_bytes_sent": format_bytes(received),
+                        "client_bytes_received": format_bytes(sent),
                         "total_bytes_sent": format_bytes(sent),
                         "total_bytes_received": format_bytes(received),
+                        "client_bytes_sent_raw": received or 0,
+                        "client_bytes_received_raw": sent or 0,
                         "total_bytes_sent_raw": sent or 0,
                         "total_bytes_received_raw": received or 0,
                         "last_connected": last_connected,
@@ -3886,6 +3894,8 @@ def ovpn_stats():
 
         return render_template(
             "ovpn/ovpn_stats.html",
+            total_client_received=format_bytes(total_sent),
+            total_client_sent=format_bytes(total_received),
             total_received=format_bytes(total_received),
             total_sent=format_bytes(total_sent),
             active_section="ovpn",
