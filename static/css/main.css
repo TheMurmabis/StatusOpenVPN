@@ -2358,7 +2358,7 @@ footer a {
     color: var(--dm-text);
 }
 
-#no-active-clients.vpn-empty-panel {
+.vpn-empty-panel {
     border: 1px solid var(--dm-border);
     border-radius: 11px;
     background: var(--dm-bg);
@@ -2605,7 +2605,30 @@ footer a {
     border-color: var(--dm-border) !important;
 }
 
+.vpn-page #ovpn-connections-threshold,
+.vpn-page #ovpn-connections-threshold:focus {
+    background-color: #fff !important;
+    border: 1px solid #adb5bd !important;
+    color: var(--bs-body-color) !important;
+}
+
+.vpn-page #ovpn-connections-threshold:focus {
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.2) !important;
+}
+
 @media (prefers-color-scheme: dark) {
+    .vpn-page #ovpn-connections-threshold,
+    .vpn-page #ovpn-connections-threshold:focus {
+        background-color: var(--search-input-bg, #181a1b) !important;
+        border: 1px solid var(--search-input-border, #3d4349) !important;
+        color: var(--search-input-fg, #e9ecef) !important;
+    }
+
+    .vpn-page #ovpn-connections-threshold:focus {
+        border-color: #495057 !important;
+    }
+
     .vpn-page .settings-tabs {
         background: #141414 !important;
         border-color: rgba(255, 255, 255, 0.08) !important;

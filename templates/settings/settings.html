@@ -49,29 +49,69 @@
 
     <section class="dash-panel mb-3">
       <div class="dash-panel__hd mb-2">
-        <i class="bi bi-eye-slash dash-panel__hd-ic" aria-hidden="true"></i>
-        <span class="dash-panel__hd-t">Отображение IP-адресов</span>
+        <i class="bi bi-shield-lock-fill dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">OpenVPN</span>
       </div>
       <p class="settings-field-hint small mb-3">
-        Управление отображением реальных IP-адресов клиентов.
+        Отдельные настройки отображения раздела и приватности данных OpenVPN.
       </p>
 
       <div class="mb-3">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="hide_ovpn_ip" name="hide_ovpn_ip" {% if hide_ovpn_ip %}checked{% endif %}>
-          <label class="form-check-label settings-check-label" for="hide_ovpn_ip">
-            OpenVPN
-            <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="show_ovpn_menu" name="show_ovpn_menu" {% if show_ovpn_menu %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="show_ovpn_menu">
+            Пункт меню
+            <small class="settings-field-hint d-block">Отображать раздел OpenVPN в боковом и нижнем меню</small>
           </label>
         </div>
       </div>
 
       <div class="mb-0">
-        <div class="form-check form-switch">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="hide_ovpn_ip" name="hide_ovpn_ip" {% if hide_ovpn_ip %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="hide_ovpn_ip">
+            Реальные IP
+            <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-hdd-network-fill dash-panel__hd-ic text-info" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">WireGuard</span>
+      </div>
+      <p class="settings-field-hint small mb-3">
+        Отдельные настройки отображения раздела и приватности данных WireGuard.
+      </p>
+
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="show_wg_menu" name="show_wg_menu" {% if show_wg_menu %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="show_wg_menu">
+            Пункт меню
+            <small class="settings-field-hint d-block">Отображать раздел WireGuard в боковом и нижнем меню</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="form-check">
           <input class="form-check-input" type="checkbox" id="hide_wg_ip" name="hide_wg_ip" {% if hide_wg_ip %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="hide_wg_ip">
-            WireGuard
+            Реальные IP
             <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов WireGuard</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="mb-0">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="hide_wg_warp_interface" name="hide_wg_warp_interface" {% if hide_wg_warp_interface %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="hide_wg_warp_interface">
+            Интерфейс WARP
+            <small class="settings-field-hint d-block">Скрывать отображение интерфейса WARP в списке WireGuard</small>
           </label>
         </div>
       </div>
@@ -157,6 +197,24 @@
               Удаляются только записи статистики выбранной базы. Пользователи панели и журнал аудита не затрагиваются.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-clock-history dash-panel__hd-ic" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">История подключений OpenVPN</span>
+      </div>
+      <p class="settings-field-hint small mb-3">
+        Ограничивает количество записей, которые остаются в истории подключений. Хранятся самые новые записи.
+      </p>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5 col-lg-4">
+          <label for="history_max_records" class="form-label settings-check-label mb-1">Макс. записей</label>
+          <input type="number" min="100" max="100000" step="1" class="form-control" id="history_max_records"
+            name="history_max_records" value="{{ history_max_records }}">
+          <div class="form-text settings-field-hint">От 100 до 100 000 записей.</div>
         </div>
       </div>
     </section>

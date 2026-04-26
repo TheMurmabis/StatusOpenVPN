@@ -123,6 +123,19 @@ function updateChartPeriodLabel(effectivePeriod, params) {
         if (day) {
             text = `за ${formatDateRu(day)}`;
         }
+    } else if (effectivePeriod === 'month') {
+        const from = params.get('date_from') || new URLSearchParams(window.location.search).get('date_from');
+        if (from) {
+            const d = new Date(`${from}T00:00:00`);
+            if (!Number.isNaN(d.getTime())) {
+                text = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+            }
+        }
+    } else if (effectivePeriod === 'year') {
+        const from = params.get('date_from') || new URLSearchParams(window.location.search).get('date_from');
+        if (from) {
+            text = from.slice(0, 4);
+        }
     } else {
         const from = params.get('date_from');
         const to = params.get('date_to');
@@ -297,7 +310,7 @@ async function updateClientChart() {
             datasets = [
                 {
                     label: 'Получено',
-                    data: data.tx_bytes,
+                    data: data.rx_bytes,
                     fill: true,
                     borderColor: colors.rx.border,
                     backgroundColor: colors.rx.fill,
@@ -306,7 +319,7 @@ async function updateClientChart() {
                 },
                 {
                     label: 'Передано',
-                    data: data.rx_bytes,
+                    data: data.tx_bytes,
                     fill: true,
                     borderColor: colors.tx.border,
                     backgroundColor: colors.tx.fill,
@@ -517,6 +530,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         attachCalendarWheelNavigation(fp);
+    }
+
+    // Быстрые интервалы (последние 7/30/365 дней) из dropdown с иконкой часов.
+    const quickRangeLinks = document.querySelectorAll('.stats-quick-range[data-days]');
+    const offscreenForm = document.querySelector('.stats-date-range-offscreen form');
+    const toLocalYmd = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    if (quickRangeLinks.length && offscreenForm && dateFromInput && dateToInput) {
+        quickRangeLinks.forEach((link) => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const days = parseInt(link.dataset.days || '0', 10);
+                if (!days || days < 1) return;
+
+                const end = new Date();
+                const start = new Date(end);
+                start.setDate(end.getDate() - (days - 1));
+
+                dateFromInput.value = toLocalYmd(start);
+                dateToInput.value = toLocalYmd(end);
+
+                // offscreen form имеет method="get" и period=custom, сервер сам пересчитает интервал.
+                offscreenForm.submit();
+            });
+        });
     }
 
     document.querySelectorAll('.connection-time[data-utc]').forEach(cell => {

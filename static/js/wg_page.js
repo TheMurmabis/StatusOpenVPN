@@ -361,12 +361,15 @@ async function updateStats() {
 function applyFilters() {
     const showOnlyOnline = document.getElementById("online-only-toggle").checked;
     const showOnlyDisabled = document.getElementById("disabled-only-toggle").checked;
-    const tables = document.querySelectorAll("#wg-stats-container .table-responsive");
+    const sections = document.querySelectorAll("#wg-stats-container .dash-panel");
     const noClientsCard = document.getElementById("no-active-clients");
+    const filtersActive = showOnlyOnline || showOnlyDisabled;
 
     let anyVisibleClients = false;
 
-    tables.forEach((table) => {
+    sections.forEach((section) => {
+        const table = section.querySelector(".table-responsive");
+        if (!table) return;
         const rows = table.querySelectorAll("tbody tr");
         let onlineCount = 0;
         let totalCount = rows.length;
@@ -385,17 +388,17 @@ function applyFilters() {
             if (visible) visibleCount++;
         });
 
-        const badge = table.querySelector(".badge");
+        const badge = section.querySelector(".badge");
         if (badge) {
             badge.innerHTML = `<strong>${onlineCount}</strong> / <strong>${totalCount}</strong>`;
         }
 
-        table.style.display = visibleCount === 0 && (showOnlyOnline || showOnlyDisabled) ? "none" : "";
+        section.style.display = filtersActive && visibleCount === 0 ? "none" : "";
 
         if (visibleCount > 0) anyVisibleClients = true;
     });
 
-    if ((showOnlyOnline || showOnlyDisabled) && !anyVisibleClients) {
+    if (filtersActive && !anyVisibleClients) {
         noClientsCard.classList.add("show");
     } else {
         noClientsCard.classList.remove("show");

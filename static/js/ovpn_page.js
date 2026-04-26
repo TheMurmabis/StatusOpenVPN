@@ -24,8 +24,64 @@ document.addEventListener("DOMContentLoaded", () => {
     const tbody = document.getElementById("ovpn-clients-tbody");
     const autoRefreshCheckbox = document.getElementById("ovpn-auto-refresh-toggle");
     const countdownEl = document.getElementById("ovpn-refresh-countdown");
+    const connectionsThresholdInput = document.getElementById("ovpn-connections-threshold");
+    const thresholdStatusWrap = document.getElementById("ovpn-threshold-status-wrap");
+    const thresholdStatusText = document.getElementById("ovpn-threshold-status");
+    const thresholdResetButton = document.getElementById("ovpn-threshold-reset");
     const REFRESH_INTERVAL_SECONDS = 30;
     const base = typeof window.basePath === "string" ? window.basePath : "";
+    const THRESHOLD_STORAGE_KEY = "ovpnConnectionsThreshold";
+
+    function normalizeThresholdValue(rawValue) {
+        const parsed = Number.parseInt(rawValue, 10);
+        if (Number.isNaN(parsed) || parsed < 2) {
+            return null;
+        }
+        return parsed;
+    }
+
+    function updateThresholdStatus(threshold) {
+        if (!thresholdStatusWrap || !thresholdStatusText) return;
+        if (threshold === null) {
+            thresholdStatusWrap.classList.add("d-none");
+            thresholdStatusText.textContent = "";
+            return;
+        }
+        thresholdStatusWrap.classList.remove("d-none");
+        thresholdStatusText.textContent = `Фильтр: от ${threshold} и более подключений`;
+    }
+
+    function applyConnectionsThresholdFilter() {
+        if (!tbody) return;
+        const threshold = normalizeThresholdValue(
+            connectionsThresholdInput ? connectionsThresholdInput.value : ""
+        );
+        updateThresholdStatus(threshold);
+        const sessionRows = Array.from(tbody.querySelectorAll(".ovpn-session-row"));
+        const countsByClient = new Map();
+
+        sessionRows.forEach((row) => {
+            const clientName = (row.dataset.clientName || "").trim();
+            if (!clientName) return;
+            countsByClient.set(clientName, (countsByClient.get(clientName) || 0) + 1);
+        });
+
+        let anyVisible = false;
+        sessionRows.forEach((row) => {
+            const clientName = (row.dataset.clientName || "").trim();
+            const sessionsCount = countsByClient.get(clientName) || 0;
+            const showRow = threshold === null || sessionsCount >= threshold;
+            row.style.display = showRow ? "" : "none";
+            if (showRow) {
+                anyVisible = true;
+            }
+        });
+
+        const emptyRow = tbody.querySelector(".ovpn-empty-row");
+        if (emptyRow) {
+            emptyRow.style.display = anyVisible ? "none" : "";
+        }
+    }
 
     function getOvpnClientsApiUrl() {
         const q = new URLSearchParams(window.location.search);
@@ -300,6 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 tbody.insertBefore(emptyRow, footerRow);
             }
             emptyRow.style.display = "";
+            applyConnectionsThresholdFilter();
             return;
         }
 
@@ -343,6 +400,7 @@ document.addEventListener("DOMContentLoaded", () => {
             applyIpVisibility(showIpCheckbox.checked);
         }
         convertConnectionTimesIn(tbody);
+        applyConnectionsThresholdFilter();
     }
 
     function fetchOvpnPartialUpdate() {
@@ -465,5 +523,31 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (connectionsThresholdInput) {
+        const savedThreshold = localStorage.getItem(THRESHOLD_STORAGE_KEY);
+        if (savedThreshold !== null) {
+            connectionsThresholdInput.value = savedThreshold;
+        }
+        applyConnectionsThresholdFilter();
+        connectionsThresholdInput.addEventListener("input", () => {
+            const threshold = normalizeThresholdValue(connectionsThresholdInput.value);
+            if (threshold === null) {
+                localStorage.removeItem(THRESHOLD_STORAGE_KEY);
+            } else {
+                localStorage.setItem(THRESHOLD_STORAGE_KEY, String(threshold));
+            }
+            applyConnectionsThresholdFilter();
+        });
+    }
+
+    if (connectionsThresholdInput && thresholdResetButton) {
+        thresholdResetButton.addEventListener("click", () => {
+            connectionsThresholdInput.value = "";
+            localStorage.removeItem(THRESHOLD_STORAGE_KEY);
+            applyConnectionsThresholdFilter();
+        });
+    }
+
     convertConnectionTimesIn(document);
+    applyConnectionsThresholdFilter();
 });

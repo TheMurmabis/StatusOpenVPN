@@ -38,6 +38,17 @@
     Год
   </a>
 </div>
+<div class="dropdown flex-shrink-0">
+  <button type="button" id="statsLastRangeOpen" class="btn btn-sm btn-outline-secondary dropdown-toggle flex-shrink-0"
+    data-bs-toggle="dropdown" aria-expanded="false" title="Последние N дней">
+    <i class="bi bi-clock" aria-hidden="true"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="statsLastRangeOpen">
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="7">Последние 7 дней</a></li>
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="30">Последние 30 дней</a></li>
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="365">Последние 365 дней</a></li>
+  </ul>
+</div>
 <button type="button" id="statsDateRangeOpen" class="btn btn-sm btn-outline-secondary flex-shrink-0"
   title="Выбрать период" aria-label="Выбрать период в календаре">
   <i class="bi bi-calendar3" aria-hidden="true"></i>
@@ -65,6 +76,7 @@
     {{ error_message }}
 </div>
 {% else %}
+  {% set visible_stats = stats | rejectattr('client_name', 'equalto', 'UNDEF') | list %}
 
   <div class="stats-date-range-offscreen" aria-hidden="true">
     <form class="mb-0" method="get">
@@ -89,6 +101,12 @@
       </ul>
     </div>
   </div>
+
+  {% if visible_stats | length == 0 %}
+  <div class="vpn-empty-panel show text-center mb-3">
+    <p class="text-muted mb-0">Нет статистики ни по одному клиенту за выбранный период.</p>
+  </div>
+  {% else %}
 
   <div class="mb-3 dash-panel vpn-chart-panel">
     <div id="clientChartContainer" style="display: none;">
@@ -141,17 +159,17 @@
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
+              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Передано
-                {% if sort_by == 'total_bytes_received' %}
+                {% if sort_by == 'total_bytes_sent' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                 {% endif %}
               </a>
             </th>
             <th class="text-center">
-              <a href="?period={{ period }}&sort=total_bytes_sent&order={{ 'desc' if sort_by == 'total_bytes_sent' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
+              <a href="?period={{ period }}&sort=total_bytes_received&order={{ 'desc' if sort_by == 'total_bytes_received' and order == 'asc' else 'asc' }}&date_from={{ selected_date_from }}&date_to={{ selected_date_to }}&tz={{ selected_tz }}">
                 Получено
-                {% if sort_by == 'total_bytes_sent' %}
+                {% if sort_by == 'total_bytes_received' %}
                 <i class="fa {{ 'fa-sort-amount-asc' if order == 'desc' else 'fa-sort-amount-desc' }}"></i>
                 {% endif %}
               </a>
@@ -167,12 +185,11 @@
           </tr>
         </thead>
         <tbody>
-          {% for client in stats %}
-          {% if client['client_name'] != 'UNDEF' %}
+          {% for client in visible_stats %}
           <tr data-client="{{ client['client_name'] }}" style="cursor: pointer;">
             <td class="client-name text-center vpn-table-client">{{ client['client_name'] }}</td>
-            <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_received'] }}</span></td>
             <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_sent'] }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ client['total_bytes_received'] }}</span></td>
             <td class="text-center">
               {% if client['last_connected'] %}
               <span class="connection-time" data-utc="{{ client['last_connected'] }}">Загрузка...</span>
@@ -181,20 +198,20 @@
               {% endif %}
             </td>
           </tr>
-          {% endif %}
           {% endfor %}
         </tbody>
         <tfoot>
           <tr class="vpn-tfoot-totals text-start">
             <td class="text-center">Итого</td>
-            <td class="text-center"><span class="vpn-table-metric">{{ total_received }}</span></td>
             <td class="text-center"><span class="vpn-table-metric">{{ total_sent }}</span></td>
+            <td class="text-center"><span class="vpn-table-metric">{{ total_received }}</span></td>
             <td class="text-center"></td>
           </tr>
         </tfoot>
       </table>
     </div>
   </section>
+  {% endif %}
 
 {% endif %}
 

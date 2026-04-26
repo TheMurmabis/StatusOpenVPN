@@ -10,20 +10,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Фильтр
-    const logFilter = document.getElementById('logFilter'); 
+    const logFilter = document.getElementById('logFilter');
+    if (!logFilter) {
+        return;
+    }
+
+    const currentQuery = (logFilter.dataset.currentQuery || '').trim();
+    let debounceId = null;
+
+    const applyFilter = () => {
+        const value = logFilter.value.trim();
+        if (value === currentQuery) {
+            return;
+        }
+
+        const url = new URL(window.location.href);
+        if (value) {
+            url.searchParams.set('q', value);
+        } else {
+            url.searchParams.delete('q');
+        }
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+    };
 
     logFilter.addEventListener('input', () => {
-        const filterValue = logFilter.value.toLowerCase(); 
+        if (debounceId) {
+            clearTimeout(debounceId);
+        }
+        debounceId = setTimeout(applyFilter, 400);
+    });
 
-        document.querySelectorAll('.log-row').forEach(row => {
-            const text = [
-                '.client-name', '.real-ip', '.local-ip', '.protocol'
-            ]
-                .map(sel => row.querySelector(sel)?.textContent.toLowerCase() || '')
-                .join(' ');
-
-            row.style.display = text.includes(filterValue) ? '' : 'none';
-        });
+    logFilter.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+        event.preventDefault();
+        if (debounceId) {
+            clearTimeout(debounceId);
+        }
+        applyFilter();
     });
 });

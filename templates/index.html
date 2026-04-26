@@ -90,17 +90,30 @@
     <a href="{{ url_for('ovpn') }}" class="dash-kpi dash-kpi--link">
       <div class="dash-kpi__ic dash-kpi__ic--ovpn"><i class="bi bi-shield-lock" aria-hidden="true"></i></div>
       <div class="dash-kpi__body">
+        {% set ovpn_blocked = system_info.vpn_blocked.get('OpenVPN', 0) if system_info and system_info.vpn_blocked else 0 %}
+        {% set ovpn_expiring = system_info.openvpn_expiring_certs if system_info and system_info.openvpn_expiring_certs is defined else 0 %}
         <span class="dash-kpi__lbl">OpenVPN</span>
-        <span id="admin-stat-ovpn" class="dash-kpi__val">{{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}</span>
-        <span class="dash-kpi__hint">онлайн</span>
+        <span class="dash-kpi__val">
+          <span id="admin-stat-ovpn">{{ system_info.vpn_clients['OpenVPN'] if system_info and system_info.vpn_clients else 0 }}</span>
+          <span id="admin-stat-ovpn-blocked-sep" class="dash-kpi__pct{% if ovpn_blocked == 0 %} d-none{% endif %}">/</span>
+          <span id="admin-stat-ovpn-blocked" class="{% if ovpn_blocked == 0 %}d-none{% endif %}">{{ ovpn_blocked }}</span>
+          <span id="admin-stat-ovpn-expiring-sep" class="dash-kpi__pct{% if ovpn_expiring == 0 %} d-none{% endif %}">/</span>
+          <span id="admin-stat-ovpn-expiring" class="{% if ovpn_expiring == 0 %}d-none{% endif %}">{{ ovpn_expiring }}</span>
+        </span>
+        <span id="admin-stat-ovpn-hint" class="dash-kpi__hint">онлайн{% if ovpn_blocked > 0 %} / заблокировано{% endif %}{% if ovpn_expiring > 0 %} / скоро истекают{% endif %}</span>
       </div>
     </a>
     <a href="{{ url_for('wg') }}" class="dash-kpi dash-kpi--link">
       <div class="dash-kpi__ic dash-kpi__ic--wg"><i class="bi bi-hdd-network" aria-hidden="true"></i></div>
       <div class="dash-kpi__body">
+        {% set wg_blocked = system_info.vpn_blocked.get('WireGuard', 0) if system_info and system_info.vpn_blocked else 0 %}
         <span class="dash-kpi__lbl">WireGuard</span>
-        <span id="admin-stat-wg" class="dash-kpi__val">{{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}</span>
-        <span class="dash-kpi__hint">онлайн</span>
+        <span class="dash-kpi__val">
+          <span id="admin-stat-wg">{{ system_info.vpn_clients['WireGuard'] if system_info and system_info.vpn_clients else 0 }}</span>
+          <span id="admin-stat-wg-blocked-sep" class="dash-kpi__pct{% if wg_blocked == 0 %} d-none{% endif %}">/</span>
+          <span id="admin-stat-wg-blocked" class="{% if wg_blocked == 0 %}d-none{% endif %}">{{ wg_blocked }}</span>
+        </span>
+        <span id="admin-stat-wg-hint" class="dash-kpi__hint">онлайн{% if wg_blocked > 0 %} / заблокировано{% endif %}</span>
       </div>
     </a>
     <div class="dash-kpi dash-kpi--meter">

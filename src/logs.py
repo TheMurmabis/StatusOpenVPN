@@ -18,6 +18,7 @@ LOG_FILES = [
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "databases", "openvpn_logs.db")
 SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
+HISTORY_MAX_RECORDS_DEFAULT = 1000
 
 
 def get_stats_retention_days(default_days=365):
@@ -28,6 +29,26 @@ def get_stats_retention_days(default_days=365):
         return max(30, min(days, 3650))
     except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError):
         return default_days
+
+
+def parse_history_max_records(raw_value, default=HISTORY_MAX_RECORDS_DEFAULT):
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(100, min(value, 100000))
+
+
+def get_history_max_records(default=HISTORY_MAX_RECORDS_DEFAULT):
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
+            settings_data = json.load(settings_file)
+        return parse_history_max_records(
+            settings_data.get("history_max_records", default),
+            default=default,
+        )
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError):
+        return default
 
 
 def get_retention_windows(total_days):
@@ -496,16 +517,16 @@ def save_connection_logs(logs):
                         (diff_received, diff_sent, existing_id),
                     )
 
-            # Удаляем старые записи, если их больше 100
-            cursor.execute(
-                """
-                DELETE FROM connection_logs
-                WHERE id NOT IN (
-                    SELECT id FROM connection_logs ORDER BY id DESC LIMIT 100
-                )
-                """
+        max_records = get_history_max_records()
+        cursor.execute(
+            """
+            DELETE FROM connection_logs
+            WHERE id NOT IN (
+                SELECT id FROM connection_logs ORDER BY id DESC LIMIT ?
             )
-
+            """,
+            (max_records,),
+        )
         conn.commit()
 
 

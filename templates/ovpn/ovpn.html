@@ -64,6 +64,25 @@
     {% else %}
 
     <section class="dash-panel mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <label for="ovpn-connections-threshold" title="Кол-во минимальных подключений" class="d-flex align-items-center gap-2 mb-0">
+                <span class="small text-muted">Мин. подключений</span>
+                <input
+                    type="number"
+                    id="ovpn-connections-threshold"
+                    class="form-control form-control-sm"
+                    min="2"
+                    max="10"
+                    step="1"
+                    placeholder="от 2"
+                    style="width: 90px;"
+                >
+            </label>
+            <div id="ovpn-threshold-status-wrap" class="small text-muted d-none">
+                <span id="ovpn-threshold-status"></span>
+                <button type="button" id="ovpn-threshold-reset" class="btn btn-link btn-sm p-0 ms-2">Сбросить</button>
+            </div>
+        </div>
         <div class="table-responsive ovpn_table ovpn-table-online vpn-data-table-wrap w-100 mb-4">
             <table class="table vpn-data-table mb-0">
                 <thead>

@@ -38,6 +38,17 @@
     Год
   </a>
 </div>
+<div class="dropdown flex-shrink-0">
+  <button type="button" id="statsLastRangeOpen" class="btn btn-sm btn-outline-secondary dropdown-toggle flex-shrink-0"
+    data-bs-toggle="dropdown" aria-expanded="false" title="Последние N дней">
+    <i class="bi bi-clock" aria-hidden="true"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="statsLastRangeOpen">
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="7">Последние 7 дней</a></li>
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="30">Последние 30 дней</a></li>
+    <li><a class="dropdown-item stats-quick-range" href="#" data-days="365">Последние 365 дней</a></li>
+  </ul>
+</div>
 <button type="button" id="statsDateRangeOpen" class="btn btn-sm btn-outline-secondary flex-shrink-0"
   title="Выбрать период" aria-label="Выбрать период в календаре">
   <i class="bi bi-calendar3" aria-hidden="true"></i>
@@ -63,6 +74,7 @@
   {{ error_message }}
 </div>
 {% else %}
+  {% set visible_stats = stats | rejectattr('client', 'equalto', 'Unknown') | list %}
 
   <div class="stats-date-range-offscreen" aria-hidden="true">
     <form class="mb-0" method="get">
@@ -87,6 +99,12 @@
       </ul>
     </div>
   </div>
+
+  {% if visible_stats | length == 0 %}
+  <div class="vpn-empty-panel show text-center mb-3">
+    <p class="text-muted mb-0">Нет статистики ни по одному клиенту за выбранный период.</p>
+  </div>
+  {% else %}
 
   <div class="mb-3 dash-panel vpn-chart-panel">
     <div id="clientChartContainer" style="display: none;">
@@ -160,14 +178,12 @@
           </tr>
         </thead>
         <tbody>
-          {% for client in stats %}
-          {% if client['client'] != 'Unknown' %}
+          {% for client in visible_stats %}
           <tr data-client="{{ client['client'] }}" style="cursor: pointer;">
             <td class="client-name text-center vpn-table-client">{{ client['client'] }}</td>
             <td class="text-center"><span class="vpn-table-metric">{{ client['total_sent'] }}</span></td>
             <td class="text-center"><span class="vpn-table-metric">{{ client['total_received'] }}</span></td>
           </tr>
-          {% endif %}
           {% endfor %}
         </tbody>
         <tfoot>
@@ -180,6 +196,7 @@
       </table>
     </div>
   </section>
+  {% endif %}
 
 {% endif %}
 

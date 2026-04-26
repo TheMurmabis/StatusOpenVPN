@@ -60,6 +60,7 @@
                         </a>
                     </li>
 
+                    {% if show_ovpn_menu %}
                     <li class="nav-item app-sidebar__group">
                         <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_section == 'ovpn' else '' }}"
                             href="{{ url_for('ovpn') }}">
@@ -79,7 +80,9 @@
                             </nav>
                         </div>
                     </li>
+                    {% endif %}
 
+                    {% if show_wg_menu %}
                     <li class="nav-item app-sidebar__group">
                         <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_section == 'wg' else '' }}"
                             href="{{ url_for('wg') }}">
@@ -95,6 +98,7 @@
                             </nav>
                         </div>
                     </li>
+                    {% endif %}
 
                     <li class="nav-item app-sidebar__group">
                         <a class="nav-link app-sidebar__link d-flex align-items-center text-white {{ 'active' if active_page and active_page.startswith('settings') else '' }}"
@@ -136,7 +140,7 @@
                 </a>
                 {% endif %}
 
-                <div class="app-sidebar__version text-right text-white-50 small" title="Текущая версия приложения {{ version }}">
+                <div class="app-sidebar__version text-center text-white-50 small" title="Текущая версия приложения {{ version }}">
                     Версия {{ version }}
                 </div>
             </div>
@@ -193,16 +197,20 @@
                 <i class="bi bi-house-door-fill app-bottom-nav__icon" aria-hidden="true"></i>
                 <span class="app-bottom-nav__label">Главная</span>
             </a>
+            {% if show_ovpn_menu %}
             <a class="app-bottom-nav__item {{ 'active' if active_section == 'ovpn' else '' }}"
                 href="{{ url_for('ovpn') }}">
                 <i class="bi bi-shield-lock-fill app-bottom-nav__icon" aria-hidden="true"></i>
                 <span class="app-bottom-nav__label">OpenVPN</span>
             </a>
+            {% endif %}
+            {% if show_wg_menu %}
             <a class="app-bottom-nav__item {{ 'active' if active_section == 'wg' else '' }}"
                 href="{{ url_for('wg') }}">
                 <i class="bi bi-hdd-network-fill app-bottom-nav__icon" aria-hidden="true"></i>
                 <span class="app-bottom-nav__label">WireGuard</span>
             </a>
+            {% endif %}
             <a class="app-bottom-nav__item {{ 'active' if active_page and active_page.startswith('settings') else '' }}"
                 href="{{ url_for('settings') }}">
                 <i class="bi bi-gear-wide-connected app-bottom-nav__icon" aria-hidden="true"></i>

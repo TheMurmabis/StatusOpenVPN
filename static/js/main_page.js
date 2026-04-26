@@ -239,6 +239,37 @@ function setUtilMeter(fillEl, pct) {
     if (track) track.setAttribute('aria-valuenow', String(Math.round(v)));
 }
 
+function updateBlockedVpnStat(valueEl, sepEl, hintEl, count) {
+    const value = Number(count) || 0;
+    if (valueEl) {
+        valueEl.textContent = String(value);
+        valueEl.classList.toggle('d-none', value <= 0);
+    }
+    if (sepEl) sepEl.classList.toggle('d-none', value <= 0);
+    if (hintEl) hintEl.textContent = value > 0 ? 'онлайн / заблокировано' : 'онлайн';
+}
+
+function updateOpenvpnStat(blockedEl, blockedSepEl, expiringEl, expiringSepEl, hintEl, blockedCount, expiringCount) {
+    const blocked = Number(blockedCount) || 0;
+    const expiring = Number(expiringCount) || 0;
+    if (blockedEl) {
+        blockedEl.textContent = String(blocked);
+        blockedEl.classList.toggle('d-none', blocked <= 0);
+    }
+    if (blockedSepEl) blockedSepEl.classList.toggle('d-none', blocked <= 0);
+    if (expiringEl) {
+        expiringEl.textContent = String(expiring);
+        expiringEl.classList.toggle('d-none', expiring <= 0);
+    }
+    if (expiringSepEl) expiringSepEl.classList.toggle('d-none', expiring <= 0);
+    if (hintEl) {
+        const parts = ['онлайн'];
+        if (blocked > 0) parts.push('заблокировано');
+        if (expiring > 0) parts.push('скоро истекают');
+        hintEl.textContent = parts.join(' / ');
+    }
+}
+
 function vpnInactiveSummaryPhrase(count) {
     if (count <= 0) return { text: 'Активны', allActive: true };
     const n = count;
@@ -366,6 +397,9 @@ async function updateSystemInfo() {
         const txElement = document.getElementById('tx_bytes');
         const openvpn = data.vpn_clients?.OpenVPN ?? 0;
         const wireguard = data.vpn_clients?.WireGuard ?? 0;
+        const openvpnBlocked = data.vpn_blocked?.OpenVPN ?? 0;
+        const wireguardBlocked = data.vpn_blocked?.WireGuard ?? 0;
+        const openvpnExpiring = data.openvpn_expiring_certs ?? 0;
 
         if (memoryElement && memoryElement.textContent !== String(data.memory_used)) {
             memoryElement.textContent = data.memory_used;
@@ -398,10 +432,20 @@ async function updateSystemInfo() {
 
         const elOvpn = document.getElementById('admin-stat-ovpn');
         const elWg = document.getElementById('admin-stat-wg');
+        const elOvpnBlocked = document.getElementById('admin-stat-ovpn-blocked');
+        const elWgBlocked = document.getElementById('admin-stat-wg-blocked');
+        const elOvpnBlockedSep = document.getElementById('admin-stat-ovpn-blocked-sep');
+        const elWgBlockedSep = document.getElementById('admin-stat-wg-blocked-sep');
+        const elOvpnExpiring = document.getElementById('admin-stat-ovpn-expiring');
+        const elOvpnExpiringSep = document.getElementById('admin-stat-ovpn-expiring-sep');
+        const elOvpnHint = document.getElementById('admin-stat-ovpn-hint');
+        const elWgHint = document.getElementById('admin-stat-wg-hint');
         const elKpiCpu = document.getElementById('admin-kpi-cpu');
         const elKpiUptime = document.getElementById('admin-kpi-uptime');
         if (elOvpn && elOvpn.textContent !== String(openvpn)) elOvpn.textContent = String(openvpn);
         if (elWg && elWg.textContent !== String(wireguard)) elWg.textContent = String(wireguard);
+        updateOpenvpnStat(elOvpnBlocked, elOvpnBlockedSep, elOvpnExpiring, elOvpnExpiringSep, elOvpnHint, openvpnBlocked, openvpnExpiring);
+        updateBlockedVpnStat(elWgBlocked, elWgBlockedSep, elWgHint, wireguardBlocked);
         const cpuStr = formatCpuPercent(data.cpu_load);
         if (elKpiCpu && elKpiCpu.textContent !== cpuStr) elKpiCpu.textContent = cpuStr;
         const cpuBar = document.getElementById('cpu_bar');
