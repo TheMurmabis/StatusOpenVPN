@@ -4,7 +4,7 @@
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/stargazers">
     <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat&labelColor=d3d3d3"/></a>
   <a href="/CHANGELOG.md">
-    <img src="https://img.shields.io/github/v/release/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/github/v/tag/TheMurmabis/StatusOpenVPN?label=version&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
     <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
   <a href="#">
