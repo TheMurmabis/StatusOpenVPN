@@ -119,6 +119,16 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-3">Файл .conf для импорта в WireGuard или AmneziaVPN.</p>
+                {% if shorten_wg_filenames %}
+                <p class="alert alert-success py-2 px-3 small mb-3">
+                    Конфигурация будет скачана c коротким именем файла.
+                </p>
+                {% else %}
+                <p class="alert alert-info py-2 px-3 small mb-3">
+                    Конфигурация будет скачана с полным именем файла. Чтобы скачать конфигурацию с коротким именем, откройте
+                    «Настройки → Общие → WireGuard» и активируйте пункт «Короткие имена файлов».
+                </p>
+                {% endif %}
                 <div id="wgConfigDownloadLoading" class="py-3 text-muted small">Загрузка…</div>
                 <div id="wgConfigDownloadBody" class="d-none">
                     <label class="form-label small text-muted mb-1 d-none" for="wgConfigProfileSelect">Профиль</label>
