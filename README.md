@@ -78,8 +78,7 @@
   <img width="420" height="233" alt="image" src="https://github.com/user-attachments/assets/69e1d5fc-0b70-4ad2-9a27-1515bd626399" />
 </picture>
 
-Инструкция по настройке бота доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
-
+Инструкция по Telegram-боту (установка, настройка и [FAQ](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot#faq)) доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
 
 ### Основные функции
 - Отображение статистики подключений для OpenVPN и WireGuard.
@@ -98,6 +97,8 @@
   - Уведомления о нагрузке на сервер, о перезагрузке.
   - Список админов, список онлайн клиентов.
   - Клиентская сторона: клиенты могут получить свои конфиг файлы.
+  - Ограничение выдачи конфигов по типам (OpenVPN/WireGuard, VPN/Antizapret) для каждого клиента.
+  - Режим доступа для "чужих": запросы на вступление, их отключение и список заблокированных ID.
 
 
 ## Требования
