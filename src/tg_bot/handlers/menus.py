@@ -120,9 +120,9 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
         )
         await callback.answer()
         return
-    
-    if data.startswith("clientmap_"):
-        telegram_id = data.split("_", 1)[1]
+
+    if data.startswith("clientmap_delete_"):
+        telegram_id = data.split("_", 2)[2]
         client_map = get_client_mapping()
         client_name = client_map.get(telegram_id)
         if not client_name:
@@ -135,6 +135,25 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
             f"Удалить привязку <code>{get_user_label(telegram_id)}</code> → "
             f"<b>{client_name}</b>?",
             reply_markup=create_clientmap_delete_menu(telegram_id, client_name),
+        )
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_"):
+        telegram_id = data.split("_", 1)[1]
+        client_map = get_client_mapping()
+        client_name = client_map.get(telegram_id)
+        if not client_name:
+            await callback.message.edit_text(
+                "Привязка не найдена.", reply_markup=create_clients_menu(admin_ids)
+            )
+            await callback.answer()
+            return
+        from ..keyboards import create_client_protocols_menu
+        await callback.message.edit_text(
+            f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
+            "Выберите доступные протоколы:",
+            reply_markup=create_client_protocols_menu(telegram_id),
         )
         await callback.answer()
 
@@ -354,7 +373,86 @@ async def handle_notifications_menu(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "no_action")
+@router.callback_query(lambda c: c.data.startswith("toggle_proto_"))
+async def handle_toggle_protocol(callback: types.CallbackQuery):
+    """Обработка переключения доступных протоколов для клиента."""
+    admin_ids = get_admin_ids()
+
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    from ..config import get_client_allowed_protocols, set_client_allowed_protocols
+    from ..keyboards import create_client_protocols_menu
+
+    data = callback.data
+    telegram_id = None
+
+    # Получаем текущие настройки
+    if data.startswith("toggle_proto_ovpn_vpn_"):
+        telegram_id = data.split("_", 4)[4]
+        protocols = get_client_allowed_protocols(telegram_id)
+        set_client_allowed_protocols(
+            telegram_id,
+            openvpn_vpn=not protocols.get("openvpn_vpn", True),
+            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
+            wireguard_vpn=protocols.get("wireguard_vpn", True),
+            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
+        )
+    elif data.startswith("toggle_proto_ovpn_az_"):
+        telegram_id = data.split("_", 4)[4]
+        protocols = get_client_allowed_protocols(telegram_id)
+        set_client_allowed_protocols(
+            telegram_id,
+            openvpn_vpn=protocols.get("openvpn_vpn", True),
+            openvpn_antizapret=not protocols.get("openvpn_antizapret", True),
+            wireguard_vpn=protocols.get("wireguard_vpn", True),
+            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
+        )
+    elif data.startswith("toggle_proto_wg_vpn_"):
+        telegram_id = data.split("_", 4)[4]
+        protocols = get_client_allowed_protocols(telegram_id)
+        set_client_allowed_protocols(
+            telegram_id,
+            openvpn_vpn=protocols.get("openvpn_vpn", True),
+            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
+            wireguard_vpn=not protocols.get("wireguard_vpn", True),
+            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
+        )
+    elif data.startswith("toggle_proto_wg_az_"):
+        telegram_id = data.split("_", 4)[4]
+        protocols = get_client_allowed_protocols(telegram_id)
+        set_client_allowed_protocols(
+            telegram_id,
+            openvpn_vpn=protocols.get("openvpn_vpn", True),
+            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
+            wireguard_vpn=protocols.get("wireguard_vpn", True),
+            wireguard_antizapret=not protocols.get("wireguard_antizapret", True)
+        )
+    else:
+        await callback.answer()
+        return
+
+    if not telegram_id:
+        await callback.answer()
+        return
+
+    client_map = get_client_mapping()
+    client_name = client_map.get(telegram_id, "неизвестен")
+
+    await callback.message.edit_text(
+        f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
+        "Выберите доступные протоколы:",
+        reply_markup=create_client_protocols_menu(telegram_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "no_action" or c.data == "no_protocols")
 async def handle_no_action(callback: types.CallbackQuery):
     """Обработка кнопок без действия."""
+    if callback.data == "no_protocols":
+        await callback.answer("У вас нет доступных протоколов. Обратитесь к администратору.", show_alert=True)
+    else:
+        await callback.answer()
     await callback.answer("В разработке", show_alert=False)

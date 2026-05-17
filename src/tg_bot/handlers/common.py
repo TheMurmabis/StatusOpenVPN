@@ -51,7 +51,7 @@ async def show_client_menu(message: types.Message, user_id: int):
         return
     await message.answer(
         f'Ваш клиент: "{client_name}". Выберите протокол:',
-        reply_markup=create_client_menu(client_name),
+        reply_markup=create_client_menu(client_name, user_id),
     )
 
 

@@ -43,35 +43,51 @@ async def handle_client_selection(callback: types.CallbackQuery, state: FSMConte
     """Обработка выбора клиента для скачивания конфига."""
     admin_ids = get_admin_ids()
     _, vpn_type, client_name = callback.data.split("_", 2)
-    
+
     if callback.from_user.id not in admin_ids:
         allowed_client = get_client_name_for_user(callback.from_user.id)
         if not allowed_client or allowed_client != client_name:
             await callback.answer("Доступ запрещен!", show_alert=True)
             return
+
+        # Проверка доступных протоколов для клиента
+        from ..config import get_client_allowed_protocols
+        protocols = get_client_allowed_protocols(str(callback.from_user.id))
+
+        if vpn_type == "openvpn" and not protocols.get("openvpn", True):
+            await callback.answer("OpenVPN недоступен для вас. Обратитесь к администратору.", show_alert=True)
+            return
+
+        if vpn_type == "wireguard" and not protocols.get("wireguard", True):
+            await callback.answer("WireGuard недоступен для вас. Обратитесь к администратору.", show_alert=True)
+            return
+
         await state.update_data(client_mode=True)
-    
+
     await state.update_data(client_name=client_name, vpn_type=vpn_type)
-    
+
     back_callback = (
         "back_to_client_menu"
         if callback.from_user.id not in admin_ids
         else "back_to_client_list"
     )
-    
+
+    # Передаём telegram_id для клиентов, чтобы показывать только доступные конфигурации
+    telegram_id = None if callback.from_user.id in admin_ids else callback.from_user.id
+
     if vpn_type == "openvpn":
         await callback.message.edit_text(
             "Выберите тип конфигурации OpenVPN:",
-            reply_markup=create_openvpn_config_menu(client_name, back_callback),
+            reply_markup=create_openvpn_config_menu(client_name, back_callback, telegram_id),
         )
         await state.set_state(VPNSetup.choosing_config_type)
     else:
         await callback.message.edit_text(
             "Выберите тип конфигурации WireGuard:",
-            reply_markup=create_wireguard_config_menu(client_name, back_callback),
+            reply_markup=create_wireguard_config_menu(client_name, back_callback, telegram_id),
         )
         await state.set_state(VPNSetup.choosing_config_type)
-    
+
     await callback.answer()
 
 
@@ -92,12 +108,12 @@ async def handle_interface_selection(callback: types.CallbackQuery, state: FSMCo
             return
         await callback.message.edit_text(
             f'Ваш клиент: "{mapped_client}". Выберите протокол:',
-            reply_markup=create_client_menu(mapped_client),
+            reply_markup=create_client_menu(mapped_client, callback.from_user.id),
         )
         await state.clear()
         await callback.answer()
         return
-    
+
     if callback.data == "back_to_client_list":
         if client_mode:
             mapped_client = get_client_name_for_user(callback.from_user.id)
@@ -107,7 +123,7 @@ async def handle_interface_selection(callback: types.CallbackQuery, state: FSMCo
                 return
             await callback.message.edit_text(
                 f'Ваш клиент: "{mapped_client}". Выберите протокол:',
-                reply_markup=create_client_menu(mapped_client),
+                reply_markup=create_client_menu(mapped_client, callback.from_user.id),
             )
             await state.clear()
             await callback.answer()
@@ -126,6 +142,21 @@ async def handle_interface_selection(callback: types.CallbackQuery, state: FSMCo
     
     if callback.data.startswith("openvpn_config_"):
         _, _, interface, _ = callback.data.split("_", 3)
+
+        # Проверка доступа для клиентов
+        if callback.from_user.id not in admin_ids:
+            from ..config import get_client_allowed_protocols
+            protocols = get_client_allowed_protocols(str(callback.from_user.id))
+
+            if interface == "vpn" and not protocols.get("openvpn_vpn", True):
+                await callback.answer("OpenVPN VPN недоступен для вас. Обратитесь к администратору.", show_alert=True)
+                await state.clear()
+                return
+            elif interface == "antizapret" and not protocols.get("openvpn_antizapret", True):
+                await callback.answer("OpenVPN Antizapret недоступен для вас. Обратитесь к администратору.", show_alert=True)
+                await state.clear()
+                return
+
         await state.update_data(interface=interface)
         await callback.message.edit_text(
             f"OpenVPN ({interface}): выберите протокол:",
@@ -134,6 +165,21 @@ async def handle_interface_selection(callback: types.CallbackQuery, state: FSMCo
         await state.set_state(VPNSetup.choosing_protocol)
     else:
         _, _, interface, _ = callback.data.split("_", 3)
+
+        # Проверка доступа для клиентов
+        if callback.from_user.id not in admin_ids:
+            from ..config import get_client_allowed_protocols
+            protocols = get_client_allowed_protocols(str(callback.from_user.id))
+
+            if interface == "vpn" and not protocols.get("wireguard_vpn", True):
+                await callback.answer("WireGuard VPN недоступен для вас. Обратитесь к администратору.", show_alert=True)
+                await state.clear()
+                return
+            elif interface == "antizapret" and not protocols.get("wireguard_antizapret", True):
+                await callback.answer("WireGuard Antizapret недоступен для вас. Обратитесь к администратору.", show_alert=True)
+                await state.clear()
+                return
+
         await state.update_data(interface=interface)
         await callback.message.edit_text(
             f"WireGuard ({interface}): выберите тип:",
@@ -220,31 +266,79 @@ async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMCont
     
     if callback.data.startswith("send_wg_"):
         _, _, interface, wg_type, _ = callback.data.split("_", 4)
-        
+
         name_core = client_name.replace("antizapret-", "").replace("vpn-", "")
+        # Заменяем пробелы на подчеркивания в имени клиента
+        name_core = name_core.replace(" ", "_")
         dir_path = f"/root/antizapret/client/{'wireguard' if wg_type == 'wg' else 'amneziawg'}/{interface}/"
         pattern = re.compile(rf"{interface}-{re.escape(name_core)}-\([^)]+\)-{wg_type}\.conf")
-        
+
         matched_file = None
         if os.path.exists(dir_path):
             for file in os.listdir(dir_path):
                 if pattern.fullmatch(file):
                     matched_file = os.path.join(dir_path, file)
                     break
-        
+
         if not matched_file:
             await callback.answer("❌ Файл конфигурации не найден", show_alert=True)
             await state.clear()
             return
-        
+
+        from ..config import load_settings as load_bot_settings
+        try:
+            main_settings = load_bot_settings()
+            shorten_filenames = bool(main_settings.get("shorten_wg_filenames", False))
+        except Exception:
+            shorten_filenames = False
+
+        short_name = f"{interface}-{name_core}-{wg_type}.conf"
+
         await state.update_data({
             "file_path": matched_file,
             "original_name": os.path.basename(matched_file),
-            "short_name": f"{name_core}-{wg_type}.conf",
+            "short_name": short_name,
+            "shorten_filenames": shorten_filenames,
         })
-        
+
+        if shorten_filenames:
+            file_size = os.path.getsize(matched_file)
+            if file_size == 0:
+                await callback.answer("❌ Файл пуст", show_alert=True)
+                await state.clear()
+                return
+            if file_size > 50 * 1024 * 1024:
+                await callback.answer("❌ Файл слишком большой для отправки в Telegram", show_alert=True)
+                await state.clear()
+                return
+
+            try:
+                bot = await _get_bot()
+                file = FSInputFile(matched_file, filename=short_name)
+                await bot.send_document(
+                    chat_id=callback.from_user.id,
+                    document=file,
+                    caption=f"🔐 {short_name}",
+                )
+                await callback.message.delete()
+                if callback.from_user.id in admin_ids:
+                    server_ip = _get_server_ip()
+                    await callback.message.answer(
+                        "Главное меню:", reply_markup=create_main_menu(server_ip)
+                    )
+                else:
+                    from .common import show_client_menu
+                    await show_client_menu(callback.message, callback.from_user.id)
+            except Exception as e:
+                print(f"Ошибка при отправке файла: {e}")
+                await callback.answer("❌ Ошибка при отправке файла", show_alert=True)
+
+            await state.clear()
+            await callback.answer()
+            return
+
         await callback.message.edit_text(
-            "Android может не принимать файлы с длинными именами.\nХотите переименовать файл при отправке?",
+            "Некоторые приложения не принимают файлы с длинными именами.\nХотите использовать короткое имя файла?",
             reply_markup=create_rename_confirmation_keyboard(),
         )
         await state.set_state(VPNSetup.confirming_rename)

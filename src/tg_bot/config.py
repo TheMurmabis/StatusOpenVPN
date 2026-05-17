@@ -283,3 +283,76 @@ def set_load_thresholds(cpu_threshold: int = None, memory_threshold: int = None)
         thresholds["memory"] = int(memory_threshold)
     data["load_thresholds"] = thresholds
     save_settings(data)
+
+
+def get_client_allowed_protocols(telegram_id: str) -> dict:
+    """Получить доступные протоколы для клиента. По умолчанию все включены."""
+    data = load_settings()
+    clients = data.get("telegram_clients") or {}
+    if not isinstance(clients, dict):
+        return {
+            "openvpn_vpn": True,
+            "openvpn_antizapret": True,
+            "wireguard_vpn": True,
+            "wireguard_antizapret": True,
+        }
+    client_data = clients.get(str(telegram_id), {})
+    if not isinstance(client_data, dict):
+        return {
+            "openvpn_vpn": True,
+            "openvpn_antizapret": True,
+            "wireguard_vpn": True,
+            "wireguard_antizapret": True,
+        }
+    protocols = client_data.get("allowed_protocols", {})
+    if not isinstance(protocols, dict):
+        return {
+            "openvpn_vpn": True,
+            "openvpn_antizapret": True,
+            "wireguard_vpn": True,
+            "wireguard_antizapret": True,
+        }
+
+    # Поддержка старого формата (openvpn/wireguard) для обратной совместимости
+    if "openvpn" in protocols or "wireguard" in protocols:
+        openvpn_enabled = protocols.get("openvpn", True)
+        wireguard_enabled = protocols.get("wireguard", True)
+        return {
+            "openvpn_vpn": openvpn_enabled,
+            "openvpn_antizapret": openvpn_enabled,
+            "wireguard_vpn": wireguard_enabled,
+            "wireguard_antizapret": wireguard_enabled,
+        }
+
+    return {
+        "openvpn_vpn": protocols.get("openvpn_vpn", True),
+        "openvpn_antizapret": protocols.get("openvpn_antizapret", True),
+        "wireguard_vpn": protocols.get("wireguard_vpn", True),
+        "wireguard_antizapret": protocols.get("wireguard_antizapret", True),
+    }
+
+
+def set_client_allowed_protocols(
+    telegram_id: str,
+    openvpn_vpn: bool = True,
+    openvpn_antizapret: bool = True,
+    wireguard_vpn: bool = True,
+    wireguard_antizapret: bool = True
+):
+    """Установить доступные протоколы для клиента."""
+    data = load_settings()
+    clients = data.get("telegram_clients") or {}
+    if not isinstance(clients, dict):
+        clients = {}
+    client_data = clients.get(str(telegram_id), {})
+    if not isinstance(client_data, dict):
+        client_data = {}
+    client_data["allowed_protocols"] = {
+        "openvpn_vpn": bool(openvpn_vpn),
+        "openvpn_antizapret": bool(openvpn_antizapret),
+        "wireguard_vpn": bool(wireguard_vpn),
+        "wireguard_antizapret": bool(wireguard_antizapret),
+    }
+    clients[str(telegram_id)] = client_data
+    data["telegram_clients"] = clients
+    save_settings(data)

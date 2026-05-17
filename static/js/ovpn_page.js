@@ -169,17 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
         tdLocal.textContent = client.local_ip;
         tr.appendChild(tdLocal);
 
-        const tdRec = document.createElement("td");
-        tdRec.className = "text-center";
-        tdRec.appendChild(document.createTextNode(client.received));
-        if (client.download_speed && client.download_speed !== "-") {
-            const sp = document.createElement("span");
-            sp.className = "ovpn-speed";
-            sp.textContent = `↓ ${client.download_speed}`;
-            tdRec.appendChild(sp);
-        }
-        tr.appendChild(tdRec);
-
         const tdSent = document.createElement("td");
         tdSent.className = "text-center";
         tdSent.appendChild(document.createTextNode(client.sent));
@@ -190,6 +179,17 @@ document.addEventListener("DOMContentLoaded", () => {
             tdSent.appendChild(sp);
         }
         tr.appendChild(tdSent);
+
+        const tdRec = document.createElement("td");
+        tdRec.className = "text-center";
+        tdRec.appendChild(document.createTextNode(client.received));
+        if (client.download_speed && client.download_speed !== "-") {
+            const sp = document.createElement("span");
+            sp.className = "ovpn-speed";
+            sp.textContent = `↓ ${client.download_speed}`;
+            tdRec.appendChild(sp);
+        }
+        tr.appendChild(tdRec);
 
         const tdConn = document.createElement("td");
         tdConn.className = "text-center";
@@ -252,17 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         cells[2].textContent = client.local_ip;
 
-        const tdRec = cells[3];
-        tdRec.textContent = "";
-        tdRec.appendChild(document.createTextNode(client.received));
-        if (client.download_speed && client.download_speed !== "-") {
-            const sp = document.createElement("span");
-            sp.className = "ovpn-speed";
-            sp.textContent = `↓ ${client.download_speed}`;
-            tdRec.appendChild(sp);
-        }
-
-        const tdSent = cells[4];
+        const tdSent = cells[3];
         tdSent.textContent = "";
         tdSent.appendChild(document.createTextNode(client.sent));
         if (client.upload_speed && client.upload_speed !== "-") {
@@ -270,6 +260,16 @@ document.addEventListener("DOMContentLoaded", () => {
             sp.className = "ovpn-speed";
             sp.textContent = `↑ ${client.upload_speed}`;
             tdSent.appendChild(sp);
+        }
+
+        const tdRec = cells[4];
+        tdRec.textContent = "";
+        tdRec.appendChild(document.createTextNode(client.received));
+        if (client.download_speed && client.download_speed !== "-") {
+            const sp = document.createElement("span");
+            sp.className = "ovpn-speed";
+            sp.textContent = `↓ ${client.download_speed}`;
+            tdRec.appendChild(sp);
         }
 
         const tdConn = cells[5];
@@ -317,20 +317,10 @@ document.addEventListener("DOMContentLoaded", () => {
         let emptyRow = tbody.querySelector(".ovpn-empty-row");
 
         const onlineEl = document.getElementById("ovpn-footer-online");
-        const recvEl = document.getElementById("ovpn-footer-received");
         const sentEl = document.getElementById("ovpn-footer-sent");
+        const recvEl = document.getElementById("ovpn-footer-received");
         if (onlineEl) {
             onlineEl.textContent = `Онлайн: ${data.total_clients_str}`;
-        }
-        if (recvEl) {
-            recvEl.textContent = '';
-            recvEl.appendChild(document.createTextNode(data.total_received));
-            if (data.total_download_speed && data.total_download_speed !== '0.00 B/s') {
-                const sp = document.createElement('span');
-                sp.className = 'ovpn-speed';
-                sp.textContent = '\u2009\u2193 ' + data.total_download_speed;
-                recvEl.appendChild(sp);
-            }
         }
         if (sentEl) {
             sentEl.textContent = '';
@@ -340,6 +330,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 sp.className = 'ovpn-speed';
                 sp.textContent = '\u2009\u2191 ' + data.total_upload_speed;
                 sentEl.appendChild(sp);
+            }
+        }
+        if (recvEl) {
+            recvEl.textContent = '';
+            recvEl.appendChild(document.createTextNode(data.total_received));
+            if (data.total_download_speed && data.total_download_speed !== '0.00 B/s') {
+                const sp = document.createElement('span');
+                sp.className = 'ovpn-speed';
+                sp.textContent = '\u2009\u2193 ' + data.total_download_speed;
+                recvEl.appendChild(sp);
             }
         }
 

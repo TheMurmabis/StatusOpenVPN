@@ -156,20 +156,53 @@ def create_wireguard_menu():
 
 
 def create_openvpn_config_menu(
-    client_name: str, back_callback: str = "back_to_client_list"
+    client_name: str, back_callback: str = "back_to_client_list", telegram_id: int = None
 ):
     """Создать меню выбора типа конфигурации OpenVPN."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
+    from .config import get_client_allowed_protocols
+
+    buttons = []
+
+    # Если telegram_id передан, проверяем доступные протоколы
+    if telegram_id is not None:
+        protocols = get_client_allowed_protocols(str(telegram_id))
+
+        if protocols.get("openvpn_vpn", True):
+            buttons.append(
                 InlineKeyboardButton(
                     text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
-                ),
+                )
+            )
+        if protocols.get("openvpn_antizapret", True):
+            buttons.append(
                 InlineKeyboardButton(
                     text="Antizapret",
                     callback_data=f"openvpn_config_antizapret_{client_name}",
-                ),
-            ],
+                )
+            )
+    else:
+        # По умолчанию показываем оба варианта
+        buttons = [
+            InlineKeyboardButton(
+                text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
+            ),
+            InlineKeyboardButton(
+                text="Antizapret",
+                callback_data=f"openvpn_config_antizapret_{client_name}",
+            ),
+        ]
+
+    # Если нет доступных вариантов
+    if not buttons:
+        buttons = [
+            InlineKeyboardButton(
+                text="❌ Нет доступных конфигураций", callback_data="no_protocols"
+            )
+        ]
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            buttons,
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
         ]
     )
@@ -204,20 +237,53 @@ def create_openvpn_protocol_menu(interface: str, client_name: str):
 
 
 def create_wireguard_config_menu(
-    client_name: str, back_callback: str = "back_to_client_list"
+    client_name: str, back_callback: str = "back_to_client_list", telegram_id: int = None
 ):
     """Создать меню выбора типа конфигурации WireGuard."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
+    from .config import get_client_allowed_protocols
+
+    buttons = []
+
+    # Если telegram_id передан, проверяем доступные протоколы
+    if telegram_id is not None:
+        protocols = get_client_allowed_protocols(str(telegram_id))
+
+        if protocols.get("wireguard_vpn", True):
+            buttons.append(
                 InlineKeyboardButton(
                     text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
-                ),
+                )
+            )
+        if protocols.get("wireguard_antizapret", True):
+            buttons.append(
                 InlineKeyboardButton(
                     text="Antizapret",
                     callback_data=f"wireguard_config_antizapret_{client_name}",
-                ),
-            ],
+                )
+            )
+    else:
+        # По умолчанию показываем оба варианта
+        buttons = [
+            InlineKeyboardButton(
+                text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
+            ),
+            InlineKeyboardButton(
+                text="Antizapret",
+                callback_data=f"wireguard_config_antizapret_{client_name}",
+            ),
+        ]
+
+    # Если нет доступных вариантов
+    if not buttons:
+        buttons = [
+            InlineKeyboardButton(
+                text="❌ Нет доступных конфигураций", callback_data="no_protocols"
+            )
+        ]
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            buttons,
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
         ]
     )
@@ -246,20 +312,53 @@ def create_wireguard_type_menu(interface: str, client_name: str):
     )
 
 
-def create_client_menu(client_name: str):
+def create_client_menu(client_name: str, telegram_id: int = None):
     """Создать меню выбора протокола для клиента."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
+    from .config import get_client_allowed_protocols
+
+    buttons = []
+
+    # Если telegram_id передан, проверяем доступные протоколы
+    if telegram_id is not None:
+        protocols = get_client_allowed_protocols(str(telegram_id))
+
+        # Проверяем, доступен ли хотя бы один вариант OpenVPN
+        openvpn_available = protocols.get("openvpn_vpn", True) or protocols.get("openvpn_antizapret", True)
+        # Проверяем, доступен ли хотя бы один вариант WireGuard
+        wireguard_available = protocols.get("wireguard_vpn", True) or protocols.get("wireguard_antizapret", True)
+
+        if openvpn_available:
+            buttons.append(
                 InlineKeyboardButton(
                     text="OpenVPN", callback_data=f"client_openvpn_{client_name}"
-                ),
+                )
+            )
+        if wireguard_available:
+            buttons.append(
                 InlineKeyboardButton(
                     text="WireGuard", callback_data=f"client_wireguard_{client_name}"
-                ),
-            ],
+                )
+            )
+    else:
+        # По умолчанию показываем оба протокола (для обратной совместимости)
+        buttons = [
+            InlineKeyboardButton(
+                text="OpenVPN", callback_data=f"client_openvpn_{client_name}"
+            ),
+            InlineKeyboardButton(
+                text="WireGuard", callback_data=f"client_wireguard_{client_name}"
+            ),
         ]
-    )
+
+    # Если нет доступных протоколов, показываем сообщение
+    if not buttons:
+        buttons = [
+            InlineKeyboardButton(
+                text="❌ Нет доступных протоколов", callback_data="no_protocols"
+            )
+        ]
+
+    return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
 
 def create_notifications_menu(user_id: int):
@@ -618,3 +717,54 @@ def create_request_client_list_keyboard(
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_client_protocols_menu(telegram_id: str):
+    """Создать меню настройки доступных протоколов для клиента."""
+    from .config import get_client_allowed_protocols
+
+    protocols = get_client_allowed_protocols(telegram_id)
+    ovpn_vpn_status = "✅" if protocols.get("openvpn_vpn", True) else "❌"
+    ovpn_az_status = "✅" if protocols.get("openvpn_antizapret", True) else "❌"
+    wg_vpn_status = "✅" if protocols.get("wireguard_vpn", True) else "❌"
+    wg_az_status = "✅" if protocols.get("wireguard_antizapret", True) else "❌"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"OpenVPN VPN: {ovpn_vpn_status}",
+                    callback_data=f"toggle_proto_ovpn_vpn_{telegram_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"OpenVPN Antizapret: {ovpn_az_status}",
+                    callback_data=f"toggle_proto_ovpn_az_{telegram_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"WireGuard VPN: {wg_vpn_status}",
+                    callback_data=f"toggle_proto_wg_vpn_{telegram_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"WireGuard Antizapret: {wg_az_status}",
+                    callback_data=f"toggle_proto_wg_az_{telegram_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑️ Удалить привязку",
+                    callback_data=f"clientmap_delete_{telegram_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад", callback_data="clients_menu"
+                )
+            ],
+        ]
+    )
