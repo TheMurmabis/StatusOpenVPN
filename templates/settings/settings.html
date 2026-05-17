@@ -106,6 +106,16 @@
         </div>
       </div>
 
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="shorten_wg_filenames" name="shorten_wg_filenames" {% if shorten_wg_filenames %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="shorten_wg_filenames">
+            Короткие имена файлов
+            <small class="settings-field-hint d-block">Убирать IP-адрес из имени конфигурационных файлов WireGuard/AmneziaWG для совместимости</small>
+          </label>
+        </div>
+      </div>
+
       <div class="mb-0">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="hide_wg_warp_interface" name="hide_wg_warp_interface" {% if hide_wg_warp_interface %}checked{% endif %}>
