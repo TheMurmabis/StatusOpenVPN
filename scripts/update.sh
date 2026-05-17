@@ -85,7 +85,7 @@ git fetch origin && git reset --hard origin/main
 # Активация виртуального окружения
 source venv/bin/activate
 if [ -f "requirements.txt" ]; then
-    pip install -q -r requirements.txt > /dev/null
+    pip install -r requirements.txt 
 fi
 
 # === Обновление systemd сервиса ===
