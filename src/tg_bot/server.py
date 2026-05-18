@@ -68,8 +68,30 @@ async def get_server_stats():
         return f"❌ Ошибка получения статистики: {str(e)}"
 
 
+async def is_systemd_unit_loaded(service_name: str) -> bool:
+    """True, если unit известен systemd (не not-found)."""
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "/bin/systemctl",
+            "show",
+            "-p",
+            "LoadState",
+            "--value",
+            service_name,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await process.communicate()
+        load_state = stdout.decode().strip()
+        return bool(load_state) and load_state != "not-found"
+    except Exception:
+        return False
+
+
 async def get_service_state(service_name: str) -> str:
     """Получить состояние службы systemd."""
+    if not await is_systemd_unit_loaded(service_name):
+        return "absent"
     try:
         process = await asyncio.create_subprocess_exec(
             "/bin/systemctl",

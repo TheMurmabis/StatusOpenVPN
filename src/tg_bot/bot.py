@@ -280,7 +280,8 @@ async def _vpn_autorestart_worker(service_unit: str, label: str):
     bot = get_bot()
     try:
         await asyncio.sleep(VPN_SERVICE_AUTORESTART_DELAY)
-        if await get_service_state(service_unit) == "active":
+        state = await get_service_state(service_unit)
+        if state == "active":
             _vpn_service_last_state[service_unit] = "active"
             recovery_text = (
                 f"✅ <b>Служба снова активна</b>\n\n"
@@ -289,6 +290,10 @@ async def _vpn_autorestart_worker(service_unit: str, label: str):
             await _edit_stored_vpn_inactive_alerts(
                 service_unit, bot, recovery_text, reply_markup=None, fallback_send=False
             )
+            return
+        if state == "absent":
+            _vpn_service_last_state[service_unit] = "absent"
+            _vpn_inactive_alert_message_ids.pop(service_unit, None)
             return
         ok, detail = await restart_systemd_service(service_unit)
         await _vpn_notify_restart_outcome(service_unit, label, ok, detail)
@@ -320,6 +325,14 @@ async def monitor_vpn_services():
         for idx, (label, unit) in enumerate(VPN_MONITORED_SERVICES):
             state = await get_service_state(unit)
             prev = _vpn_service_last_state.get(unit)
+
+            if state == "absent":
+                pending = _vpn_pending_restart_tasks.get(unit)
+                if pending and not pending.done():
+                    pending.cancel()
+                _vpn_inactive_alert_message_ids.pop(unit, None)
+                _vpn_service_last_state[unit] = state
+                continue
 
             if state == "active":
                 if prev is not None and prev != "active":
