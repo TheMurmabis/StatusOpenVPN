@@ -2,6 +2,17 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.4.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.2) - 19.05.2026
+
+### StatusOpenVPN
+
+**Исправлено/улучшено:**
+- В скриптах `/scripts/` удалена жёсткая зависимость от `sudo`:
+    - если скрипт запущен не от `root`, используется `sudo` только при его наличии.
+    - если `sudo` отсутствует и запуск не от `root`, выводится рекомендация запустить скрипт от `root`.
+- Расчет и отображение нагрузки ОЗУ на главной странице.
+---
+
 ## [v1.4.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.1) - 18.05.2026
 
 ### TelegramBot
