@@ -129,12 +129,19 @@ def update_system_info():
 
             _mem = psutil.virtual_memory()
             _disk = psutil.disk_usage("/")
+            memory_used_mb = round(_mem.used / (1024**2))
+            memory_total_mb = round(_mem.total / (1024**2))
+            memory_percent_mb = (
+                round((memory_used_mb / memory_total_mb) * 100, 1)
+                if memory_total_mb
+                else 0.0
+            )
             state.cached_system_info = {
                 **HOST_STATIC_INFO,
                 "cpu_load": round(cpu_percent, 1),
-                "memory_used": _mem.used // (1024**2),
-                "memory_total": _mem.total // (1024**2),
-                "memory_percent": round(_mem.percent, 1),
+                "memory_used": memory_used_mb,
+                "memory_total": memory_total_mb,
+                "memory_percent": memory_percent_mb,
                 "disk_used": round(_disk.used / (1024**3), 1),
                 "disk_total": round(_disk.total / (1024**3), 1),
                 "network_load": get_network_load(),

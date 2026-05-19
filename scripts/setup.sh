@@ -9,6 +9,17 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RESET='\e[0m'
 
+run_as_root() {
+    if [[ "$EUID" -eq 0 ]]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "Error: sudo is not installed. Run this script as root." >&2
+        exit 1
+    fi
+}
+
 # Переменные
 TARGET_DIR="/root/web"
 DEFAULT_PORT=1234
@@ -33,7 +44,7 @@ install_python_venv() {
 
     if ! dpkg -s "python${PYTHON_VERSION}-venv" >/dev/null 2>&1; then
         echo "Installing python${PYTHON_VERSION}-venv..."
-        apt update && apt install -y "python${PYTHON_VERSION}-venv" || { echo -e "${RED}❌ Failed to install python${PYTHON_VERSION}-venv${RESET}"; exit 1; }
+        run_as_root apt update && run_as_root apt install -y "python${PYTHON_VERSION}-venv" || { echo -e "${RED}❌ Failed to install python${PYTHON_VERSION}-venv${RESET}"; exit 1; }
     else
         echo "python${PYTHON_VERSION}-venv is already installed."
     fi
@@ -92,7 +103,7 @@ fi
 # Создание и настройка systemd-сервиса
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 echo "Creating systemd service file at $SERVICE_FILE..."
-cat <<EOF | sudo tee $SERVICE_FILE
+cat <<EOF | run_as_root tee $SERVICE_FILE
 [Unit]
 Description=Gunicorn instance to serve StatusOpenVPN
 After=network.target
@@ -111,7 +122,7 @@ EOF
 
 # Создание logs.service
 LOGS_SERVICE="/etc/systemd/system/logs.service"
-cat <<EOF | sudo tee $LOGS_SERVICE
+cat <<EOF | run_as_root tee $LOGS_SERVICE
 [Unit]
 Description=Run logs.py script
 
@@ -123,7 +134,7 @@ ExecStart=$TARGET_DIR/venv/bin/python $TARGET_DIR/src/logs.py
 EOF
 
 LOGS_TIMER="/etc/systemd/system/logs.timer"
-cat <<EOF | sudo tee $LOGS_TIMER
+cat <<EOF | run_as_root tee $LOGS_TIMER
 [Unit]
 Description=Run logs.py every 30 seconds
 
@@ -138,7 +149,7 @@ EOF
 
 # Создание wg_stats.service
 WG_STATS="/etc/systemd/system/wg_stats.service"
-cat <<EOF | sudo tee $WG_STATS
+cat <<EOF | run_as_root tee $WG_STATS
 [Unit]
 Description=WireGuard Traffic Statistics Collector
 After=network.target
@@ -168,7 +179,7 @@ if [[ "$BOT_ENABLED" -ne 1 ]]; then
         BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
         echo "Creating Telegram bot service..."
 
-        cat <<EOF | sudo tee $BOT_SERVICE
+        cat <<EOF | run_as_root tee $BOT_SERVICE
 [Unit]
 Description=Telegram Bot Service
 After=network.target
@@ -295,8 +306,8 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
             echo -e "${YELLOW}✅ HTTPS already enabled and valid for: $DOMAIN${RESET}"
             if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
                 echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
-                if sudo certbot renew --nginx --cert-name "$DOMAIN"; then
-                    sudo systemctl reload nginx
+                if run_as_root certbot renew --nginx --cert-name "$DOMAIN"; then
+                    run_as_root systemctl reload nginx
                     echo -e "${GREEN}Certificate renewed.${RESET}"
                 else
                     echo -e "${RED}Certificate renewal failed.${RESET}"
@@ -325,11 +336,11 @@ fi
 # Проверка, установлен ли vnstat
 if ! command -v vnstat &> /dev/null; then
     echo "📦 vnstat not found, installing..."
-    sudo apt update && sudo apt install -y vnstat
+    run_as_root apt update && run_as_root apt install -y vnstat
     changes_made=true
 else
     echo "🔄 vnstat found, updating to the latest version..."
-    sudo apt update && sudo apt install --only-upgrade -y vnstat
+    run_as_root apt update && run_as_root apt install --only-upgrade -y vnstat
 fi
 
 # Добавление интерфейсов
@@ -337,9 +348,9 @@ for iface in "${INTERFACES[@]}"; do
     # Проверяем, существует ли интерфейс в системе
     if ip link show "$iface" >/dev/null 2>&1; then
         # Проверяем, есть ли интерфейс в vnstat
-        if ! sudo vnstat --iflist | grep -qw "$iface"; then
+        if ! run_as_root vnstat --iflist | grep -qw "$iface"; then
             echo "Adding interface $iface to vnstat..."
-            sudo vnstat --add -i "$iface"
+            run_as_root vnstat --add -i "$iface"
             changes_made=true
         fi
     else
@@ -351,35 +362,35 @@ done
 if [ -f "$OVERRIDE_FILE" ]; then
     if ! grep -q "$SLEEP_LINE" "$OVERRIDE_FILE"; then
         echo "⚙️  Adding delay line to existing override.conf..."
-        echo -e "\n[Service]\n$SLEEP_LINE" | sudo tee -a "$OVERRIDE_FILE" >/dev/null
+        echo -e "\n[Service]\n$SLEEP_LINE" | run_as_root tee -a "$OVERRIDE_FILE" >/dev/null
         changes_made=true
     fi
 else
     echo "📁 Creating new override.conf..."
-    sudo mkdir -p "$OVERRIDE_DIR"
-    echo -e "[Service]\n$SLEEP_LINE" | sudo tee "$OVERRIDE_FILE" >/dev/null
+    run_as_root mkdir -p "$OVERRIDE_DIR"
+    echo -e "[Service]\n$SLEEP_LINE" | run_as_root tee "$OVERRIDE_FILE" >/dev/null
     changes_made=true
 fi
 
 # Перезагрузка systemd и запуск сервисов
 echo "Reloading systemd daemon..."
-sudo systemctl daemon-reload
+run_as_root systemctl daemon-reload
 
 # Включаем автозапуск и сразу запускаем службу vnstat
 if ! systemctl is-enabled --quiet vnstat; then
     echo "Enabling vnstat autostart..."
-    sudo systemctl enable --now vnstat
+    run_as_root systemctl enable --now vnstat
 elif [ "$changes_made" = true ]; then
     echo "Restarting vnstat service due to configuration changes..."
-    sudo systemctl restart vnstat
+    run_as_root systemctl restart vnstat
 fi
 
 
-sudo systemctl enable StatusOpenVPN wg_stats logs.timer
-sudo systemctl start StatusOpenVPN wg_stats logs.timer
+run_as_root systemctl enable StatusOpenVPN wg_stats logs.timer
+run_as_root systemctl start StatusOpenVPN wg_stats logs.timer
 
 if [[ "$BOT_ENABLED" -eq 1 ]]; then
-    sudo systemctl enable telegram-bot
+    run_as_root systemctl enable telegram-bot
 fi
 
 # === Первичная настройка ===

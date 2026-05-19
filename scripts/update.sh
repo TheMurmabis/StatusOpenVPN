@@ -8,6 +8,17 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RESET='\e[0m'
 
+run_as_root() {
+    if [[ "$EUID" -eq 0 ]]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "Error: sudo is not installed. Run this script as root." >&2
+        exit 1
+    fi
+}
+
 # Переменные
 TARGET_DIR="/root/web"
 SRC="$TARGET_DIR/src"
@@ -58,7 +69,7 @@ save_setup_var() {
 # === Ввод нового порта ===
 read -e -p "Would you like to change the current port $CURRENT_PORT? (Y/N): " -i N CHANGE_PORT
 if [[ "$CHANGE_PORT" =~ ^[Yy]$ ]]; then
-    sudo systemctl stop StatusOpenVPN
+    run_as_root systemctl stop StatusOpenVPN
     while true; do
         read -p "Please enter a new port number: " NEW_PORT
         if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -ge 1 ] && [ "$NEW_PORT" -le 65535 ]; then
@@ -90,9 +101,9 @@ fi
 
 # === Обновление systemd сервиса ===
 if [ -f "$SERVICE_FILE" ]; then
-    sudo sed -i "s/-b 0.0.0.0:[0-9]*/-b 0.0.0.0:$PORT/" $SERVICE_FILE
+    run_as_root sed -i "s/-b 0.0.0.0:[0-9]*/-b 0.0.0.0:$PORT/" $SERVICE_FILE
 else
-    cat <<EOF | sudo tee $SERVICE_FILE
+    cat <<EOF | run_as_root tee $SERVICE_FILE
 [Unit]
 Description=Gunicorn instance to serve StatusOpenVPN
 After=network.target
@@ -113,18 +124,18 @@ fi
 if ! grep -q 'SECRET_KEY=' "$SERVICE_FILE"; then
     SECRET_KEY=$(openssl rand -hex 32)
 
-    sudo sed -i "/^Environment=\"PATH=/a Environment=\"SECRET_KEY=$SECRET_KEY\"" "$SERVICE_FILE"
+    run_as_root sed -i "/^Environment=\"PATH=/a Environment=\"SECRET_KEY=$SECRET_KEY\"" "$SERVICE_FILE"
 
     # Перечитываем systemd и перезапускаем сервис
-    sudo systemctl daemon-reexec
-    sudo systemctl restart StatusOpenVPN.service
+    run_as_root systemctl daemon-reexec
+    run_as_root systemctl restart StatusOpenVPN.service
 fi
 
 # === Обновление logs.service (Environment) ===
 if [ -f "$LOGS_SERVICE" ]; then
     if ! grep -qxF '^Environment=PYTHONIOENCODING=utf-8$' "$LOGS_SERVICE" || \
        ! grep -qxF '^Environment=LANG=C.UTF-8$' "$LOGS_SERVICE"; then
-        sudo sed -i '/^Type=oneshot/a Environment=PYTHONIOENCODING=utf-8\nEnvironment=LANG=C.UTF-8' "$LOGS_SERVICE"
+        run_as_root sed -i '/^Type=oneshot/a Environment=PYTHONIOENCODING=utf-8\nEnvironment=LANG=C.UTF-8' "$LOGS_SERVICE"
     fi
 fi
 
@@ -209,8 +220,8 @@ if [[ "$HTTPS_ENABLED" -eq 1 ]]; then
             echo -e "${YELLOW}HTTPS already enabled and valid for: $DOMAIN${RESET}"
             if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
                 echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
-                if sudo certbot renew --nginx --cert-name "$DOMAIN"; then
-                    sudo systemctl reload nginx
+                if run_as_root certbot renew --nginx --cert-name "$DOMAIN"; then
+                    run_as_root systemctl reload nginx
                     echo -e "${GREEN}Certificate renewed.${RESET}"
                 else
                     echo -e "${RED}Certificate renewal failed.${RESET}"
@@ -270,7 +281,7 @@ if [[ "$BOT_ENABLED" -ne 1 ]]; then
         BOT_SERVICE="/etc/systemd/system/telegram-bot.service"
         echo "Creating Telegram bot service..."
 
-        cat <<EOF | sudo tee $BOT_SERVICE
+        cat <<EOF | run_as_root tee $BOT_SERVICE
 [Unit]
 Description=Telegram Bot Service
 After=network.target
@@ -300,7 +311,7 @@ EOF
         fi
 
         save_setup_var "BOT_ENABLED" "1"
-        sudo systemctl enable telegram-bot
+        run_as_root systemctl enable telegram-bot
     else
         save_setup_var "BOT_ENABLED" "0"
     fi
@@ -311,11 +322,11 @@ fi
 # Проверка, установлен ли vnstat
 if ! command -v vnstat &> /dev/null; then
     echo "📦 vnstat not found, installing..."
-    sudo apt update && sudo apt install -y vnstat
+    run_as_root apt update && run_as_root apt install -y vnstat
     changes_made=true
 else
     echo "🔄 vnstat found, updating to the latest version..."
-    sudo apt update && sudo apt install --only-upgrade -y vnstat
+    run_as_root apt update && run_as_root apt install --only-upgrade -y vnstat
 fi
 
 # Добавление интерфейсов
@@ -323,9 +334,9 @@ for iface in "${INTERFACES[@]}"; do
     # Проверяем, существует ли интерфейс в системе
     if ip link show "$iface" >/dev/null 2>&1; then
         # Проверяем, есть ли интерфейс в vnstat
-        if ! sudo vnstat --iflist | grep -qw "$iface"; then
+        if ! run_as_root vnstat --iflist | grep -qw "$iface"; then
             echo "Adding interface $iface to vnstat..."
-            sudo vnstat --add -i "$iface"
+            run_as_root vnstat --add -i "$iface"
             changes_made=true
         fi
     else
@@ -337,13 +348,13 @@ done
 if [ -f "$OVERRIDE_FILE" ]; then
     if ! grep -q "$SLEEP_LINE" "$OVERRIDE_FILE"; then
         echo "⚙️  Adding delay line to existing override.conf..."
-        echo -e "\n[Service]\n$SLEEP_LINE" | sudo tee -a "$OVERRIDE_FILE" >/dev/null
+        echo -e "\n[Service]\n$SLEEP_LINE" | run_as_root tee -a "$OVERRIDE_FILE" >/dev/null
         changes_made=true
     fi
 else
     echo "📁 Creating new override.conf..."
-    sudo mkdir -p "$OVERRIDE_DIR"
-    echo -e "[Service]\n$SLEEP_LINE" | sudo tee "$OVERRIDE_FILE" >/dev/null
+    run_as_root mkdir -p "$OVERRIDE_DIR"
+    echo -e "[Service]\n$SLEEP_LINE" | run_as_root tee "$OVERRIDE_FILE" >/dev/null
     changes_made=true
 fi
 
@@ -351,34 +362,34 @@ fi
 # Проверяем, есть ли файлы .db
 if compgen -G "$SRC/*.db" > /dev/null; then
     echo "Migrating database files..."
-    sudo systemctl stop wg_stats logs.timer StatusOpenVPN 2>/dev/null
+    run_as_root systemctl stop wg_stats logs.timer StatusOpenVPN 2>/dev/null
     mkdir -p "$DST"
     mv "$SRC"/*.db "$DST"/ 2>/dev/null
-    sudo systemctl start wg_stats logs.timer StatusOpenVPN 2>/dev/null
+    run_as_root systemctl start wg_stats logs.timer StatusOpenVPN 2>/dev/null
 fi
 
 # Перезагрузка systemd и запуск сервисов
 echo "Reloading systemd daemon..."
-sudo systemctl daemon-reload
+run_as_root systemctl daemon-reload
 
 # Включаем автозапуск и сразу запускаем службу vnstat
 if ! systemctl is-enabled --quiet vnstat; then
     echo "Enabling vnstat autostart..."
-    sudo systemctl enable --now vnstat
+    run_as_root systemctl enable --now vnstat
 elif [ "$changes_made" = true ]; then
     echo "Restarting vnstat service due to configuration changes..."
-    sudo systemctl restart vnstat
+    run_as_root systemctl restart vnstat
 fi
 
-sudo systemctl restart StatusOpenVPN
+run_as_root systemctl restart StatusOpenVPN
 if systemctl cat telegram-bot &>/dev/null; then
     echo "Restarting telegram-bot service..."
-    sudo systemctl restart telegram-bot
+    run_as_root systemctl restart telegram-bot
 fi
-sudo systemctl enable wg_stats
-sudo systemctl restart wg_stats
-sudo systemctl enable --now logs.timer
-sudo systemctl restart logs.timer
+run_as_root systemctl enable wg_stats
+run_as_root systemctl restart wg_stats
+run_as_root systemctl enable --now logs.timer
+run_as_root systemctl restart logs.timer
 
 echo "--------------------------------------------"
 echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"

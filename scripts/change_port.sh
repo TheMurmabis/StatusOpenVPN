@@ -5,6 +5,17 @@ TARGET_DIR="/root/web"
 SETUP_FILE="$TARGET_DIR/setup"
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
 
+run_as_root() {
+    if [[ "$EUID" -eq 0 ]]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "Error: sudo is not installed. Run this script as root." >&2
+        exit 1
+    fi
+}
+
 # Проверка, что сервисный файл существует
 if [ ! -f "$SERVICE_FILE" ]; then
     echo "Error: Service file $SERVICE_FILE not found."
@@ -46,14 +57,14 @@ while true; do
 done
 
 # Замена порта в service-файле
-sed -i -E "s/(:)[0-9]+/\1$NEW_PORT/" "$SERVICE_FILE"
+run_as_root sed -i -E "s/(:)[0-9]+/\1$NEW_PORT/" "$SERVICE_FILE"
 
 # Перезапуск сервиса
 echo "Reloading systemd daemon..."
-systemctl daemon-reload
+run_as_root systemctl daemon-reload
 
 echo "Restarting StatusOpenVPN service..."
-systemctl restart StatusOpenVPN
+run_as_root systemctl restart StatusOpenVPN
 
 # Если включён HTTPS и указан домен — обновляем конфиг Nginx
 if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$DOMAIN" ]; then
@@ -64,7 +75,7 @@ if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$DOMAIN" ]; then
     echo "HTTPS mode enabled for domain: $DOMAIN"
     echo "Updating Nginx configuration..."
 
-    cat > "$NGINX_CONF" <<EOF
+    run_as_root tee "$NGINX_CONF" > /dev/null <<EOF
 # Created by StatusOpenVPN
 server {
     listen 80;
@@ -88,7 +99,7 @@ server {
 EOF
 
     # Проверка конфигурации и перезапуск nginx
-    nginx -t && systemctl reload nginx
+    run_as_root nginx -t && run_as_root systemctl reload nginx
 fi
 
 # Получаем внешний IP

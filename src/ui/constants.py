@@ -17,7 +17,7 @@ SETTINGS_PATH = os.path.join(BASE_DIR, "src", "settings.json")
 SETUP_DESCRIPTIONS_PATH = os.path.join(BASE_DIR, "src", "setup_descriptions.json")
 LEGACY_ADMIN_INFO_PATH = os.path.join(BASE_DIR, "src", "telegram_admins.json")
 
-CACHE_DURATION = 10
+CACHE_DURATION = 5
 MAX_CPU_HISTORY = 60 * 12
 DB_SAVE_INTERVAL = 300
 SAMPLE_INTERVAL = 10

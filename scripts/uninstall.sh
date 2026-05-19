@@ -5,6 +5,17 @@ RED="\e[31m"
 YELLOW="\e[33m"
 RESET="\e[0m"
 
+run_as_root() {
+  if [[ "$EUID" -eq 0 ]]; then
+    "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo "$@"
+  else
+    echo "Error: sudo is not installed. Run this script as root." >&2
+    exit 1
+  fi
+}
+
 # Функции для вывода статуса
 success_status() {
   echo -e "${GREEN}✔ $1${RESET}"
@@ -32,15 +43,15 @@ fi
 
 # === Остановка и отключение сервисов ===
 info_status "Stopping and disabling the service"
-if sudo systemctl stop StatusOpenVPN && sudo systemctl disable StatusOpenVPN; then
+if run_as_root systemctl stop StatusOpenVPN && run_as_root systemctl disable StatusOpenVPN; then
     success_status "Service stopped and disabled successfully"
 else
     error_status "Failed to stop and disable the service"
 fi
 
 info_status "Stopping and disabling logs.service and logs.timer"
-sudo systemctl stop logs.service logs.timer
-sudo systemctl disable logs.service logs.timer
+run_as_root systemctl stop logs.service logs.timer
+run_as_root systemctl disable logs.service logs.timer
 
 # === Удаление systemd unit файлов ===
 SYSTEMD_UNITS=(
@@ -52,7 +63,7 @@ SYSTEMD_UNITS=(
 )
 
 for unit in "${SYSTEMD_UNITS[@]}"; do
-    if sudo rm -f "/etc/systemd/system/$unit"; then
+    if run_as_root rm -f "/etc/systemd/system/$unit"; then
         success_status "$unit deleted successfully"
     else
         error_status "Failed to delete $unit"
@@ -61,7 +72,7 @@ done
 
 # === Перезапуск systemd ===
 info_status "Reloading systemd"
-if sudo systemctl daemon-reload; then
+if run_as_root systemctl daemon-reload; then
     success_status "Systemd reloaded successfully"
 else
     error_status "Failed to reload systemd"
@@ -69,7 +80,7 @@ fi
 
 # === Удаление директории с проектом ===
 info_status "Deleting project directory /root/web"
-if sudo rm -rf /root/web; then
+if run_as_root rm -rf /root/web; then
     success_status "Directory deleted successfully"
 else
     error_status "Failed to delete the directory"

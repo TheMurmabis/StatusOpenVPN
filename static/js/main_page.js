@@ -455,8 +455,8 @@ async function updateSystemInfo() {
         const elRamPct = document.getElementById('admin-kpi-ram-pct');
         const elMemUsed = document.getElementById('admin-kpi-mem-used');
         const elMemTotal = document.getElementById('admin-kpi-mem-total');
-        let ramPct = data.memory_percent;
-        if (ramPct == null && data.memory_total > 0) {
+        let ramPct = null;
+        if (data.memory_total > 0) {
             ramPct = Math.round((100 * Number(data.memory_used)) / Number(data.memory_total) * 10) / 10;
         }
         const ramPctStr = ramPct == null ? '—' : formatCpuPercent(ramPct);
