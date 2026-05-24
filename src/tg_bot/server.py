@@ -110,13 +110,39 @@ async def get_service_state(service_name: str) -> str:
         return "unknown"
 
 
+def get_vpn_monitor_menu_text() -> str:
+    """Текст экрана настройки мониторинга VPN-служб."""
+    from .config import is_vpn_monitoring_enabled
+
+    if is_vpn_monitoring_enabled():
+        return (
+            "<b>⚙️ Мониторинг VPN-служб</b>\n\n"
+            "Выберите службы для отслеживания."
+        )
+    return (
+        "<b>⚙️ Мониторинг VPN-служб</b>\n\n"
+        "🔌 <b>Мониторинг отключён</b> — алерты и автоперезапуск не выполняются.\n"
+        "Включите переключателем «Мониторинг VPN»."
+    )
+
+
 async def get_services_status_text():
     """Получить текст статуса служб."""
-    lines = ["<b>⚙️ VPN-службы:</b>", ""]
+    from .config import is_vpn_monitoring_enabled, is_vpn_service_monitored
+
+    global_status = "включён ✅" if is_vpn_monitoring_enabled() else "отключён ❌"
+    lines = [
+        f"<b>🔌 Автомониторинг VPN:</b> {global_status}",
+        "",
+        "<b>⚙️ VPN-службы:</b>",
+        "",
+    ]
+    
     for label, service in VPN_MONITORED_SERVICES:
         state = await get_service_state(service)
         icon = "🟢" if state == "active" else "🔴" if state == "inactive" else "🟡"
-        lines.append(f"{icon} <b>{label}:</b> {state}")
+        monitor_mark = "✅" if is_vpn_service_monitored(service) else "❌"
+        lines.append(f"{monitor_mark} {icon} <b>{label}:</b> {state}")
     lines.extend(["", "<b>⚙️ Службы StatusOpenVPN:</b>", ""])
     other = [
         ("StatusOpenVPN", "StatusOpenVPN.service"),

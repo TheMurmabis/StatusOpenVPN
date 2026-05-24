@@ -5,21 +5,35 @@ import asyncio
 from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
 
-from ..config import get_admin_ids, set_load_thresholds
+from ..config import (
+    get_admin_ids,
+    set_load_thresholds,
+    is_vpn_monitoring_enabled,
+    set_vpn_monitoring_enabled,
+    is_vpn_service_monitored,
+    set_vpn_service_monitored,
+)
 from ..keyboards import (
     create_server_menu,
     create_thresholds_menu,
     create_reboot_confirm_menu,
     create_back_keyboard,
+    create_server_services_keyboard,
+    create_services_status_keyboard,
 )
 from ..states import VPNSetup
 from ..server import (
     get_server_stats,
     get_services_status_text,
+    get_vpn_monitor_menu_text,
     get_online_clients_text,
     VPN_MONITORED_SERVICES,
 )
-from ..bot import cancel_pending_vpn_restart, vpn_run_restart_now
+from ..bot import (
+    cancel_pending_vpn_restart,
+    clear_vpn_monitor_runtime_state,
+    vpn_run_restart_now,
+)
 from ..audit import log_action, notify_admins
 
 router = Router()
@@ -138,9 +152,78 @@ async def handle_server_services(callback: types.CallbackQuery):
     services_text = await get_services_status_text()
     await callback.message.edit_text(
         services_text,
-        reply_markup=create_back_keyboard("server_menu"),
+        reply_markup=create_server_services_keyboard(),
     )
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "server_services_monitor")
+async def handle_server_services_monitor(callback: types.CallbackQuery):
+    """Открыть подменю выбора VPN-служб для мониторинга."""
+    admin_ids = get_admin_ids()
+
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        get_vpn_monitor_menu_text(),
+        reply_markup=create_services_status_keyboard(VPN_MONITORED_SERVICES),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "toggle_vpn_monitoring_global")
+async def handle_toggle_vpn_monitoring_global(callback: types.CallbackQuery):
+    """Глобальное включение и отключение мониторинга VPN-служб."""
+    admin_ids = get_admin_ids()
+
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    enabling = not is_vpn_monitoring_enabled()
+    set_vpn_monitoring_enabled(enabling)
+    if not enabling:
+        clear_vpn_monitor_runtime_state()
+
+    await callback.message.edit_text(
+        get_vpn_monitor_menu_text(),
+        reply_markup=create_services_status_keyboard(VPN_MONITORED_SERVICES),
+    )
+    await callback.answer(
+        "Мониторинг VPN включён" if enabling else "Мониторинг VPN отключён"
+    )
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("toggle_vpn_monitor_"))
+async def handle_toggle_vpn_monitor(callback: types.CallbackQuery):
+    """Включение и выключение мониторинга конкретной VPN-службы."""
+    admin_ids = get_admin_ids()
+
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    try:
+        idx = int(callback.data.rsplit("_", 1)[-1])
+    except ValueError:
+        await callback.answer("Некорректные данные", show_alert=True)
+        return
+
+    if not (0 <= idx < len(VPN_MONITORED_SERVICES)):
+        await callback.answer("Неизвестная служба", show_alert=True)
+        return
+
+    _, unit = VPN_MONITORED_SERVICES[idx]
+    current = is_vpn_service_monitored(unit)
+    set_vpn_service_monitored(unit, not current)
+
+    await callback.message.edit_text(
+        get_vpn_monitor_menu_text(),
+        reply_markup=create_services_status_keyboard(VPN_MONITORED_SERVICES),
+    )
+    await callback.answer("Мониторинг обновлен")
 
 
 @router.callback_query(lambda c: c.data == "server_online")

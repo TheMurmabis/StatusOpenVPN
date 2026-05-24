@@ -17,9 +17,12 @@ from ..config import (
 from ..keyboards import (
     create_main_menu,
     create_client_list_keyboard,
+    create_client_actions_keyboard,
     create_confirmation_keyboard,
+    create_openvpn_config_menu,
     create_request_actions_keyboard,
     create_request_client_list_keyboard,
+    create_wireguard_config_menu,
 )
 from ..states import VPNSetup
 from ..utils import (
@@ -30,6 +33,7 @@ from ..utils import (
     get_external_ip,
 )
 from ..audit import log_action, notify_admins
+from ..client_status_service import get_client_statuses, get_client_brief, set_client_block
 
 router = Router()
 
@@ -196,10 +200,117 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             page = int(page)
             clients = await get_clients(vpn_type)
             total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+            statuses = get_client_statuses(vpn_type, clients) if action == "list" else None
             await callback.message.edit_text(
                 "Список клиентов:",
-                reply_markup=create_client_list_keyboard(clients, page, total_pages, vpn_type, action),
+                reply_markup=create_client_list_keyboard(
+                    clients,
+                    page,
+                    total_pages,
+                    vpn_type,
+                    action,
+                    statuses,
+                ),
             )
+            await callback.answer()
+            return
+
+        if data.startswith("clist_"):
+            _, vpn_type, page, client_name = data.split("_", 3)
+            page_num = int(page)
+            brief = get_client_brief(vpn_type, client_name)
+            status = brief.get("status", {})
+            stats = brief.get("stats", {})
+            state = status.get("state", "offline")
+            state_label = {
+                "online": "🟢 онлайн",
+                "offline": "🔴 оффлайн",
+                "blocked": "🔴🚫 заблокирован",
+            }.get(state, "🔴 оффлайн")
+            text = (
+                f"<b>{client_name}</b>\n"
+                f"Статус: {state_label}\n\n"
+                f"<b>Краткая статистика:</b>\n"
+                f"⬇️ Сегодня: {stats.get('today_received', '—')}\n"
+                f"⬆️ Сегодня: {stats.get('today_sent', '—')}\n"
+                f"🕒 Активность: {stats.get('last_activity', '—')}"
+            )
+            await callback.message.edit_text(
+                text,
+                reply_markup=create_client_actions_keyboard(
+                    vpn_type=vpn_type,
+                    client_name=client_name,
+                    is_blocked=bool(status.get("blocked", False)),
+                    list_page=page_num,
+                ),
+            )
+            await callback.answer()
+            return
+
+        if data.startswith("ctg_"):
+            _, vpn_type, page, client_name = data.split("_", 3)
+            page_num = int(page)
+            brief = get_client_brief(vpn_type, client_name)
+            status = brief.get("status", {})
+            should_block = not bool(status.get("blocked", False))
+            ok, message = set_client_block(vpn_type, client_name, should_block)
+            if not ok:
+                await callback.answer(f"❌ {message}", show_alert=True)
+                return
+            updated = get_client_brief(vpn_type, client_name)
+            updated_status = updated.get("status", {})
+            updated_stats = updated.get("stats", {})
+            state = updated_status.get("state", "offline")
+            state_label = {
+                "online": "🟢 онлайн",
+                "offline": "🔴 оффлайн",
+                "blocked": "🔴🚫 заблокирован",
+            }.get(state, "🔴 оффлайн")
+            text = (
+                f"<b>{client_name}</b>\n"
+                f"Статус: {state_label}\n\n"
+                f"<b>Краткая статистика:</b>\n"
+                f"⬇️ Сегодня: {updated_stats.get('today_received', '—')}\n"
+                f"⬆️ Сегодня: {updated_stats.get('today_sent', '—')}\n"
+                f"🕒 Активность: {updated_stats.get('last_activity', '—')}"
+            )
+            await callback.message.edit_text(
+                text,
+                reply_markup=create_client_actions_keyboard(
+                    vpn_type=vpn_type,
+                    client_name=client_name,
+                    is_blocked=bool(updated_status.get("blocked", False)),
+                    list_page=page_num,
+                ),
+            )
+            await callback.answer(message)
+            return
+
+        if data.startswith("ccfg_"):
+            _, vpn_type, page, client_name = data.split("_", 3)
+            page_num = int(page)
+            await state.update_data(
+                client_name=client_name,
+                vpn_type=vpn_type,
+                selected_list_page=page_num,
+            )
+            if vpn_type == "openvpn":
+                await callback.message.edit_text(
+                    "Выберите тип конфигурации OpenVPN:",
+                    reply_markup=create_openvpn_config_menu(
+                        client_name,
+                        back_callback=f"clist_{vpn_type}_{page_num}_{client_name}",
+                    ),
+                )
+            else:
+                await callback.message.edit_text(
+                    "Выберите тип конфигурации WireGuard:",
+                    reply_markup=create_wireguard_config_menu(
+                        client_name,
+                        back_callback=f"clist_{vpn_type}_{page_num}_{client_name}",
+                    ),
+                )
+            await state.set_state(VPNSetup.choosing_config_type)
             await callback.answer()
             return
         
@@ -272,9 +383,17 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             vpn_type = "openvpn" if data == "3" else "wireguard"
             clients = await get_clients(vpn_type)
             total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+            statuses = get_client_statuses(vpn_type, clients)
             await callback.message.edit_text(
                 "Список клиентов:",
-                reply_markup=create_client_list_keyboard(clients, 1, total_pages, vpn_type, "list"),
+                reply_markup=create_client_list_keyboard(
+                    clients,
+                    1,
+                    total_pages,
+                    vpn_type,
+                    "list",
+                    statuses,
+                ),
             )
             await callback.answer()
             return

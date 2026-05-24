@@ -173,13 +173,25 @@ async def handle_client_mapping_state(message: types.Message, state: FSMContext)
         await state.clear()
         return
     
-    from ..keyboards import create_clients_menu
+    from ..config import get_client_mapping
+    from ..keyboards import (
+        create_clients_menu,
+        clients_menu_page_for_telegram_id,
+        get_clients_menu_text,
+    )
+
+    match_preview = re.match(
+        r"^(\d+)\s*:\s*([a-zA-Z0-9_-]{1,32})$", (message.text or "").strip()
+    )
     success = await process_client_mapping(message, message.text, state)
     if success:
+        telegram_id = match_preview.group(1) if match_preview else ""
+        page = clients_menu_page_for_telegram_id(telegram_id) if telegram_id else 1
+        total = len(get_client_mapping())
         await message.answer(
-            "Привязки клиентов:\n\n"
-            "Чтобы удалить привязку — нажмите на неё в списке и подтвердите удаление.",
-            reply_markup=create_clients_menu(admin_ids),
+            get_clients_menu_text(total, page)
+            + "\n\nЧтобы удалить привязку — нажмите на неё в списке и подтвердите удаление.",
+            reply_markup=create_clients_menu(admin_ids, page),
         )
 
 

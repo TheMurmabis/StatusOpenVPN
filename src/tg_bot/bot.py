@@ -164,6 +164,19 @@ def cancel_pending_vpn_restart(service_unit: str) -> bool:
     return False
 
 
+def clear_vpn_monitor_runtime_state() -> None:
+    """Сбросить таймеры, алерты и кэш состояний мониторинга VPN."""
+    from .server import VPN_MONITORED_SERVICES
+
+    for _, unit in VPN_MONITORED_SERVICES:
+        pending = _vpn_pending_restart_tasks.get(unit)
+        if pending and not pending.done():
+            pending.cancel()
+        _vpn_pending_restart_tasks.pop(unit, None)
+        _vpn_inactive_alert_message_ids.pop(unit, None)
+        _vpn_service_last_state.pop(unit, None)
+
+
 async def _notify_admins_vpn_service(bot, text: str, reply_markup=None):
     from .config import get_admin_ids
     from .admin import is_admin_notification_enabled, is_admin_vpn_service_notification_enabled
@@ -309,6 +322,8 @@ async def monitor_vpn_services():
         get_admin_ids,
         VPN_SERVICE_CHECK_INTERVAL,
         VPN_SERVICE_MONITOR_START_DELAY,
+        is_vpn_monitoring_enabled,
+        is_vpn_service_monitored,
     )
     from .server import VPN_MONITORED_SERVICES, get_service_state
     from .keyboards import create_vpn_service_autorestart_cancel_keyboard
@@ -322,7 +337,18 @@ async def monitor_vpn_services():
         if not get_admin_ids():
             await asyncio.sleep(VPN_SERVICE_CHECK_INTERVAL)
             continue
+        if not is_vpn_monitoring_enabled():
+            clear_vpn_monitor_runtime_state()
+            await asyncio.sleep(VPN_SERVICE_CHECK_INTERVAL)
+            continue
         for idx, (label, unit) in enumerate(VPN_MONITORED_SERVICES):
+            if not is_vpn_service_monitored(unit):
+                pending = _vpn_pending_restart_tasks.get(unit)
+                if pending and not pending.done():
+                    pending.cancel()
+                _vpn_inactive_alert_message_ids.pop(unit, None)
+                _vpn_service_last_state.pop(unit, None)
+                continue
             state = await get_service_state(unit)
             prev = _vpn_service_last_state.get(unit)
 

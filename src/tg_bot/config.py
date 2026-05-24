@@ -285,33 +285,64 @@ def set_load_thresholds(cpu_threshold: int = None, memory_threshold: int = None)
     save_settings(data)
 
 
+def is_vpn_monitoring_enabled() -> bool:
+    """Глобальный переключатель фонового мониторинга VPN-служб."""
+    data = load_settings()
+    return bool(data.get("vpn_service_monitoring_enabled", True))
+
+
+def set_vpn_monitoring_enabled(enabled: bool):
+    """Включить или отключить фоновый мониторинг VPN-служб."""
+    data = load_settings()
+    data["vpn_service_monitoring_enabled"] = bool(enabled)
+    save_settings(data)
+
+
+def is_vpn_service_monitored(service_unit: str) -> bool:
+    """Проверить, включён ли мониторинг VPN-службы."""
+    if not is_vpn_monitoring_enabled():
+        return False
+    data = load_settings()
+    monitored = data.get("vpn_monitored_services") or {}
+    if not isinstance(monitored, dict):
+        return True
+    return bool(monitored.get(service_unit, True))
+
+
+def set_vpn_service_monitored(service_unit: str, enabled: bool):
+    """Включить или отключить мониторинг VPN-службы."""
+    data = load_settings()
+    monitored = data.get("vpn_monitored_services") or {}
+    if not isinstance(monitored, dict):
+        monitored = {}
+    monitored[service_unit] = bool(enabled)
+    data["vpn_monitored_services"] = monitored
+    save_settings(data)
+
+
 def get_client_allowed_protocols(telegram_id: str) -> dict:
     """Получить доступные протоколы для клиента. По умолчанию все включены."""
+    default_protocols = {
+        "openvpn_vpn": True,
+        "openvpn_antizapret": True,
+        "wireguard_vpn": True,
+        "wireguard_antizapret": True,
+        "openvpn_default": True,
+        "openvpn_tcp": True,
+        "openvpn_udp": True,
+        "wireguard_wg": True,
+        "wireguard_am": True,
+    }
     data = load_settings()
     clients = data.get("telegram_clients") or {}
     if not isinstance(clients, dict):
-        return {
-            "openvpn_vpn": True,
-            "openvpn_antizapret": True,
-            "wireguard_vpn": True,
-            "wireguard_antizapret": True,
-        }
+        return default_protocols
     client_data = clients.get(str(telegram_id), {})
     if not isinstance(client_data, dict):
-        return {
-            "openvpn_vpn": True,
-            "openvpn_antizapret": True,
-            "wireguard_vpn": True,
-            "wireguard_antizapret": True,
-        }
+        return default_protocols
     protocols = client_data.get("allowed_protocols", {})
     if not isinstance(protocols, dict):
-        return {
-            "openvpn_vpn": True,
-            "openvpn_antizapret": True,
-            "wireguard_vpn": True,
-            "wireguard_antizapret": True,
-        }
+        return default_protocols
 
     # Поддержка старого формата (openvpn/wireguard) для обратной совместимости
     if "openvpn" in protocols or "wireguard" in protocols:
@@ -322,6 +353,11 @@ def get_client_allowed_protocols(telegram_id: str) -> dict:
             "openvpn_antizapret": openvpn_enabled,
             "wireguard_vpn": wireguard_enabled,
             "wireguard_antizapret": wireguard_enabled,
+            "openvpn_default": True,
+            "openvpn_tcp": True,
+            "openvpn_udp": True,
+            "wireguard_wg": True,
+            "wireguard_am": True,
         }
 
     return {
@@ -329,29 +365,45 @@ def get_client_allowed_protocols(telegram_id: str) -> dict:
         "openvpn_antizapret": protocols.get("openvpn_antizapret", True),
         "wireguard_vpn": protocols.get("wireguard_vpn", True),
         "wireguard_antizapret": protocols.get("wireguard_antizapret", True),
+        "openvpn_default": protocols.get("openvpn_default", True),
+        "openvpn_tcp": protocols.get("openvpn_tcp", True),
+        "openvpn_udp": protocols.get("openvpn_udp", True),
+        "wireguard_wg": protocols.get("wireguard_wg", True),
+        "wireguard_am": protocols.get("wireguard_am", True),
     }
 
 
 def set_client_allowed_protocols(
     telegram_id: str,
-    openvpn_vpn: bool = True,
-    openvpn_antizapret: bool = True,
-    wireguard_vpn: bool = True,
-    wireguard_antizapret: bool = True
+    openvpn_vpn: bool = None,
+    openvpn_antizapret: bool = None,
+    wireguard_vpn: bool = None,
+    wireguard_antizapret: bool = None,
+    openvpn_default: bool = None,
+    openvpn_tcp: bool = None,
+    openvpn_udp: bool = None,
+    wireguard_wg: bool = None,
+    wireguard_am: bool = None,
 ):
     """Установить доступные протоколы для клиента."""
     data = load_settings()
     clients = data.get("telegram_clients") or {}
     if not isinstance(clients, dict):
         clients = {}
+    current = get_client_allowed_protocols(telegram_id)
     client_data = clients.get(str(telegram_id), {})
     if not isinstance(client_data, dict):
         client_data = {}
     client_data["allowed_protocols"] = {
-        "openvpn_vpn": bool(openvpn_vpn),
-        "openvpn_antizapret": bool(openvpn_antizapret),
-        "wireguard_vpn": bool(wireguard_vpn),
-        "wireguard_antizapret": bool(wireguard_antizapret),
+        "openvpn_vpn": current["openvpn_vpn"] if openvpn_vpn is None else bool(openvpn_vpn),
+        "openvpn_antizapret": current["openvpn_antizapret"] if openvpn_antizapret is None else bool(openvpn_antizapret),
+        "wireguard_vpn": current["wireguard_vpn"] if wireguard_vpn is None else bool(wireguard_vpn),
+        "wireguard_antizapret": current["wireguard_antizapret"] if wireguard_antizapret is None else bool(wireguard_antizapret),
+        "openvpn_default": current["openvpn_default"] if openvpn_default is None else bool(openvpn_default),
+        "openvpn_tcp": current["openvpn_tcp"] if openvpn_tcp is None else bool(openvpn_tcp),
+        "openvpn_udp": current["openvpn_udp"] if openvpn_udp is None else bool(openvpn_udp),
+        "wireguard_wg": current["wireguard_wg"] if wireguard_wg is None else bool(wireguard_wg),
+        "wireguard_am": current["wireguard_am"] if wireguard_am is None else bool(wireguard_am),
     }
     clients[str(telegram_id)] = client_data
     data["telegram_clients"] = clients
