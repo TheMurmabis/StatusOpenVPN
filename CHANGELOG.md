@@ -2,6 +2,14 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.4.5](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.5) - 08.06.2026
+
+**Исправлено/улучшено:**
+- Исправлены ошибки в скриптах `/scripts/`.
+- Исправлены цвета в веб-интерфейсе
+
+---
+
 ## [v1.4.4](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.4) - 08.06.2026
 
 ### StatusOpenVPN
