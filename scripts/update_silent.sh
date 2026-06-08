@@ -17,4 +17,4 @@ if [[ -n "${1:-}" ]]; then
     export STATUSOPENVPN_UPDATE_TAG="$1"
 fi
 
-bash "$SCRIPT_DIR/install.sh"
+bash "$SCRIPT_DIR/setup.sh"
