@@ -26,7 +26,7 @@ LIVE_POINTS = 60
 
 BOT_SERVICE_NAME = "telegram-bot"
 GITHUB_REPO = "TheMurmabis/StatusOpenVPN"
-UPDATE_SCRIPT = os.path.join(BASE_DIR, "scripts", "update_silent.sh")
+UPDATE_SCRIPT = os.path.join(BASE_DIR, "scripts", "update.sh")
 UPDATE_LOG_PATH = "/tmp/statusopenvpn-update.log"
 
 VPN_SYSTEMD_UNITS = (
