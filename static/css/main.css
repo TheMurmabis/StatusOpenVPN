@@ -720,17 +720,40 @@ body.full-height {
 .update-log {
     max-height: 16rem;
     overflow: auto;
-    background: rgba(0, 0, 0, 0.04);
-    border: 1px solid var(--dm-border, rgba(0, 0, 0, 0.08));
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #000;
+    border-radius: 0.5rem;
     white-space: pre-wrap;
     word-break: break-word;
+    font-family: "Cascadia Code", "Consolas", "SFMono-Regular", "Menlo", "Monaco", monospace;
+    line-height: 1.45;
 }
 
-@media (prefers-color-scheme: dark) {
-    .update-log {
-        background: rgba(255, 255, 255, 0.04);
-    }
+.update-log .ansi-bold {
+    font-weight: 700;
 }
+
+.update-log .ansi-underline {
+    text-decoration: underline;
+}
+
+.update-log .ansi-black { color: #000000; }
+.update-log .ansi-red { color: #f14c4c; }
+.update-log .ansi-green { color: #23d18b; }
+.update-log .ansi-yellow { color: #f5f543; }
+.update-log .ansi-blue { color: #3b8eea; }
+.update-log .ansi-magenta { color: #d670d6; }
+.update-log .ansi-cyan { color: #29b8db; }
+.update-log .ansi-white { color: #e5e5e5; }
+.update-log .ansi-bright-black { color: #666666; }
+.update-log .ansi-bright-red { color: #f14c4c; }
+.update-log .ansi-bright-green { color: #23d18b; }
+.update-log .ansi-bright-yellow { color: #f5f543; }
+.update-log .ansi-bright-blue { color: #3b8eea; }
+.update-log .ansi-bright-magenta { color: #d670d6; }
+.update-log .ansi-bright-cyan { color: #29b8db; }
+.update-log .ansi-bright-white { color: #ffffff; }
 
 .app-sidebar .app-sidebar__hr {
     border-color: rgba(0, 0, 0, 0.1) !important;
