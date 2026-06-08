@@ -25,6 +25,9 @@ MAX_HISTORY_SECONDS = 7 * 24 * 3600
 LIVE_POINTS = 60
 
 BOT_SERVICE_NAME = "telegram-bot"
+GITHUB_REPO = "TheMurmabis/StatusOpenVPN"
+UPDATE_SCRIPT = os.path.join(BASE_DIR, "scripts", "update_silent.sh")
+UPDATE_LOG_PATH = "/tmp/statusopenvpn-update.log"
 
 VPN_SYSTEMD_UNITS = (
     ("openvpn-server@antizapret-udp.service", "Antizapret UDP", "openvpn"),

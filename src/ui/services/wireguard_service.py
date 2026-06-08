@@ -197,6 +197,50 @@ def toggle_peer_config(config_path, public_key, enable):
     return True
 
 
+def rename_client_in_wg_configs(old_name, new_name, interfaces=None):
+    raw_old = (old_name or "").strip()
+    raw_new = (new_name or "").strip()
+    if not raw_old or not raw_new:
+        return []
+
+    config_map = {
+        "vpn": "/etc/wireguard/vpn.conf",
+        "antizapret": "/etc/wireguard/antizapret.conf",
+    }
+    if interfaces:
+        target_ifaces = [i for i in interfaces if i in config_map]
+    else:
+        target_ifaces = list(config_map.keys())
+
+    touched = []
+    for iface in target_ifaces:
+        config_path = config_map[iface]
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            continue
+
+        changed = False
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("# Client ="):
+                current_name = stripped.split("=", 1)[1].strip()
+                if current_name == raw_old:
+                    new_lines.append(f"# Client = {raw_new}\n")
+                    changed = True
+                    continue
+            new_lines.append(line)
+
+        if changed:
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            touched.append(iface)
+
+    return touched
+
+
 def get_daily_stats_map():
     """Получение ежедневной статистики WG."""
     today = datetime.now().strftime("%Y-%m-%d")

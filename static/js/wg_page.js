@@ -2,6 +2,7 @@ let autoRefreshEnabled = false;
 let refreshInterval = null;
 
 let pendingMenuDisable = null;
+let wgRenameState = { oldName: "", iface: "", btn: null };
 
 function wgIfaceDisplay(iface) {
     if (!iface) return "";
@@ -105,6 +106,15 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <button type="button"
+                            class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn ovpn-action-item--neutral"
+                            data-action="rename" data-client="${clientAttr}" data-interface="${ifaceAttr}">
+                            <i class="fa fa-pencil fa-fw" aria-hidden="true"></i>
+                            <span class="wg-action-label">Переименовать</span>
+                        </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button type="button"
                             class="dropdown-item d-flex align-items-center gap-2 btn-action btn-download-config ovpn-action-item--neutral wg-client-action-btn"
                             data-action="download-config" data-client="${clientAttr}">
                             <i class="fa fa-download fa-fw" aria-hidden="true"></i>
@@ -169,6 +179,18 @@ document.addEventListener("DOMContentLoaded", () => {
         pendingMenuDisable = null;
     });
 
+    document.getElementById("wgRenameSubmitBtn")?.addEventListener("click", async () => {
+        await submitWgRename();
+    });
+
+    document.getElementById("wgRenameModal")?.addEventListener("hidden.bs.modal", () => {
+        wgRenameState = { oldName: "", iface: "", btn: null };
+        const currentNameEl = document.getElementById("wgRenameCurrentName");
+        const newInput = document.getElementById("wgRenameNewName");
+        if (currentNameEl) currentNameEl.textContent = "";
+        if (newInput) newInput.value = "";
+    });
+
     document.getElementById("wg-stats-container").addEventListener("click", (e) => {
         const btn = e.target.closest(".wg-client-action-btn");
         if (!btn) return;
@@ -180,6 +202,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (action === "download-config") {
             openWgConfigModal(clientName);
+            return;
+        }
+        if (action === "rename") {
+            openWgRenameModal(clientName, iface, btn);
             return;
         }
         if (action === "enable") {
@@ -224,6 +250,90 @@ function startAutoRefresh() {
         applyFilters();
     }, 3000);
     updateStats().then(applyFilters);
+}
+
+function openWgRenameModal(clientName, iface, btn) {
+    const modalEl = document.getElementById("wgRenameModal");
+    const newInput = document.getElementById("wgRenameNewName");
+    const currentNameEl = document.getElementById("wgRenameCurrentName");
+    if (!modalEl || !newInput || !currentNameEl) return;
+
+    wgRenameState = {
+        oldName: (clientName || "").trim(),
+        iface: (iface || "").trim().toLowerCase(),
+        btn: btn || null,
+    };
+    newInput.value = "";
+    currentNameEl.textContent = wgRenameState.oldName;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    setTimeout(() => {
+        newInput.focus();
+        newInput.select();
+    }, 100);
+}
+
+async function submitWgRename() {
+    const api = window.wgApi || {};
+    const submitBtn = document.getElementById("wgRenameSubmitBtn");
+    const newInput = document.getElementById("wgRenameNewName");
+    const modalEl = document.getElementById("wgRenameModal");
+    if (!submitBtn || !newInput || !modalEl) return;
+
+    const oldName = (wgRenameState.oldName || "").trim();
+    const newName = (newInput.value || "").trim();
+    const strictNameRegex = /^[A-Za-z0-9_-]{1,32}$/;
+    if (!oldName || !newName) {
+        alert("Имя клиента не может быть пустым.");
+        return;
+    }
+    if (!strictNameRegex.test(newName)) {
+        alert("Некорректное имя. Используйте только латиницу, цифры, _ и - (до 32 символов).");
+        return;
+    }
+    if (oldName === newName) {
+        alert("Новое имя совпадает со старым.");
+        return;
+    }
+    if (newName.includes("/") || newName.includes("\\") || newName.includes("\x00")) {
+        alert("Недопустимое имя клиента.");
+        return;
+    }
+
+    const url = absoluteApiUrl(api.clientRename);
+    if (!url) {
+        alert("Не задан URL переименования.");
+        return;
+    }
+
+    const oldText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Переименование...";
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                old_name: oldName,
+                new_name: newName,
+                interface: wgRenameState.iface || "",
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || "Ошибка переименования");
+        }
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        await updateStats();
+        applyFilters();
+    } catch (e) {
+        console.error(e);
+        alert(e.message || "Ошибка переименования");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = oldText;
+    }
 }
 
 function stopAutoRefresh() {

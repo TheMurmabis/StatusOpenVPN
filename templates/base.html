@@ -140,8 +140,17 @@
                 </a>
                 {% endif %}
 
-                <div class="app-sidebar__version text-center text-white-50 small" title="Текущая версия приложения {{ version }}">
-                    Версия {{ version }}
+                <div class="app-sidebar__version text-center text-white-50 small d-flex align-items-center justify-content-center gap-1 flex-wrap"
+                    title="Текущая версия приложения {{ version }}{% if update_available %} · доступно {{ latest_version }}{% endif %}">
+                    {% set version_value = version|string %}
+                    <span class="app-sidebar__version-full">Версия {{ version }}</span>
+                    <span class="app-sidebar__version-compact">v.{% if version_value[:1]|lower == 'v' %}{{ version_value[1:] }}{% else %}{{ version_value }}{% endif %}</span>
+                    {% if update_available %}
+                    <a href="{{ url_for('settings_update') }}" class="app-sidebar__update-badge text-warning"
+                        title="Доступно обновление до {{ latest_version }}" aria-label="Обновление до {{ latest_version }}">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </aside>

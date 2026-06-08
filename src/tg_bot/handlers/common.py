@@ -6,11 +6,17 @@ from aiogram import Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from ..config import get_admin_ids, get_client_name_for_user, set_client_mapping
+from ..config import (
+    get_admin_ids,
+    get_client_names_for_user,
+    add_client_mapping,
+    upsert_pending_access_request,
+)
 from ..admin import update_admin_info, is_admin_request_notification_enabled
 from ..keyboards import (
     create_main_menu,
     create_client_menu,
+    create_client_select_menu,
     create_request_access_keyboard,
     create_request_actions_keyboard,
 )
@@ -18,6 +24,41 @@ from ..states import VPNSetup
 from ..utils import get_external_ip
 
 router = Router()
+
+
+def _access_request_display_name(user: types.User) -> str:
+    return " ".join([p for p in [user.first_name, user.last_name] if p]).strip() or "—"
+
+
+async def _send_access_request_to_admins(user: types.User) -> int:
+    label = _access_request_display_name(user)
+    username_part = f" @{user.username}" if user.username else ""
+    suggested = _suggest_client_name(user)
+    upsert_pending_access_request(
+        user.id,
+        display_name=label,
+        username=(user.username or "").strip(),
+        suggested_name=suggested,
+    )
+    text = (
+        f"Клиент: {label}{username_part}\n"
+        f"ID: <code>{user.id}</code>\n\n"
+        "Выберите клиента, введите имя клиента или отклоните запрос."
+    )
+    keyboard = create_request_actions_keyboard(user.id, suggested)
+    from ..bot import get_bot
+
+    bot = get_bot()
+    sent = 0
+    for admin_id in get_admin_ids():
+        if not is_admin_request_notification_enabled(admin_id):
+            continue
+        try:
+            await bot.send_message(admin_id, text, reply_markup=keyboard)
+            sent += 1
+        except Exception:
+            pass
+    return sent
 
 
 def _suggest_client_name(user: types.User) -> str:
@@ -39,8 +80,8 @@ def _get_server_ip():
 
 async def show_client_menu(message: types.Message, user_id: int):
     """Показать меню клиента для пользователей не-администраторов."""
-    client_name = get_client_name_for_user(user_id)
-    if not client_name:
+    client_names = get_client_names_for_user(user_id)
+    if not client_names:
         await message.answer(
             "У вас ещё нет доступа к боту.\n\n"
             f"Ваш ID: <code>{user_id}</code>\n\n"
@@ -49,6 +90,13 @@ async def show_client_menu(message: types.Message, user_id: int):
             reply_markup=create_request_access_keyboard(),
         )
         return
+    if len(client_names) > 1:
+        await message.answer(
+            "У вас несколько клиентов. Выберите нужный:",
+            reply_markup=create_client_select_menu(client_names),
+        )
+        return
+    client_name = client_names[0]
     await message.answer(
         f'Ваш клиент: "{client_name}". Выберите протокол:',
         reply_markup=create_client_menu(client_name, user_id),
@@ -73,8 +121,8 @@ async def start(message: types.Message, state: FSMContext):
 
     # Неадмин без привязки — показываем кнопку «Запросить доступ»
     if message.from_user.id not in admin_ids:
-        client_name = get_client_name_for_user(message.from_user.id)
-        if not client_name:
+        client_names = get_client_names_for_user(message.from_user.id)
+        if not client_names:
             await message.answer(
                 "У вас ещё нет доступа к боту.\n\n"
                 f"Ваш ID: <code>{message.from_user.id}</code>\n\n"
@@ -112,31 +160,16 @@ async def request_access_command(message: types.Message):
     if message.from_user.id in admin_ids:
         await message.answer("Вы уже администратор.")
         return
-    if get_client_name_for_user(message.from_user.id):
+    if get_client_names_for_user(message.from_user.id):
         await message.answer("У вас уже есть доступ. Используйте /start.")
         return
-    user = message.from_user
-    label = " ".join([p for p in [user.first_name, user.last_name] if p]).strip() or "—"
-    username_part = f" @{user.username}" if user.username else ""
-    text = (
-        f"Клиент: {label}{username_part}\n"
-        f"ID: <code>{user.id}</code>\n\n"
-        "Выберите клиента, введите имя клиента или отклоните запрос."
-    )
-    keyboard = create_request_actions_keyboard(user.id)
-    from ..bot import get_bot
-    bot = get_bot()
-    sent = 0
-    for admin_id in admin_ids:
-        if not is_admin_request_notification_enabled(admin_id):
-            continue
-        try:
-            await bot.send_message(admin_id, text, reply_markup=keyboard)
-            sent += 1
-        except Exception:
-            pass
+    sent = await _send_access_request_to_admins(message.from_user)
     if sent:
         await message.answer("Запрос отправлен администраторам.")
+    else:
+        await message.answer(
+            "Запрос сохранён. Обработайте его в разделе «Клиенты бота» → «Запросы»."
+        )
 
 
 @router.message(Command("client"))
@@ -153,7 +186,7 @@ async def handle_client_mapping_command(message: types.Message, state: FSMContex
     if len(parts) < 2:
         await message.answer(
             "Отправьте привязку в формате:\n"
-            "<code>client_id:имя_клиента</code>\n"
+            "<code>telegram_id:имя_клиента (AntiZapret)</code>\n"
             "Например: <code>123456789:vpn-user</code>"
         )
         await state.set_state(VPNSetup.entering_client_mapping)
@@ -186,11 +219,13 @@ async def handle_client_mapping_state(message: types.Message, state: FSMContext)
     success = await process_client_mapping(message, message.text, state)
     if success:
         telegram_id = match_preview.group(1) if match_preview else ""
-        page = clients_menu_page_for_telegram_id(telegram_id) if telegram_id else 1
-        total = len(get_client_mapping())
+        page = clients_menu_page_for_telegram_id(telegram_id, match_preview.group(2)) if match_preview else 1
+        client_mapping = get_client_mapping()
+        total_users = len(client_mapping)
+        total_bindings = sum(len(names) for names in client_mapping.values())
         await message.answer(
-            get_clients_menu_text(total, page)
-            + "\n\nЧтобы удалить привязку — нажмите на неё в списке и подтвердите удаление.",
+            get_clients_menu_text(total_users, page, total_bindings)
+            + "\n\nЧтобы удалить привязку — выберите пользователя, затем клиента и подтвердите удаление.",
             reply_markup=create_clients_menu(admin_ids, page),
         )
 
@@ -202,12 +237,12 @@ async def process_client_mapping(message: types.Message, raw_text: str, state: F
     if not match:
         await message.answer(
             "❌ Некорректный формат. Используйте:\n"
-            "<code>client_id:имя_клиента</code>"
+            "<code>telegram_id:имя_клиента (AntiZapret)</code>"
         )
         return False
     
     telegram_id, client_name = match.groups()
-    set_client_mapping(telegram_id, client_name)
+    add_client_mapping(telegram_id, client_name)
     # Уведомляем клиента о привязке
     try:
         from ..bot import get_bot
@@ -236,34 +271,33 @@ async def handle_request_access(callback: types.CallbackQuery):
     if user.id in admin_ids:
         await callback.answer("Вы уже администратор.", show_alert=True)
         return
-    if get_client_name_for_user(user.id):
+    if get_client_names_for_user(user.id):
         await callback.answer("У вас уже есть доступ.", show_alert=True)
         return
 
-    label = " ".join([p for p in [user.first_name, user.last_name] if p]).strip() or "—"
-    username_part = f" @{user.username}" if user.username else ""
-    text = (
-        f"Клиент: {label}{username_part}\n"
-        f"ID: <code>{user.id}</code>\n\n"
-        "Выберите клиента, введите имя клиента или отклоните запрос."
-    )
-    keyboard = create_request_actions_keyboard(user.id)
-
-    from ..bot import get_bot
-    bot = get_bot()
-    sent = 0
-    for admin_id in admin_ids:
-        if not is_admin_request_notification_enabled(admin_id):
-            continue
-        try:
-            await bot.send_message(admin_id, text, reply_markup=keyboard)
-            sent += 1
-        except Exception:
-            pass
+    sent = await _send_access_request_to_admins(user)
     if sent:
         await callback.answer("Запрос отправлен администраторам.")
     else:
-        try:
-            await callback.answer()
-        except Exception:
-            pass
+        await callback.answer(
+            "Запрос сохранён. Админ обработает его в «Клиенты бота» → «Запросы».",
+            show_alert=True,
+        )
+
+
+@router.callback_query(lambda c: c.data.startswith("pick_client_"))
+async def handle_pick_client(callback: types.CallbackQuery):
+    """Выбор клиента пользователем при множественных привязках."""
+    if callback.from_user.id in get_admin_ids():
+        await callback.answer()
+        return
+    client_name = callback.data.split("_", 2)[2]
+    allowed_clients = get_client_names_for_user(callback.from_user.id)
+    if client_name not in allowed_clients:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await callback.message.edit_text(
+        f'Ваш клиент: "{client_name}". Выберите протокол:',
+        reply_markup=create_client_menu(client_name, callback.from_user.id),
+    )
+    await callback.answer()

@@ -698,6 +698,40 @@ body.full-height {
     word-break: break-all;
 }
 
+.app-sidebar__update-badge {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.app-sidebar__update-badge:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+    color: var(--bs-warning) !important;
+}
+
+.app-sidebar__version-compact {
+    display: none;
+}
+
+.update-log {
+    max-height: 16rem;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--dm-border, rgba(0, 0, 0, 0.08));
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (prefers-color-scheme: dark) {
+    .update-log {
+        background: rgba(255, 255, 255, 0.04);
+    }
+}
+
 .app-sidebar .app-sidebar__hr {
     border-color: rgba(0, 0, 0, 0.1) !important;
     opacity: 1;
@@ -833,7 +867,19 @@ body.full-height {
 }
 
 .app-shell--sidebar-collapsed .app-sidebar__version {
+    display: inline-flex;
+    font-size: 0.72rem;
+    line-height: 1;
+    padding-top: 0;
+    margin-top: 0.15rem;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__version-full {
     display: none;
+}
+
+.app-shell--sidebar-collapsed .app-sidebar__version-compact {
+    display: inline;
 }
 
 .app-shell--sidebar-collapsed .app-sidebar__head {

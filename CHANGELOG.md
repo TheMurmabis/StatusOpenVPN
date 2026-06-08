@@ -2,6 +2,30 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.4.4](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.4) - 08.06.2026
+
+### StatusOpenVPN
+
+**Добавлено:**
+- Логика установки и обновления объединена в `setup.sh` (установка/обновление в одном скрипте).
+- В боковое меню добавлен индикатор доступного обновления.
+- На странице WireGuard добавлено переименование имени клиента ([#51](https://github.com/TheMurmabis/StatusOpenVPN/issues/51)).
+
+**Исправлено/улучшено:**
+- В `ssl.sh` добавлена обработка внешних `nginx`-конфигов ([#49](https://github.com/TheMurmabis/StatusOpenVPN/issues/49)).
+- Обновлены описания Antizapret-параметров в `/settings/install`.
+- На странице Telegram обновлено отображение списка привязок (количество + список клиентов).
+
+### TelegramBot
+
+**Добавлено:**
+- Добавлена поддержка нескольких клиентских имён для одного Telegram ID ([#50](https://github.com/TheMurmabis/StatusOpenVPN/issues/50)).
+
+**Исправлено/улучшено:**
+- Формат привязок клиентов перенесён из `.env` в `settings.json`.
+
+---
+
 ## [v1.4.3](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.3) - 24.05.2026
 
 ### TelegramBot

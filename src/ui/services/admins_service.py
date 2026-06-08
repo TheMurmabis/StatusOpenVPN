@@ -49,10 +49,39 @@ def build_admin_display_list(admin_id_value, admin_info):
 
 
 def parse_client_mapping(env_values):
+    settings_data = read_settings()
+    clients = settings_data.get("telegram_clients", {})
+    mapping = {}
+    if isinstance(clients, dict):
+        for telegram_id, client_data in clients.items():
+            tid = str(telegram_id).strip()
+            if not tid:
+                continue
+            names = []
+            if isinstance(client_data, dict):
+                raw_names = client_data.get("client_names", [])
+                if isinstance(raw_names, list):
+                    for name in raw_names:
+                        clean_name = str(name).strip()
+                        if clean_name and clean_name not in names:
+                            names.append(clean_name)
+                elif isinstance(client_data.get("client_name"), str):
+                    clean_name = client_data.get("client_name", "").strip()
+                    if clean_name:
+                        names.append(clean_name)
+            elif isinstance(client_data, str):
+                clean_name = client_data.strip()
+                if clean_name:
+                    names.append(clean_name)
+            if names:
+                mapping[tid] = names
+    if mapping:
+        return mapping
+
     raw_value = (env_values.get(CLIENT_MAPPING_KEY) or "").strip()
     if not raw_value:
         return {}
-    mapping = {}
+    legacy_mapping = {}
     for item in raw_value.split(","):
         item = item.strip()
         if not item or ":" not in item:
@@ -62,23 +91,31 @@ def parse_client_mapping(env_values):
         client_name = client_name.strip()
         if not telegram_id or not client_name:
             continue
-        mapping[telegram_id] = client_name
-    return mapping
+        names = legacy_mapping.setdefault(telegram_id, [])
+        if client_name not in names:
+            names.append(client_name)
+    return legacy_mapping
 
 
 def build_client_mapping_list(env_values, admin_info):
     mapping = parse_client_mapping(env_values)
     mapping_list = []
-    for telegram_id, client_name in mapping.items():
+    for telegram_id, client_names in mapping.items():
         display = format_admin_display(telegram_id, admin_info)
         mapping_list.append(
             {
                 "telegram_id": telegram_id,
                 "display": display,
-                "client_name": client_name,
+                "client_names": client_names,
+                "clients_count": len(client_names),
             }
         )
-    mapping_list.sort(key=lambda item: item["client_name"].lower())
+    mapping_list.sort(
+        key=lambda item: (
+            (item["client_names"][0].lower() if item["client_names"] else ""),
+            item["display"].lower(),
+        )
+    )
     return mapping_list
 
 

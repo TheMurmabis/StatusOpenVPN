@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -16,8 +17,10 @@ from src.ui.services.wireguard_service import (
     get_disabled_wg_peers,
     get_wireguard_stats,
     parse_wireguard_output,
+    rename_client_in_wg_configs,
     toggle_peer_config,
 )
+from src.ui.utils.wireguard_naming import wg_client_name_param_ok
 from src.ui.utils.format_utils import format_bytes
 from src.ui.utils.time_utils import (
     get_server_hour_window_for_client_day,
@@ -138,6 +141,83 @@ def toggle_wg_peer():
         )
 
         return jsonify({"success": True, "enabled": enable})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wg/client/rename", methods=["POST"])
+@login_required
+def api_wg_client_rename():
+    data = request.get_json(silent=True) or {}
+    old_name = (data.get("old_name") or "").strip()
+    new_name = (data.get("new_name") or "").strip()
+    iface = (data.get("interface") or "").strip().lower()
+
+    strict_name_pattern = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+    if not strict_name_pattern.fullmatch(old_name) or not strict_name_pattern.fullmatch(new_name):
+        return jsonify({"error": "Некорректное имя клиента"}), 400
+    if old_name == new_name:
+        return jsonify({"error": "Новое имя совпадает со старым"}), 400
+
+    interfaces = [iface] if iface in {"vpn", "antizapret"} else None
+
+    try:
+        changed_interfaces = rename_client_in_wg_configs(
+            old_name=old_name,
+            new_name=new_name,
+            interfaces=interfaces,
+        )
+        if not changed_interfaces:
+            return jsonify({"error": "Клиент не найден в конфигурации"}), 404
+
+        client_script = "/root/antizapret/client.sh"
+        if not os.path.isfile(client_script):
+            return jsonify({"error": "Не найден скрипт пересоздания файлов client.sh"}), 500
+        subprocess.run(
+            [client_script, "7"],
+            check=True,
+            env={
+                **os.environ,
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            },
+        )
+
+        wg_quick = shutil.which("wg-quick") or "/usr/bin/wg-quick"
+        if not os.path.isfile(wg_quick):
+            return (
+                jsonify({"error": "wg-quick не найден. Установите wireguard-tools."}),
+                500,
+            )
+
+        for changed_iface in changed_interfaces:
+            subprocess.run(
+                [wg_quick, "down", changed_iface],
+                check=True,
+                env={**os.environ, "PATH": "/usr/bin:/bin"},
+            )
+            subprocess.run(
+                [wg_quick, "up", changed_iface],
+                check=True,
+                env={**os.environ, "PATH": "/usr/bin:/bin"},
+            )
+
+        log_action(
+            "web",
+            current_user.username,
+            current_user.username,
+            "wg_client_rename",
+            f"{old_name} -> {new_name}",
+        )
+        return jsonify(
+            {
+                "success": True,
+                "old_name": old_name,
+                "new_name": new_name,
+                "interfaces": changed_interfaces,
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Не удалось перезапустить wg: {e}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

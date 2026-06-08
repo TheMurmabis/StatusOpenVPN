@@ -16,6 +16,7 @@ class VPNSetup(StatesGroup):
     choosing_wg_type = State()
     confirming_rename = State()
     entering_client_mapping = State()
+    entering_client_mapping_user_id = State()
     entering_cpu_threshold = State()
     entering_memory_threshold = State()
     entering_request_client_name = State()

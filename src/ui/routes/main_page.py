@@ -7,6 +7,7 @@ from src.ui.constants import HOST_STATIC_INFO
 from src.ui.extensions import app
 from src.ui.services.settings_service import read_settings
 from src.ui.services.system_info_service import get_git_version, get_system_info
+from src.ui.services.update_service import is_update_available
 from src.ui.utils.network_utils import get_external_ip
 
 
@@ -16,10 +17,13 @@ def inject_info():
     app_name = settings_data.get("app_name", "StatusOpenVPN")
     show_ovpn_menu = bool(settings_data.get("show_ovpn_menu", True))
     show_wg_menu = bool(settings_data.get("show_wg_menu", True))
+    update_available, _current, latest_version = is_update_available()
     return {
         "hostname": socket.gethostname(),
         "server_ip": get_external_ip(),
         "version": get_git_version(),
+        "update_available": update_available,
+        "latest_version": latest_version,
         "base_path": request.script_root or "",
         "app_name": app_name,
         "show_ovpn_menu": show_ovpn_menu,

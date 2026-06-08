@@ -9,11 +9,15 @@ from ..config import (
     ITEMS_PER_PAGE,
     get_admin_ids,
     get_client_mapping,
+    get_client_mapping_entries,
     remove_client_mapping,
     get_banned_user_ids,
     ban_user,
     unban_user,
     is_user_banned,
+    add_client_mapping,
+    get_pending_request_user_ids,
+    get_pending_requests_count,
 )
 from ..admin import (
     is_admin_notification_enabled,
@@ -38,10 +42,17 @@ from ..keyboards import (
     create_admins_menu,
     create_notifications_menu,
     create_clientmap_delete_menu,
+    create_client_user_menu,
+    create_clientmap_users_menu,
+    create_clientmap_client_list_menu,
     create_back_keyboard,
+    create_pending_requests_menu,
+    get_pending_requests_menu_text,
+    create_request_actions_keyboard,
+    format_pending_request_admin_text,
 )
 from ..states import VPNSetup
-from ..utils import get_external_ip
+from ..utils import get_external_ip, get_all_clients_unique
 from ..audit import log_action
 
 router = Router()
@@ -83,9 +94,11 @@ async def handle_main_menus(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.edit_text("Меню сервера:", reply_markup=create_server_menu())
     elif callback.data == "clients_menu":
         await state.clear()
-        total = len(get_client_mapping())
+        mapping = get_client_mapping()
+        total_users = len(mapping)
+        total_bindings = sum(len(names) for names in mapping.values())
         await callback.message.edit_text(
-            get_clients_menu_text(total, 1),
+            get_clients_menu_text(total_users, 1, total_bindings),
             reply_markup=create_clients_menu(admin_ids, 1),
         )
     elif callback.data == "admins_menu":
@@ -108,16 +121,72 @@ async def handle_clients_list_nav(callback: types.CallbackQuery, state: FSMConte
 
     await state.clear()
     page = int(callback.data.removeprefix("clients_p_"))
-    client_map = get_client_mapping()
-    total = len(client_map)
+    mapping = get_client_mapping()
+    total_users = len(mapping)
+    total_bindings = sum(len(names) for names in mapping.values())
     total_pages = (
-        max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+        max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total_users else 1
     )
     page = max(1, min(page, total_pages))
 
     await callback.message.edit_text(
-        get_clients_menu_text(total, page),
+        get_clients_menu_text(total_users, page, total_bindings),
         reply_markup=create_clients_menu(admin_ids, page),
+    )
+    await callback.answer()
+
+
+@router.callback_query(
+    lambda c: c.data.startswith("clientuser_p_")
+    and len(c.data.split("_", 3)) == 4
+    and c.data.rsplit("_", 1)[1].isdigit()
+)
+async def handle_client_user_nav(callback: types.CallbackQuery, state: FSMContext):
+    """Пагинация списка клиентов одного пользователя."""
+    admin_ids = get_admin_ids()
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await state.clear()
+    payload = callback.data.removeprefix("clientuser_p_")
+    if "_" not in payload:
+        await callback.answer("Некорректные данные", show_alert=True)
+        return
+    telegram_id, page_raw = payload.rsplit("_", 1)
+    page = int(page_raw)
+    client_names = get_client_mapping().get(telegram_id, [])
+    if not client_names:
+        mapping = get_client_mapping()
+        total_users = len(mapping)
+        total_bindings = sum(len(names) for names in mapping.values())
+        await callback.message.edit_text(
+            "Пользователь или привязки не найдены.\n\n"
+            + get_clients_menu_text(total_users, 1, total_bindings),
+            reply_markup=create_clients_menu(admin_ids, 1),
+        )
+        await callback.answer()
+        return
+    if len(client_names) == 1:
+        client_name = client_names[0]
+        from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+
+        return_page = clients_menu_page_for_telegram_id(telegram_id)
+        await callback.message.edit_text(
+            f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
+            "Настройка протоколов:",
+            reply_markup=create_client_protocols_menu(
+                telegram_id,
+                client_name,
+                f"clients_p_{return_page}",
+            ),
+        )
+        await callback.answer()
+        return
+    await callback.message.edit_text(
+        f"Пользователь: <code>{get_user_label(telegram_id)}</code>\n"
+        f"Привязок: <b>{len(client_names)}</b>\n\n"
+        "Выберите клиента для настройки:",
+        reply_markup=create_client_user_menu(telegram_id, client_names, page),
     )
     await callback.answer()
 
@@ -137,41 +206,184 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
     
     if data == "clientmap_add":
         await callback.message.edit_text(
-            "Отправьте привязку в формате:\n"
-            "<code>client_id:имя_клиента</code>\n"
-            "Например: <code>123456789:vpn-user</code>",
-            reply_markup=create_back_keyboard("clients_menu"),
+            "Выберите пользователя для привязки клиента.\n"
+            "Можно выбрать из списка или ввести ID вручную.",
+            reply_markup=create_clientmap_users_menu(1),
         )
-        await state.set_state(VPNSetup.entering_client_mapping)
+        await state.clear()
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_users_p_"):
+        page_raw = data.removeprefix("clientmap_users_p_")
+        if not page_raw.isdigit():
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        page = int(page_raw)
+        await callback.message.edit_text(
+            "Выберите пользователя для привязки клиента.\n"
+            "Можно выбрать из списка или ввести ID вручную.",
+            reply_markup=create_clientmap_users_menu(page),
+        )
+        await callback.answer()
+        return
+
+    if data == "clientmap_add_manual":
+        await callback.message.edit_text(
+            "Введите Telegram ID пользователя (только цифры).",
+            reply_markup=create_back_keyboard("clientmap_add"),
+        )
+        await state.set_state(VPNSetup.entering_client_mapping_user_id)
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_add_for_"):
+        telegram_id = data.removeprefix("clientmap_add_for_")
+        if not telegram_id.isdigit():
+            await callback.answer("Некорректный ID", show_alert=True)
+            return
+        clients = await get_all_clients_unique()
+        if not clients:
+            await callback.message.edit_text(
+                "❌ Нет ни одного клиента OpenVPN/WireGuard для привязки.",
+                reply_markup=create_back_keyboard("clients_menu"),
+            )
+            await callback.answer()
+            return
+        total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+        await callback.message.edit_text(
+            f"Пользователь: <code>{get_user_label(telegram_id)}</code>\n\n"
+            "Выберите VPN-клиента для привязки:",
+            reply_markup=create_clientmap_client_list_menu(
+                telegram_id=telegram_id,
+                clients=clients,
+                page=1,
+                total_pages=total_pages,
+            ),
+        )
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_clients_p_"):
+        payload = data.removeprefix("clientmap_clients_p_")
+        if "_" not in payload:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        telegram_id, page_raw = payload.rsplit("_", 1)
+        if not telegram_id.isdigit() or not page_raw.isdigit():
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        page = int(page_raw)
+        clients = await get_all_clients_unique()
+        total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+        page = max(1, min(page, total_pages))
+        await callback.message.edit_text(
+            f"Пользователь: <code>{get_user_label(telegram_id)}</code>\n\n"
+            "Выберите VPN-клиента для привязки:",
+            reply_markup=create_clientmap_client_list_menu(
+                telegram_id=telegram_id,
+                clients=clients,
+                page=page,
+                total_pages=total_pages,
+            ),
+        )
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_bind_"):
+        payload = data.removeprefix("clientmap_bind_")
+        if "_" not in payload:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        telegram_id, client_name = payload.split("_", 1)
+        if not telegram_id.isdigit() or not client_name:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+
+        mapping = get_client_mapping()
+        user_clients = mapping.get(telegram_id, [])
+        if client_name in user_clients:
+            await callback.answer("Эта привязка уже существует.", show_alert=True)
+        else:
+            add_client_mapping(telegram_id, client_name)
+            mapping = get_client_mapping()
+            total_count = len(mapping.get(telegram_id, []))
+            await callback.message.edit_text(
+                "✅ Привязка сохранена.\n\n"
+                f"Пользователь: <code>{get_user_label(telegram_id)}</code>\n"
+                f"Клиент: <b>{client_name}</b>\n"
+                f"Всего клиентов у пользователя: <b>{total_count}</b>",
+                reply_markup=create_back_keyboard(f"clientmap_user_{telegram_id}"),
+            )
         await callback.answer()
         return
     
     if data.startswith("clientmap_delete_confirm_"):
-        telegram_id = data.split("_")[-1]
+        payload = data.removeprefix("clientmap_delete_confirm_")
+        if "_" not in payload:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        telegram_id, client_name = payload.split("_", 1)
         from ..keyboards import clients_menu_page_for_telegram_id
 
-        return_page = clients_menu_page_for_telegram_id(telegram_id)
-        remove_client_mapping(telegram_id)
-        total = len(get_client_mapping())
-        total_pages = (
-            max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
-        )
-        show_page = max(1, min(return_page, total_pages))
-        await callback.message.edit_text(
-            "Привязка удалена.\n\n" + get_clients_menu_text(total, show_page),
-            reply_markup=create_clients_menu(admin_ids, show_page),
-        )
+        return_page = clients_menu_page_for_telegram_id(telegram_id, client_name)
+        remove_client_mapping(telegram_id, client_name)
+        client_names = get_client_mapping().get(telegram_id, [])
+        if client_names:
+            if len(client_names) == 1:
+                from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+
+                return_page = clients_menu_page_for_telegram_id(telegram_id)
+                await callback.message.edit_text(
+                    f"Привязка удалена.\n\n"
+                    f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → "
+                    f"<b>{client_names[0]}</b>\n\n"
+                    "Настройка протоколов:",
+                    reply_markup=create_client_protocols_menu(
+                        telegram_id,
+                        client_names[0],
+                        f"clients_p_{return_page}",
+                    ),
+                )
+            else:
+                await callback.message.edit_text(
+                    f"Привязка удалена.\n\nПользователь: <code>{get_user_label(telegram_id)}</code>\n"
+                    f"Привязок: <b>{len(client_names)}</b>\n\n"
+                    "Выберите клиента для настройки:",
+                    reply_markup=create_client_user_menu(telegram_id, client_names, 1),
+                )
+        else:
+            mapping = get_client_mapping()
+            total_users = len(mapping)
+            total_bindings = sum(len(names) for names in mapping.values())
+            total_pages = (
+                max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total_users else 1
+            )
+            show_page = max(1, min(return_page, total_pages))
+            await callback.message.edit_text(
+                "Привязка удалена.\n\n"
+                + get_clients_menu_text(total_users, show_page, total_bindings),
+                reply_markup=create_clients_menu(admin_ids, show_page),
+            )
         await callback.answer()
         return
 
     if data.startswith("clientmap_delete_"):
-        telegram_id = data.split("_", 2)[2]
+        payload = data.removeprefix("clientmap_delete_")
+        if "_" not in payload:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        telegram_id, client_name = payload.split("_", 1)
         client_map = get_client_mapping()
-        client_name = client_map.get(telegram_id)
-        if not client_name:
-            total = len(get_client_mapping())
+        client_names = client_map.get(telegram_id, [])
+        has_mapping = client_name in client_names
+        if not has_mapping:
+            mapping = get_client_mapping()
+            total_users = len(mapping)
+            total_bindings = sum(len(names) for names in mapping.values())
             await callback.message.edit_text(
-                "Привязка не найдена.\n\n" + get_clients_menu_text(total, 1),
+                "Привязка не найдена.\n\n"
+                + get_clients_menu_text(total_users, 1, total_bindings),
                 reply_markup=create_clients_menu(admin_ids, 1),
             )
             await callback.answer()
@@ -184,47 +396,175 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
         await callback.answer()
         return
 
-    if data.startswith("clientmap_"):
-        telegram_id = data.split("_", 1)[1]
-        client_map = get_client_mapping()
-        client_name = client_map.get(telegram_id)
-        if not client_name:
-            total = len(get_client_mapping())
+    if data.startswith("clientmap_user_"):
+        telegram_id = data.removeprefix("clientmap_user_")
+        client_names = get_client_mapping().get(telegram_id, [])
+        if not client_names:
+            mapping = get_client_mapping()
+            total_users = len(mapping)
+            total_bindings = sum(len(names) for names in mapping.values())
             await callback.message.edit_text(
-                "Привязка не найдена.\n\n" + get_clients_menu_text(total, 1),
+                "Пользователь или привязки не найдены.\n\n"
+                + get_clients_menu_text(total_users, 1, total_bindings),
+                reply_markup=create_clients_menu(admin_ids, 1),
+            )
+            await callback.answer()
+            return
+        if len(client_names) == 1:
+            from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+
+            return_page = clients_menu_page_for_telegram_id(telegram_id)
+            await callback.message.edit_text(
+                f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_names[0]}</b>\n\n"
+                "Настройка протоколов:",
+                reply_markup=create_client_protocols_menu(
+                    telegram_id,
+                    client_names[0],
+                    f"clients_p_{return_page}",
+                ),
+            )
+            await callback.answer()
+            return
+        await callback.message.edit_text(
+            f"Пользователь: <code>{get_user_label(telegram_id)}</code>\n"
+            f"Привязок: <b>{len(client_names)}</b>\n\n"
+            "Выберите клиента для настройки:",
+            reply_markup=create_client_user_menu(telegram_id, client_names, 1),
+        )
+        await callback.answer()
+        return
+
+    if data.startswith("clientmap_"):
+        payload = data.removeprefix("clientmap_")
+        if "_" not in payload:
+            await callback.answer("Некорректные данные", show_alert=True)
+            return
+        telegram_id, client_name = payload.split("_", 1)
+        client_map = get_client_mapping()
+        client_names = client_map.get(telegram_id, [])
+        if client_name not in client_names:
+            mapping = get_client_mapping()
+            total_users = len(mapping)
+            total_bindings = sum(len(names) for names in mapping.values())
+            await callback.message.edit_text(
+                "Привязка не найдена.\n\n"
+                + get_clients_menu_text(total_users, 1, total_bindings),
                 reply_markup=create_clients_menu(admin_ids, 1),
             )
             await callback.answer()
             return
         from ..keyboards import create_client_protocols_menu
+
         await callback.message.edit_text(
             f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
             "Настройка протоколов:",
-            reply_markup=create_client_protocols_menu(telegram_id),
+            reply_markup=create_client_protocols_menu(
+                telegram_id,
+                client_name,
+                f"clientmap_user_{telegram_id}",
+            ),
         )
         await callback.answer()
         return
 
     if data.startswith("client_proto_menu_"):
         telegram_id = data.split("_", 3)[3]
-        client_map = get_client_mapping()
-        client_name = client_map.get(telegram_id)
+        client_entries = get_client_mapping_entries()
+        client_name = next((name for tid, name in client_entries if tid == telegram_id), None)
         if not client_name:
-            total = len(get_client_mapping())
+            mapping = get_client_mapping()
+            total_users = len(mapping)
+            total_bindings = sum(len(names) for names in mapping.values())
             await callback.message.edit_text(
-                "Привязка не найдена.\n\n" + get_clients_menu_text(total, 1),
+                "Привязка не найдена.\n\n"
+                + get_clients_menu_text(total_users, 1, total_bindings),
                 reply_markup=create_clients_menu(admin_ids, 1),
             )
             await callback.answer()
             return
         from ..keyboards import create_client_protocols_transport_menu
+
         await callback.message.edit_text(
             f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
             "Настройка протоколов:",
-            reply_markup=create_client_protocols_transport_menu(telegram_id),
+            reply_markup=create_client_protocols_transport_menu(
+                telegram_id,
+                client_name,
+                f"clientmap_user_{telegram_id}",
+            ),
         )
         await callback.answer()
         return
+
+
+@router.callback_query(
+    lambda c: c.data == "pending_requests_menu"
+    or (
+        c.data.startswith("pending_p_") and c.data.removeprefix("pending_p_").isdigit()
+    )
+)
+async def handle_pending_requests_nav(callback: types.CallbackQuery, state: FSMContext):
+    admin_ids = get_admin_ids()
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    await state.clear()
+    page = 1
+    if callback.data.startswith("pending_p_"):
+        page = int(callback.data.removeprefix("pending_p_"))
+
+    user_ids = get_pending_request_user_ids()
+    count = len(user_ids)
+    total_pages = (
+        max(1, (count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if count else 1
+    )
+    page = max(1, min(page, total_pages))
+
+    await callback.message.edit_text(
+        get_pending_requests_menu_text(count, page),
+        reply_markup=create_pending_requests_menu(page),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("pending_req_"))
+async def handle_pending_request_open(callback: types.CallbackQuery, state: FSMContext):
+    admin_ids = get_admin_ids()
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    uid = callback.data.removeprefix("pending_req_")
+    if not uid.isdigit():
+        await callback.answer("Некорректные данные", show_alert=True)
+        return
+
+    if uid not in get_pending_request_user_ids():
+        count = get_pending_requests_count()
+        await callback.message.edit_text(
+            "Запрос уже обработан или отсутствует.\n\n"
+            + get_pending_requests_menu_text(count, 1),
+            reply_markup=create_pending_requests_menu(1),
+        )
+        await callback.answer()
+        return
+
+    await state.clear()
+    text, suggested = format_pending_request_admin_text(uid)
+    await callback.message.edit_text(
+        text,
+        reply_markup=create_request_actions_keyboard(int(uid), suggested),
+    )
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "pending_noop")
+async def handle_pending_noop(callback: types.CallbackQuery):
+    if callback.from_user.id not in get_admin_ids():
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+    await callback.answer()
 
 
 def _banned_list_text(count: int) -> str:
@@ -405,6 +745,38 @@ async def handle_ban_user_id_input(message: types.Message, state: FSMContext):
     )
 
 
+@router.message(VPNSetup.entering_client_mapping_user_id)
+async def handle_client_mapping_user_id_input(message: types.Message, state: FSMContext):
+    """Обработка ручного ввода Telegram ID для мастера привязки."""
+    admin_ids = get_admin_ids()
+    if message.from_user.id not in admin_ids:
+        await state.clear()
+        return
+    text = (message.text or "").strip()
+    if not text.isdigit():
+        await message.answer("Введите только числовой Telegram ID.")
+        return
+    await state.clear()
+    clients = await get_all_clients_unique()
+    if not clients:
+        await message.answer(
+            "❌ Нет ни одного клиента OpenVPN/WireGuard для привязки.",
+            reply_markup=create_back_keyboard("clients_menu"),
+        )
+        return
+    total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    await message.answer(
+        f"Пользователь: <code>{get_user_label(text)}</code>\n\n"
+        "Выберите VPN-клиента для привязки:",
+        reply_markup=create_clientmap_client_list_menu(
+            telegram_id=text,
+            clients=clients,
+            page=1,
+            total_pages=total_pages,
+        ),
+    )
+
+
 @router.callback_query(
     lambda c: c.data in [
         "notifications_menu",
@@ -452,7 +824,7 @@ async def handle_toggle_protocol(callback: types.CallbackQuery):
         return
 
     from ..config import get_client_allowed_protocols, set_client_allowed_protocols
-    from ..keyboards import create_client_protocols_menu, create_client_protocols_transport_menu
+    from ..keyboards import create_client_protocols_menu
 
     data = callback.data
     telegram_id = None
@@ -571,13 +943,17 @@ async def handle_toggle_protocol(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    client_map = get_client_mapping()
-    client_name = client_map.get(telegram_id, "неизвестен")
+    client_entries = get_client_mapping_entries()
+    client_name = next((name for tid, name in client_entries if tid == telegram_id), "неизвестен")
 
     await callback.message.edit_text(
         f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
         "Настройка протоколов:",
-        reply_markup=create_client_protocols_menu(telegram_id),
+        reply_markup=create_client_protocols_menu(
+            telegram_id,
+            client_name,
+            f"clientmap_user_{telegram_id}",
+        ),
     )
     await callback.answer()
 

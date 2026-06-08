@@ -1,6 +1,6 @@
 """Функции управления администраторами."""
 
-from .config import load_settings, save_settings
+from .config import load_settings, save_settings, get_pending_access_requests
 
 
 def update_admin_info(user):
@@ -170,4 +170,12 @@ def get_user_label(telegram_id: str) -> str:
         username = (entry.get("username") or "").strip()
         if username:
             return f"@{username}"
+    pending_entry = get_pending_access_requests().get(str(telegram_id), {})
+    if isinstance(pending_entry, dict):
+        username = (pending_entry.get("username") or "").strip()
+        if username:
+            return f"@{username}"
+        display_name = (pending_entry.get("display_name") or "").strip()
+        if display_name:
+            return display_name
     return str(telegram_id)

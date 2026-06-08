@@ -5,7 +5,12 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .config import (
     ITEMS_PER_PAGE,
     get_client_mapping,
+    get_client_mapping_entries,
+    get_clientmap_selectable_user_ids,
     get_load_thresholds,
+    get_pending_access_requests,
+    get_pending_request_user_ids,
+    get_pending_requests_count,
     is_vpn_monitoring_enabled,
     is_vpn_service_monitored,
 )
@@ -463,6 +468,34 @@ def create_client_menu(client_name: str, telegram_id: int = None):
     return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
 
+def create_client_select_menu(client_names: list[str]):
+    """Создать меню выбора клиента для пользователя с несколькими привязками."""
+    rows = []
+    max_name_len = 64 - len("pick_client_")
+    for client_name in sorted(client_names, key=lambda name: name.lower()):
+        safe_name = (client_name or "").strip()[:max_name_len]
+        if not safe_name:
+            continue
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=safe_name,
+                    callback_data=f"pick_client_{safe_name}",
+                )
+            ]
+        )
+    if not rows:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="❌ Нет доступных клиентов",
+                    callback_data="no_action",
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def create_notifications_menu(user_id: int):
     """Создать меню настроек уведомлений."""
     enabled = is_admin_notification_enabled(user_id)
@@ -567,39 +600,72 @@ def create_services_status_keyboard(vpn_services: list[tuple[str, str]]):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def get_clients_menu_text(total: int, page: int = 1) -> str:
+def format_pending_request_admin_text(
+    telegram_id: str, fallback_suggested: str | None = None
+) -> tuple[str, str]:
+    uid = str(telegram_id).strip()
+    entry = get_pending_access_requests().get(uid, {})
+    display = "—"
+    username_part = ""
+    suggested = fallback_suggested or f"user_{uid}"
+    if isinstance(entry, dict):
+        display = (entry.get("display_name") or "").strip() or "—"
+        username = (entry.get("username") or "").strip()
+        if username:
+            username_part = f" @{username}"
+        suggested = (entry.get("suggested_name") or suggested).strip() or suggested
+    text = (
+        f"Клиент: {display}{username_part}\n"
+        f"ID: <code>{uid}</code>\n\n"
+        "Выберите клиента, введите имя клиента или отклоните запрос."
+    )
+    return text, suggested
+
+
+def get_clients_menu_text(total_users: int, page: int = 1, total_bindings: int = 0) -> str:
+    pending_count = get_pending_requests_count()
     base = (
         "Привязки клиентов:\n\n"
-        "Чтобы удалить/настроить клиента — нажмите на неё в списке.\n"
+        "Чтобы удалить/настроить клиента — выберите пользователя, затем нужного клиента.\n"
+        "Раздел «Запросы» — ожидающие подтверждения заявки на доступ.\n"
         "Раздел «Заблокированные» — пользователи, которым бот не отвечает."
     )
-    if total <= ITEMS_PER_PAGE:
+    if pending_count:
+        base += f"\n\nОжидают обработки: <b>{pending_count}</b>."
+    if total_bindings:
+        base += f"\n\nПользователей: <b>{total_users}</b>, привязок: <b>{total_bindings}</b>."
+    if total_users <= ITEMS_PER_PAGE:
         return base
-    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    total_pages = max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
     page = max(1, min(page, total_pages))
     return f"{base}\n\nСтраница {page} из {total_pages}."
 
 
 def _sorted_client_mapping_items():
-    return sorted(get_client_mapping().items(), key=lambda x: x[0])
+    return get_client_mapping_entries()
 
 
-def clients_menu_page_for_telegram_id(telegram_id: str) -> int:
-    """Номер страницы списка привязок, на которой находится клиент."""
-    for idx, (tid, _) in enumerate(_sorted_client_mapping_items()):
+def clients_menu_page_for_telegram_id(telegram_id: str, client_name: str = "") -> int:
+    """Номер страницы списка пользователей, на которой находится telegram_id."""
+    sorted_user_ids = sorted(get_client_mapping().keys())
+    for idx, tid in enumerate(sorted_user_ids):
         if tid == telegram_id:
             return idx // ITEMS_PER_PAGE + 1
     return 1
 
 
 def create_clients_menu(admin_ids: list, page: int = 1):
-    """Создать меню привязок клиентов (по ITEMS_PER_PAGE на страницу)."""
-    sorted_items = _sorted_client_mapping_items()
-    total = len(sorted_items)
-    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+    """Создать меню привязок клиентов: одна строка на пользователя."""
+    mapping = get_client_mapping()
+    sorted_user_ids = sorted(mapping.keys())
+    users_total = len(sorted_user_ids)
+    total_bindings = sum(len(names) for names in mapping.values())
+    total_pages = (
+        max(1, (users_total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if users_total else 1
+    )
     page = max(1, min(page, total_pages))
     start_idx = (page - 1) * ITEMS_PER_PAGE
-    chunk = sorted_items[start_idx : start_idx + ITEMS_PER_PAGE]
+    chunk_user_ids = sorted_user_ids[start_idx : start_idx + ITEMS_PER_PAGE]
 
     buttons = [
         [
@@ -609,24 +675,28 @@ def create_clients_menu(admin_ids: list, page: int = 1):
         ]
     ]
 
-    if chunk:
-        for display_idx, (telegram_id, client_name) in enumerate(
-            chunk, start=start_idx + 1
-        ):
-            label = f"{display_idx}. {get_user_label(telegram_id)} → {client_name}"
+    if chunk_user_ids:
+        for display_idx, telegram_id in enumerate(chunk_user_ids, start=start_idx + 1):
+            client_names = mapping.get(telegram_id, [])
+            client_count = len(client_names)
+            if client_count == 1:
+                suffix = client_names[0]
+            else:
+                suffix = f"Клиентов: {client_count} шт."
+            label = f"{display_idx}. {get_user_label(telegram_id)} ({suffix})"
             if len(label) > 64:
                 label = label[:61] + "…"
             buttons.append(
                 [
                     InlineKeyboardButton(
                         text=label,
-                        callback_data=f"clientmap_{telegram_id}",
+                        callback_data=f"clientmap_user_{telegram_id}",
                     )
                 ]
             )
-    elif not sorted_items:
+    elif not sorted_user_ids:
         buttons.append(
-            [InlineKeyboardButton(text="📭 Привязок нет", callback_data="no_action")]
+            [InlineKeyboardButton(text="📭 Пользователей нет", callback_data="no_action")]
         )
 
     nav = []
@@ -641,15 +711,313 @@ def create_clients_menu(admin_ids: list, page: int = 1):
     if nav:
         buttons.append(nav)
 
+    pending_count = get_pending_requests_count()
+    requests_label = (
+        f"📩 Запросы ({pending_count})" if pending_count else "📩 Запросы"
+    )
     buttons.append(
         [
             InlineKeyboardButton(
+                text=requests_label, callback_data="pending_requests_menu"
+            ),
+            InlineKeyboardButton(
                 text="🚫 Заблокированные", callback_data="banned_menu"
             ),
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
         ]
     )
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
 
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_client_user_menu(telegram_id: str, client_names: list[str], page: int = 1):
+    """Создать меню клиентов конкретного Telegram-пользователя."""
+    unique_names = []
+    for name in client_names:
+        clean_name = (name or "").strip()
+        if clean_name and clean_name not in unique_names:
+            unique_names.append(clean_name)
+    unique_names.sort(key=lambda x: x.lower())
+
+    total = len(unique_names)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+    page = max(1, min(page, total_pages))
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    chunk = unique_names[start_idx : start_idx + ITEMS_PER_PAGE]
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="➕ Добавить к пользователю",
+                callback_data=f"clientmap_add_for_{telegram_id}",
+            )
+        ]
+    ]
+    max_name_len = 64 - len(f"clientmap_{telegram_id}_")
+    for idx, client_name in enumerate(chunk, start=start_idx + 1):
+        safe_name = client_name[:max_name_len]
+        label = f"{idx}. {client_name}"
+        if len(label) > 64:
+            label = label[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"clientmap_{telegram_id}_{safe_name}",
+                )
+            ]
+        )
+
+    if not chunk:
+        buttons.append(
+            [InlineKeyboardButton(text="📭 Привязок нет", callback_data="no_action")]
+        )
+
+    nav = []
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая",
+                callback_data=f"clientuser_p_{telegram_id}_{page - 1}",
+            )
+        )
+    if page < total_pages:
+        nav.append(
+            InlineKeyboardButton(
+                text="Следующая ➡️",
+                callback_data=f"clientuser_p_{telegram_id}_{page + 1}",
+            )
+        )
+    if nav:
+        buttons.append(nav)
+
+    return_page = clients_menu_page_for_telegram_id(telegram_id)
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ К списку пользователей",
+                callback_data=f"clients_p_{return_page}",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def _build_client_owners_map(client_mapping: dict[str, list[str]]) -> dict[str, list[str]]:
+    owners = {}
+    for telegram_id, names in client_mapping.items():
+        for name in names:
+            clean_name = (name or "").strip()
+            if not clean_name:
+                continue
+            owners.setdefault(clean_name, [])
+            if telegram_id not in owners[clean_name]:
+                owners[clean_name].append(telegram_id)
+    return owners
+
+
+def create_clientmap_users_menu(page: int = 1):
+    """Список пользователей для выбора при добавлении привязки."""
+    mapping = get_client_mapping()
+    pending_ids = set(get_pending_access_requests().keys())
+    user_ids = get_clientmap_selectable_user_ids()
+    total = len(user_ids)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+    page = max(1, min(page, total_pages))
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    chunk = user_ids[start_idx : start_idx + ITEMS_PER_PAGE]
+
+    buttons = [
+        [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="clientmap_add_manual")]
+    ]
+    for user_id in chunk:
+        count = len(mapping.get(user_id, []))
+        if user_id in pending_ids and count:
+            suffix = f"Клиентов: {count} шт., запрос"
+        elif user_id in pending_ids:
+            suffix = "запрос доступа"
+        elif count == 1:
+            suffix = mapping[user_id][0]
+        elif count:
+            suffix = f"Клиентов: {count} шт."
+        else:
+            suffix = "—"
+        label = f"{get_user_label(user_id)} ({suffix})"
+        if len(label) > 64:
+            label = label[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"clientmap_add_for_{user_id}",
+                )
+            ]
+        )
+
+    if not chunk:
+        buttons.append([InlineKeyboardButton(text="Пользователей пока нет", callback_data="no_action")])
+
+    nav = []
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая",
+                callback_data=f"clientmap_users_p_{page - 1}",
+            )
+        )
+    if page < total_pages:
+        nav.append(
+            InlineKeyboardButton(
+                text="Следующая ➡️",
+                callback_data=f"clientmap_users_p_{page + 1}",
+            )
+        )
+    if nav:
+        buttons.append(nav)
+
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="clients_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_clientmap_client_list_menu(
+    telegram_id: str,
+    clients: list[str],
+    page: int,
+    total_pages: int,
+):
+    """Список VPN-клиентов для привязки к выбранному пользователю."""
+    mapping = get_client_mapping()
+    user_clients = set(mapping.get(str(telegram_id), []))
+    owners_map = _build_client_owners_map(mapping)
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+    page_clients = clients[start_idx:end_idx]
+
+    max_name_len = 64 - len(f"clientmap_bind_{telegram_id}_")
+    buttons = []
+    for name in page_clients:
+        safe_name = (name or "").strip()[:max_name_len]
+        if not safe_name:
+            continue
+        owners = owners_map.get(name, [])
+        if name in user_clients:
+            status = "🟡 уже привязан"
+        elif owners:
+            if len(owners) == 1:
+                status = f"{get_user_label(owners[0])}"
+            else:
+                status = f"Клиентов: {len(owners)} шт."
+        else:
+            status = "✅ свободен"
+        text = f"{name} → {status}"
+        if len(text) > 64:
+            text = text[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"clientmap_bind_{telegram_id}_{safe_name}",
+                )
+            ]
+        )
+
+    if not buttons:
+        buttons.append([InlineKeyboardButton(text="📭 Нет клиентов", callback_data="no_action")])
+
+    nav = []
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая",
+                callback_data=f"clientmap_clients_p_{telegram_id}_{page - 1}",
+            )
+        )
+    if page < total_pages:
+        nav.append(
+            InlineKeyboardButton(
+                text="Следующая ➡️",
+                callback_data=f"clientmap_clients_p_{telegram_id}_{page + 1}",
+            )
+        )
+    if nav:
+        buttons.append(nav)
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                text="⬅️ К выбору пользователя",
+                callback_data="clientmap_add",
+            )
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_pending_requests_menu_text(count: int, page: int = 1) -> str:
+    base = (
+        "📩 <b>Запросы доступа</b>\n\n"
+        "Пользователи, ожидающие подтверждения. Выберите строку для обработки."
+    )
+    if not count:
+        return f"{base}\n\nСейчас запросов нет."
+    total_pages = max(1, (count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    if count <= ITEMS_PER_PAGE:
+        return f"{base}\n\nВ очереди: <b>{count}</b>."
+    return f"{base}\n\nВ очереди: <b>{count}</b>. Страница {page} из {total_pages}."
+
+
+def create_pending_requests_menu(page: int = 1):
+    user_ids = get_pending_request_user_ids()
+    pending = get_pending_access_requests()
+    total = len(user_ids)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total else 1
+    page = max(1, min(page, total_pages))
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    chunk = user_ids[start_idx : start_idx + ITEMS_PER_PAGE]
+
+    buttons = []
+    for uid in chunk:
+        entry = pending.get(uid, {})
+        display = "—"
+        if isinstance(entry, dict):
+            display = (entry.get("display_name") or "").strip() or "—"
+        label = f"{get_user_label(uid)} — {display}"
+        if len(label) > 64:
+            label = label[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"pending_req_{uid}",
+                )
+            ]
+        )
+
+    if not chunk:
+        buttons.append(
+            [InlineKeyboardButton(text="— список пуст —", callback_data="pending_noop")]
+        )
+
+    nav = []
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая", callback_data=f"pending_p_{page - 1}"
+            )
+        )
+    if page < total_pages:
+        nav.append(
+            InlineKeyboardButton(
+                text="Следующая ➡️", callback_data=f"pending_p_{page + 1}"
+            )
+        )
+    if nav:
+        buttons.append(nav)
+
+    buttons.append(
+        [InlineKeyboardButton(text="⬅️ К клиентам бота", callback_data="clients_menu")]
+    )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -732,12 +1100,14 @@ def create_admins_menu(admin_ids: list):
 
 def create_clientmap_delete_menu(telegram_id: str, client_name: str):
     """Создать меню подтверждения удаления привязки клиента."""
+    max_name_len = 64 - len(f"clientmap_delete_confirm_{telegram_id}_")
+    safe_name = (client_name or "")[:max_name_len]
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="✅ Удалить",
-                    callback_data=f"clientmap_delete_confirm_{telegram_id}",
+                    callback_data=f"clientmap_delete_confirm_{telegram_id}_{safe_name}",
                 ),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="clients_menu"),
             ]
@@ -967,7 +1337,11 @@ def create_request_client_list_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def create_client_protocols_menu(telegram_id: str):
+def create_client_protocols_menu(
+    telegram_id: str,
+    client_name: str = "",
+    back_callback: str = "clients_menu",
+):
     """Создать меню настройки доступных протоколов для клиента."""
     from .config import get_client_allowed_protocols
 
@@ -982,70 +1356,77 @@ def create_client_protocols_menu(telegram_id: str):
     wg_wg_status = "✅" if protocols.get("wireguard_wg", True) else "❌"
     wg_am_status = "✅" if protocols.get("wireguard_am", True) else "❌"
 
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"OVPN VPN: {ovpn_vpn_status}",
-                    callback_data=f"toggle_proto_ovpn_vpn_{telegram_id}",
-                ),
-                InlineKeyboardButton(
-                    text=f"OVPN Antizapret: {ovpn_az_status}",
-                    callback_data=f"toggle_proto_ovpn_az_{telegram_id}",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"WG VPN: {wg_vpn_status}",
-                    callback_data=f"toggle_proto_wg_vpn_{telegram_id}",
-                ),
-                InlineKeyboardButton(
-                    text=f"WG Antizapret: {wg_az_status}",
-                    callback_data=f"toggle_proto_wg_az_{telegram_id}",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"OVPN Стандартный: {ovpn_def_status}",
-                    callback_data=f"toggle_proto_ovpn_default_{telegram_id}",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"OVPN TCP: {ovpn_tcp_status}",
-                    callback_data=f"toggle_proto_ovpn_tcp_{telegram_id}",
-                ),
-                InlineKeyboardButton(
-                    text=f"OVPN UDP: {ovpn_udp_status}",
-                    callback_data=f"toggle_proto_ovpn_udp_{telegram_id}",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"WireGuard: {wg_wg_status}",
-                    callback_data=f"toggle_proto_wg_type_wg_{telegram_id}",
-                ),
-                InlineKeyboardButton(
-                    text=f"AmneziaWG: {wg_am_status}",
-                    callback_data=f"toggle_proto_wg_type_am_{telegram_id}",
-                ),
-            ],
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"OVPN VPN: {ovpn_vpn_status}",
+                callback_data=f"toggle_proto_ovpn_vpn_{telegram_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"OVPN Antizapret: {ovpn_az_status}",
+                callback_data=f"toggle_proto_ovpn_az_{telegram_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"WG VPN: {wg_vpn_status}",
+                callback_data=f"toggle_proto_wg_vpn_{telegram_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"WG Antizapret: {wg_az_status}",
+                callback_data=f"toggle_proto_wg_az_{telegram_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"OVPN Стандартный: {ovpn_def_status}",
+                callback_data=f"toggle_proto_ovpn_default_{telegram_id}",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"OVPN TCP: {ovpn_tcp_status}",
+                callback_data=f"toggle_proto_ovpn_tcp_{telegram_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"OVPN UDP: {ovpn_udp_status}",
+                callback_data=f"toggle_proto_ovpn_udp_{telegram_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"WireGuard: {wg_wg_status}",
+                callback_data=f"toggle_proto_wg_type_wg_{telegram_id}",
+            ),
+            InlineKeyboardButton(
+                text=f"AmneziaWG: {wg_am_status}",
+                callback_data=f"toggle_proto_wg_type_am_{telegram_id}",
+            ),
+        ],
+    ]
+    rows.extend(
+        [
             [
                 InlineKeyboardButton(
                     text="🗑️ Удалить привязку",
-                    callback_data=f"clientmap_delete_{telegram_id}",
+                    callback_data=f"clientmap_delete_{telegram_id}_{client_name}",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text="⬅️ Назад",
-                    callback_data="clients_menu",
+                    callback_data=back_callback,
                 )
             ],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def create_client_protocols_transport_menu(telegram_id: str):
+def create_client_protocols_transport_menu(
+    telegram_id: str,
+    client_name: str = "",
+    back_callback: str = "clients_menu",
+):
     """Совместимость со старым вызовом: используем общее меню."""
-    return create_client_protocols_menu(telegram_id)
+    return create_client_protocols_menu(telegram_id, client_name, back_callback)

@@ -8,7 +8,7 @@ from aiogram import Router, types
 from aiogram.types import FSInputFile
 from aiogram.fsm.context import FSMContext
 
-from ..config import get_admin_ids, get_client_name_for_user, ITEMS_PER_PAGE
+from ..config import get_admin_ids, get_client_names_for_user, ITEMS_PER_PAGE
 from ..admin import update_admin_info
 from ..keyboards import (
     create_main_menu,
@@ -194,8 +194,8 @@ async def handle_client_selection(callback: types.CallbackQuery, state: FSMConte
     _, vpn_type, client_name = callback.data.split("_", 2)
 
     if callback.from_user.id not in admin_ids:
-        allowed_client = get_client_name_for_user(callback.from_user.id)
-        if not allowed_client or allowed_client != client_name:
+        allowed_clients = get_client_names_for_user(callback.from_user.id)
+        if client_name not in allowed_clients:
             await callback.answer("Доступ запрещен!", show_alert=True)
             return
 
@@ -288,30 +288,44 @@ async def handle_interface_selection(callback: types.CallbackQuery, state: FSMCo
     client_mode = user_data.get("client_mode", False)
     
     if callback.data == "back_to_client_menu":
-        mapped_client = get_client_name_for_user(callback.from_user.id)
-        if not mapped_client:
+        mapped_clients = get_client_names_for_user(callback.from_user.id)
+        if not mapped_clients:
             await callback.answer("Доступ запрещен!", show_alert=True)
             await state.clear()
             return
-        await callback.message.edit_text(
-            f'Ваш клиент: "{mapped_client}". Выберите протокол:',
-            reply_markup=create_client_menu(mapped_client, callback.from_user.id),
-        )
+        if len(mapped_clients) > 1:
+            from ..keyboards import create_client_select_menu
+            await callback.message.edit_text(
+                "У вас несколько клиентов. Выберите нужный:",
+                reply_markup=create_client_select_menu(mapped_clients),
+            )
+        else:
+            await callback.message.edit_text(
+                f'Ваш клиент: "{mapped_clients[0]}". Выберите протокол:',
+                reply_markup=create_client_menu(mapped_clients[0], callback.from_user.id),
+            )
         await state.clear()
         await callback.answer()
         return
 
     if callback.data == "back_to_client_list":
         if client_mode:
-            mapped_client = get_client_name_for_user(callback.from_user.id)
-            if not mapped_client:
+            mapped_clients = get_client_names_for_user(callback.from_user.id)
+            if not mapped_clients:
                 await callback.answer("Доступ запрещен!", show_alert=True)
                 await state.clear()
                 return
-            await callback.message.edit_text(
-                f'Ваш клиент: "{mapped_client}". Выберите протокол:',
-                reply_markup=create_client_menu(mapped_client, callback.from_user.id),
-            )
+            if len(mapped_clients) > 1:
+                from ..keyboards import create_client_select_menu
+                await callback.message.edit_text(
+                    "У вас несколько клиентов. Выберите нужный:",
+                    reply_markup=create_client_select_menu(mapped_clients),
+                )
+            else:
+                await callback.message.edit_text(
+                    f'Ваш клиент: "{mapped_clients[0]}". Выберите протокол:',
+                    reply_markup=create_client_menu(mapped_clients[0], callback.from_user.id),
+                )
             await state.clear()
             await callback.answer()
             return
@@ -492,8 +506,8 @@ async def handle_protocol_selection(callback: types.CallbackQuery, state: FSMCon
     client_name = user_data["client_name"]
     
     if callback.from_user.id not in admin_ids:
-        allowed_client = get_client_name_for_user(callback.from_user.id)
-        if not allowed_client or allowed_client != client_name:
+        allowed_clients = get_client_names_for_user(callback.from_user.id)
+        if client_name not in allowed_clients:
             await callback.answer("Доступ запрещен!", show_alert=True)
             await state.clear()
             return
@@ -522,8 +536,8 @@ async def handle_wg_type_selection(callback: types.CallbackQuery, state: FSMCont
     client_name = user_data["client_name"]
     
     if callback.from_user.id not in admin_ids:
-        allowed_client = get_client_name_for_user(callback.from_user.id)
-        if not allowed_client or allowed_client != client_name:
+        allowed_clients = get_client_names_for_user(callback.from_user.id)
+        if client_name not in allowed_clients:
             await callback.answer("Доступ запрещен!", show_alert=True)
             await state.clear()
             return

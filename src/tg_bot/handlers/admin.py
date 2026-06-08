@@ -10,9 +10,10 @@ from aiogram.fsm.context import FSMContext
 from ..config import (
     get_admin_ids,
     ITEMS_PER_PAGE,
-    set_client_mapping,
+    add_client_mapping,
     ban_user,
     remove_client_mapping,
+    remove_pending_access_request,
 )
 from ..keyboards import (
     create_main_menu,
@@ -96,6 +97,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                     )
                 except Exception:
                     pass
+                remove_pending_access_request(uid)
                 await callback.message.edit_text(f"❌ Запрос от <code>{uid}</code> отклонён.")
                 log_action("bot", callback.from_user.id, callback.from_user.full_name, "request_reject", f"{uid}(отклонён)")
             await callback.answer()
@@ -165,7 +167,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             uid = parts[2] if len(parts) > 2 else ""
             client_name = parts[3] if len(parts) > 3 else ""
             if uid.isdigit() and client_name:
-                set_client_mapping(uid, client_name)
+                add_client_mapping(uid, client_name)
                 bot = await _get_bot()
                 try:
                     await bot.send_message(
@@ -187,9 +189,11 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             uid = parts[2] if len(parts) > 2 else ""
             suggested = parts[3] if len(parts) > 3 else f"user_{uid}"
             if uid.isdigit():
+                from ..keyboards import format_pending_request_admin_text
+
+                text, suggested = format_pending_request_admin_text(uid, suggested)
                 await callback.message.edit_text(
-                    f"Клиент: —\nID: <code>{uid}</code>\n\n"
-                    "Выберите клиента, введите имя клиента или отклоните запрос.",
+                    text,
                     reply_markup=create_request_actions_keyboard(int(uid), suggested),
                 )
             await callback.answer()
@@ -462,7 +466,7 @@ async def handle_request_client_name_input(message: types.Message, state: FSMCon
         await message.answer("Сессия истекла. Попросите пользователя отправить запрос снова.")
         return
     uid_str = str(uid)
-    set_client_mapping(uid_str, client_name)
+    add_client_mapping(uid_str, client_name)
     bot = await _get_bot()
     try:
         await bot.send_message(

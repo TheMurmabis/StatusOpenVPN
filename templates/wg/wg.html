@@ -144,9 +144,39 @@
     </div>
 </div>
 
+<div class="modal fade" id="wgRenameModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Переименование клиента</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2" style="width: 10px;">
+                    Будет изменено имя клиента в конфигурации интерфейса.
+                </p>
+                <div class="mb-3">
+                    <div class="form-label mb-1">Текущее имя: <code><span id="wgRenameCurrentName"></span></code></div>
+                </div>
+                <div class="mb-0 d-flex align-items-center gap-2">
+                    <label for="wgRenameNewName" class="form-label" style="min-width: 95px;">Новое имя:</label>
+                    <input type="text" id="wgRenameNewName" class="form-control border" style="width: 35ch;" maxlength="32" 
+                        pattern="[A-Za-z0-9_-]{1,32}" title="Только латиница, цифры, _ и -"
+                        placeholder="Введите новое имя">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="wgRenameSubmitBtn">Переименовать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     window.wgApi = {
         peerToggle: "{{ url_for('toggle_wg_peer') }}",
+        clientRename: "{{ url_for('api_wg_client_rename') }}",
         clientConfig: "{{ url_for('api_wireguard_client_config') }}",
         clientConfigDownload: "{{ url_for('api_wireguard_client_config_download') }}"
     };

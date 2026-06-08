@@ -14,6 +14,7 @@ ENV_PATH = os.path.join(
 )
 CLIENT_MAPPING_KEY = "CLIENT_MAPPING"
 TG_BOT_PROFILE_SEEDED_KEY = "tg_bot_profile_seeded"
+TG_BOT_PENDING_REQUESTS_KEY = "tg_bot_pending_requests"
 
 ITEMS_PER_PAGE = 5
 DEFAULT_CPU_ALERT_THRESHOLD = 80
@@ -74,6 +75,9 @@ def load_settings():
     bans = data.get("tg_bot_banned_user_ids")
     if not isinstance(bans, list):
         data["tg_bot_banned_user_ids"] = []
+    pending = data.get(TG_BOT_PENDING_REQUESTS_KEY)
+    if not isinstance(pending, dict):
+        data[TG_BOT_PENDING_REQUESTS_KEY] = {}
 
     _settings_cache = data
     try:
@@ -162,10 +166,23 @@ def update_env_values(updates):
         f.writelines(new_lines)
 
 
-def get_client_mapping():
-    """Получить привязку клиентов к ID Telegram."""
+def _normalize_client_names(raw) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    normalized = []
+    seen = set()
+    for item in raw:
+        name = str(item).strip()
+        if not name or name in seen:
+            continue
+        normalized.append(name)
+        seen.add(name)
+    return normalized
+
+
+def _parse_env_client_mapping_multi() -> dict[str, list[str]]:
     env_values = read_env_values()
-    raw_value = env_values.get(CLIENT_MAPPING_KEY, "")
+    raw_value = (env_values.get(CLIENT_MAPPING_KEY) or "").strip()
     mapping = {}
     if not raw_value:
         return mapping
@@ -176,30 +193,166 @@ def get_client_mapping():
         telegram_id, client_name = item.split(":", 1)
         telegram_id = telegram_id.strip()
         client_name = client_name.strip()
-        if telegram_id and client_name:
-            mapping[telegram_id] = client_name
+        if not telegram_id or not client_name:
+            continue
+        names = mapping.setdefault(telegram_id, [])
+        if client_name not in names:
+            names.append(client_name)
     return mapping
 
 
+def _normalize_settings_client_mapping(raw_clients: dict) -> dict[str, list[str]]:
+    normalized = {}
+    if not isinstance(raw_clients, dict):
+        return normalized
+    for telegram_id, client_data in raw_clients.items():
+        tid = str(telegram_id).strip()
+        if not tid:
+            continue
+        names = []
+        if isinstance(client_data, dict):
+            if "client_names" in client_data:
+                names = _normalize_client_names(client_data.get("client_names"))
+            elif "client_name" in client_data:
+                single_name = str(client_data.get("client_name") or "").strip()
+                if single_name:
+                    names = [single_name]
+            elif "name" in client_data:
+                legacy_name = str(client_data.get("name") or "").strip()
+                if legacy_name:
+                    names = [legacy_name]
+        elif isinstance(client_data, str):
+            single_name = client_data.strip()
+            if single_name:
+                names = [single_name]
+        if names:
+            normalized[tid] = names
+    return normalized
+
+
+def _write_client_mapping_to_settings(
+    mapping: dict[str, list[str]], preserve_allowed_protocols: bool = True
+):
+    data = load_settings()
+    clients = data.get("telegram_clients") or {}
+    if not isinstance(clients, dict):
+        clients = {}
+    next_clients = {}
+    for telegram_id, names in mapping.items():
+        normalized_names = _normalize_client_names(names)
+        if not normalized_names:
+            continue
+        prev = clients.get(telegram_id, {}) if preserve_allowed_protocols else {}
+        if not isinstance(prev, dict):
+            prev = {}
+        next_clients[telegram_id] = {
+            "allowed_protocols": prev.get("allowed_protocols", {}),
+            "client_names": normalized_names,
+        }
+    for telegram_id, prev in clients.items():
+        if telegram_id in next_clients:
+            continue
+        if not isinstance(prev, dict):
+            continue
+        allowed = prev.get("allowed_protocols")
+        if isinstance(allowed, dict):
+            next_clients[telegram_id] = {"allowed_protocols": allowed, "client_names": []}
+    data["telegram_clients"] = next_clients
+    save_settings(data)
+
+
+def migrate_client_mapping_from_env_if_needed():
+    data = load_settings()
+    clients = data.get("telegram_clients") or {}
+    if not isinstance(clients, dict):
+        clients = {}
+    normalized = _normalize_settings_client_mapping(clients)
+    env_mapping = _parse_env_client_mapping_multi()
+    changed = False
+
+    for telegram_id, names in env_mapping.items():
+        existing = normalized.get(telegram_id, [])
+        merged = existing[:]
+        for name in names:
+            if name not in merged:
+                merged.append(name)
+        if merged != existing:
+            normalized[telegram_id] = merged
+            changed = True
+
+    if changed:
+        _write_client_mapping_to_settings(normalized, preserve_allowed_protocols=True)
+    elif normalized != _normalize_settings_client_mapping(clients):
+        _write_client_mapping_to_settings(normalized, preserve_allowed_protocols=True)
+
+    if env_mapping:
+        update_env_values({CLIENT_MAPPING_KEY: ""})
+
+
+def get_client_mapping():
+    """Получить привязку клиентов к ID Telegram (один ID -> список клиентов)."""
+    migrate_client_mapping_from_env_if_needed()
+    data = load_settings()
+    clients = data.get("telegram_clients") or {}
+    return _normalize_settings_client_mapping(clients)
+
+
+def get_client_mapping_entries() -> list[tuple[str, str]]:
+    entries = []
+    for telegram_id, names in get_client_mapping().items():
+        for name in names:
+            entries.append((telegram_id, name))
+    entries.sort(key=lambda item: (item[0], item[1].lower()))
+    return entries
+
+
+def get_client_names_for_user(user_id: int) -> list[str]:
+    """Получить список клиентов по ID пользователя Telegram."""
+    return get_client_mapping().get(str(user_id), [])
+
+
 def get_client_name_for_user(user_id: int):
-    """Получить имя клиента по ID пользователя Telegram."""
-    return get_client_mapping().get(str(user_id))
+    """Получить первое имя клиента по ID пользователя Telegram."""
+    names = get_client_names_for_user(user_id)
+    return names[0] if names else None
 
 
 def set_client_mapping(telegram_id: str, client_name: str):
-    """Установить привязку клиента для пользователя Telegram."""
-    client_map = get_client_mapping()
-    client_map[str(telegram_id)] = client_name
-    serialized = ",".join([f"{k}:{v}" for k, v in client_map.items()])
-    update_env_values({CLIENT_MAPPING_KEY: serialized})
+    """Добавить привязку клиента для пользователя Telegram."""
+    add_client_mapping(telegram_id, client_name)
 
 
-def remove_client_mapping(telegram_id: str):
-    """Удалить привязку клиента для пользователя Telegram."""
+def add_client_mapping(telegram_id: str, client_name: str):
+    """Добавить привязку клиента для пользователя Telegram."""
+    telegram_id = str(telegram_id).strip()
+    client_name = str(client_name).strip()
+    if not telegram_id or not client_name:
+        return
     client_map = get_client_mapping()
-    client_map.pop(str(telegram_id), None)
-    serialized = ",".join([f"{k}:{v}" for k, v in client_map.items()])
-    update_env_values({CLIENT_MAPPING_KEY: serialized})
+    names = client_map.setdefault(telegram_id, [])
+    if client_name not in names:
+        names.append(client_name)
+    _write_client_mapping_to_settings(client_map, preserve_allowed_protocols=True)
+    remove_pending_access_request(telegram_id)
+
+
+def remove_client_mapping(telegram_id: str, client_name: str = None):
+    """Удалить одну или все привязки клиента для пользователя Telegram."""
+    client_map = get_client_mapping()
+    tid = str(telegram_id).strip()
+    if not tid:
+        return
+    if client_name is None:
+        client_map.pop(tid, None)
+    else:
+        target = str(client_name).strip()
+        names = client_map.get(tid, [])
+        names = [name for name in names if name != target]
+        if names:
+            client_map[tid] = names
+        else:
+            client_map.pop(tid, None)
+    _write_client_mapping_to_settings(client_map, preserve_allowed_protocols=True)
 
 
 def get_banned_user_ids() -> set[int]:
@@ -225,7 +378,7 @@ def is_user_allowed_for_bot(user_id: int) -> bool:
     uid = int(user_id)
     if uid in admin_ids:
         return True
-    if get_client_name_for_user(uid):
+    if get_client_names_for_user(uid):
         return True
     return False
 
@@ -246,6 +399,75 @@ def ban_user(user_id: int) -> None:
         bans.append(uid)
     data["tg_bot_banned_user_ids"] = sorted(bans)
     save_settings(data)
+    remove_pending_access_request(str(uid))
+
+
+def get_pending_access_requests() -> dict[str, dict]:
+    data = load_settings()
+    raw = data.get(TG_BOT_PENDING_REQUESTS_KEY) or {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, dict] = {}
+    for key, value in raw.items():
+        tid = str(key).strip()
+        if not tid.isdigit() or not isinstance(value, dict):
+            continue
+        out[tid] = value
+    return out
+
+
+def get_pending_request_user_ids() -> list[str]:
+    return sorted(get_pending_access_requests().keys(), key=int)
+
+
+def get_pending_requests_count() -> int:
+    return len(get_pending_access_requests())
+
+
+def upsert_pending_access_request(
+    user_id: int,
+    *,
+    display_name: str = "",
+    username: str = "",
+    suggested_name: str = "",
+) -> None:
+    tid = str(int(user_id))
+    data = load_settings()
+    pending = data.get(TG_BOT_PENDING_REQUESTS_KEY) or {}
+    if not isinstance(pending, dict):
+        pending = {}
+    entry = pending.get(tid, {})
+    if not isinstance(entry, dict):
+        entry = {}
+    if display_name:
+        entry["display_name"] = display_name
+    if username:
+        entry["username"] = username
+    if suggested_name:
+        entry["suggested_name"] = suggested_name
+    pending[tid] = entry
+    data[TG_BOT_PENDING_REQUESTS_KEY] = pending
+    save_settings(data)
+
+
+def remove_pending_access_request(telegram_id: str | int) -> None:
+    tid = str(telegram_id).strip()
+    if not tid:
+        return
+    data = load_settings()
+    pending = data.get(TG_BOT_PENDING_REQUESTS_KEY) or {}
+    if not isinstance(pending, dict) or tid not in pending:
+        return
+    pending = dict(pending)
+    pending.pop(tid, None)
+    data[TG_BOT_PENDING_REQUESTS_KEY] = pending
+    save_settings(data)
+
+
+def get_clientmap_selectable_user_ids() -> list[str]:
+    mapping = get_client_mapping()
+    pending = get_pending_access_requests()
+    return sorted(set(mapping.keys()) | set(pending.keys()), key=int)
 
 
 def unban_user(user_id: int) -> None:

@@ -85,6 +85,117 @@ save_setup_var() {
     fi
 }
 
+extract_access_url_from_config() {
+    local config_file=$1
+    local proxy_pattern=$2
+    local server_block
+    local server_name
+    local listen_port
+    local script_name
+    local base_url
+
+    server_block=$(awk -v proxy_pattern="$proxy_pattern" '
+        /server[[:space:]]*\{/ {
+            in_server=1
+            depth=1
+            block=$0 "\n"
+            next
+        }
+        in_server {
+            block=block $0 "\n"
+            depth += gsub(/\{/, "{")
+            depth -= gsub(/\}/, "}")
+            if (depth == 0) {
+                if (block ~ proxy_pattern) {
+                    print block
+                    exit
+                }
+                in_server=0
+                block=""
+            }
+        }
+    ' "$config_file")
+
+    if [[ -z "$server_block" ]]; then
+        return 1
+    fi
+
+    server_name=$(printf '%s' "$server_block" | awk '
+        /server_name[[:space:]]+/ {
+            for (i = 2; i <= NF; i++) {
+                gsub(/;/, "", $i)
+                if ($i != "_" && $i !~ /^\$/ && $i != "") {
+                    print $i
+                    exit
+                }
+            }
+        }
+    ')
+    server_name=${server_name:-$DOMAIN}
+
+    listen_port=$(printf '%s' "$server_block" | awk '
+        /listen[[:space:]]+/ {
+            for (i = 2; i <= NF; i++) {
+                token=$i
+                gsub(/;/, "", token)
+                if (token ~ /^[0-9]+$/) {
+                    print token
+                    exit
+                }
+                if (match(token, /:([0-9]+)/, m)) {
+                    print m[1]
+                    exit
+                }
+            }
+        }
+    ')
+    listen_port=${listen_port:-443}
+
+    script_name=$(printf '%s' "$server_block" | awk -v proxy_pattern="$proxy_pattern" '
+        /location[[:space:]]+[^[:space:]]+[[:space:]]*\{/ {
+            in_location=1
+            depth=1
+            block=$0 "\n"
+            next
+        }
+        in_location {
+            block=block $0 "\n"
+            depth += gsub(/\{/, "{")
+            depth -= gsub(/\}/, "}")
+            if (depth == 0) {
+                if (block ~ proxy_pattern && match(block, /proxy_set_header[[:space:]]+X-Script-Name[[:space:]]+([^;]+);/, m)) {
+                    print m[1]
+                    exit
+                }
+                in_location=0
+                block=""
+            }
+        }
+    ')
+
+    script_name=${script_name//\"/}
+    script_name=${script_name//\'/}
+    script_name=$(printf '%s' "$script_name" | xargs)
+
+    if [[ "$listen_port" == "443" ]]; then
+        base_url="https://$server_name"
+    else
+        base_url="https://$server_name:$listen_port"
+    fi
+
+    if [[ -n "$script_name" ]]; then
+        if [[ "$script_name" != /* ]]; then
+            script_name="/$script_name"
+        fi
+        if [[ "$script_name" != "/" && "$script_name" != */ ]]; then
+            script_name="$script_name/"
+        fi
+        echo "$base_url$script_name"
+    else
+        echo "$base_url"
+    fi
+}
+
 update_service_ip() {
     local new_ip=$1
     if [[ -f "$SERVICE_FILE" ]]; then
@@ -100,6 +211,10 @@ check_nginx_configs() {
     STATUSOPENVPN_CONFIGS=()
     OTHER_CONFIGS=()
     DOMAIN_CONFIG=""
+    FOREIGN_CANDIDATE_CONFIGS=()
+    FOREIGN_STATUSOPENVPN_CONFIGS=()
+    FOREIGN_STATUSOPENVPN_URLS=()
+    local proxy_pattern="proxy_pass[[:space:]]+http://127[.]0[.]0[.]1:$FLASK_PORT;"
     
     # Проверяем все конфигурации кроме default
     for config_file in "$sites_available"/*; do
@@ -111,12 +226,29 @@ check_nginx_configs() {
         local first_line=$(head -n 1 "$config_file" 2>/dev/null)
         if [[ "$first_line" == "# Created by StatusOpenVPN" ]]; then
             STATUSOPENVPN_CONFIGS+=("$config_file")
-            # Проверяем, содержит ли имя файла домен
             if [[ "$basename_config" == "$DOMAIN" ]]; then
                 DOMAIN_CONFIG="$config_file"
             fi
         else
             OTHER_CONFIGS+=("$config_file")
+            if awk -v domain="$DOMAIN" '
+                /server_name[[:space:]]+/ {
+                    for (i = 2; i <= NF; i++) {
+                        token=$i
+                        gsub(/;/, "", token)
+                        if (token == domain) {
+                            found=1
+                        }
+                    }
+                }
+                END { exit !found }
+            ' "$config_file"; then
+                FOREIGN_CANDIDATE_CONFIGS+=("$config_file")
+                if grep -Eq "$proxy_pattern" "$config_file"; then
+                    FOREIGN_STATUSOPENVPN_CONFIGS+=("$config_file")
+                    FOREIGN_STATUSOPENVPN_URLS+=("$(extract_access_url_from_config "$config_file" "$proxy_pattern" || true)")
+                fi
+            fi
         fi
     done
 }
@@ -191,6 +323,7 @@ EOFIP
         save_setup_var "HTTPS_ENABLED" "1"
         save_setup_var "DOMAIN" ""
         SERVER_IP=$(curl -s http://checkip.amazonaws.com 2>/dev/null || hostname -I | awk '{print $1}')
+        save_setup_var "SERVER_URL" "https://$SERVER_IP/status/"
         echo -e "${GREEN}HTTPS setup complete. Application available at: https://$SERVER_IP/status/${RESET}"
         echo -e "${YELLOW}Browser will show a security warning (self-signed cert) — this is normal.${RESET}"
         return 0
@@ -241,6 +374,56 @@ EOFIP
 
     local update_existing=false
     local disable_default=false
+
+    if [[ ${#FOREIGN_CANDIDATE_CONFIGS[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}Found external config(s) with server_name $DOMAIN:${RESET}"
+        local idx=1
+        local candidate
+        for candidate in "${FOREIGN_CANDIDATE_CONFIGS[@]}"; do
+            echo "  [$idx] $candidate"
+            idx=$((idx + 1))
+        done
+        read -rp "Use one of these external configs without modifications? (y/N): " use_foreign
+        if [[ "$use_foreign" =~ ^[Yy]$ ]]; then
+            local selected_foreign=""
+            if [[ ${#FOREIGN_CANDIDATE_CONFIGS[@]} -eq 1 ]]; then
+                selected_foreign="${FOREIGN_CANDIDATE_CONFIGS[0]}"
+            else
+                read -rp "Enter config number (1-${#FOREIGN_CANDIDATE_CONFIGS[@]}): " selected_idx
+                if ! [[ "$selected_idx" =~ ^[0-9]+$ ]] || (( selected_idx < 1 || selected_idx > ${#FOREIGN_CANDIDATE_CONFIGS[@]} )); then
+                    echo -e "${RED}Invalid selection.${RESET}"
+                    exit 1
+                fi
+                selected_foreign="${FOREIGN_CANDIDATE_CONFIGS[$((selected_idx - 1))]}"
+            fi
+
+            local match_idx=-1
+            local i
+            for i in "${!FOREIGN_STATUSOPENVPN_CONFIGS[@]}"; do
+                if [[ "${FOREIGN_STATUSOPENVPN_CONFIGS[$i]}" == "$selected_foreign" ]]; then
+                    match_idx=$i
+                    break
+                fi
+            done
+
+            if (( match_idx >= 0 )); then
+                local foreign_url="${FOREIGN_STATUSOPENVPN_URLS[$match_idx]}"
+                if [[ -z "$foreign_url" ]]; then
+                    foreign_url="https://$DOMAIN"
+                fi
+                echo -e "${YELLOW}Using external config $selected_foreign without modifications.${RESET}"
+                save_setup_var "HTTPS_ENABLED" "1"
+                save_setup_var "DOMAIN" "$DOMAIN"
+                save_setup_var "SERVER_URL" "$foreign_url"
+                echo -e "${GREEN}StatusOpenVPN detected in external config. Application available at: $foreign_url${RESET}"
+                return 0
+            else
+                echo -e "${RED}Selected external config does not contain proxy_pass to http://127.0.0.1:$FLASK_PORT;${RESET}"
+                echo -e "${RED}Configuration was not changed. Add proxy_pass and run again.${RESET}"
+                exit 1
+            fi
+        fi
+    fi
 
     # Обновить существующий конфиг StatusOpenVPN для домена или создать новый
     if [[ -n "$DOMAIN_CONFIG" && ${#STATUSOPENVPN_CONFIGS[@]} -eq 1 && ${#OTHER_CONFIGS[@]} -eq 0 ]]; then
@@ -318,6 +501,7 @@ EOF
 
     save_setup_var "HTTPS_ENABLED" "1"
     save_setup_var "DOMAIN" "$DOMAIN"
+    save_setup_var "SERVER_URL" "https://$DOMAIN/status/"
     echo -e "${GREEN}HTTPS setup complete. Application available at: https://$DOMAIN/status/${RESET}"
 }
 

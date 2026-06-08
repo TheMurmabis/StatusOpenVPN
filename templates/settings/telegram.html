@@ -124,7 +124,8 @@
               {% if client_mapping_list %}
               {% for item in client_mapping_list %}
               <li class="list-group-item py-2">
-                {{ item.display }} — {{ item.client_name }}
+                <div class="fw-medium">{{ item.display }} ({{ item.clients_count }} шт.)</div>
+                <div class="small text-muted">{{ item.client_names | join(', ') }}</div>
               </li>
               {% endfor %}
               {% else %}
@@ -134,7 +135,7 @@
               {% endif %}
             </ul>
             <div class="form-text">
-              Данные берутся из переменной CLIENT_MAPPING, который задаётся через Telegram-бот командой /client.
+              Данные берутся из settings.json, задаются через Telegram-бот.
             </div>
           </div>
         </div>

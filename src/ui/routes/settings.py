@@ -42,6 +42,13 @@ from src.ui.services.stats_service import (
     clear_wireguard_stats_database,
     get_ovpn_wg_database_sizes,
 )
+from src.ui.services.update_service import (
+    get_latest_github_version,
+    is_update_available,
+    is_update_running,
+    read_update_log_tail,
+    start_silent_update,
+)
 from src.ui.utils.format_utils import format_bytes
 
 
@@ -324,6 +331,7 @@ def settings_audit():
         "request_reject": "Отклонение запроса",
         "stats_db_clear_ovpn": "Очистка БД OpenVPN",
         "stats_db_clear_wg": "Очистка БД WireGuard",
+        "app_update": "Обновление приложения",
     }
 
     return render_template(
@@ -334,6 +342,68 @@ def settings_audit():
         action_filter=action_filter or "all",
         action_labels=action_labels,
         active_page="settings_audit",
+    )
+
+
+@app.route("/settings/update", methods=["GET", "POST"])
+@login_required
+def settings_update():
+    update_message = None
+    update_error = None
+    update_available, current_version, latest_version = is_update_available()
+    github_error = None
+    if not latest_version:
+        latest_version, github_error = get_latest_github_version()
+
+    if request.method == "POST":
+        if is_update_running():
+            update_error = "Обновление уже выполняется."
+        elif not update_available or not latest_version:
+            update_error = "Нет доступного обновления."
+        else:
+            ok, err = start_silent_update(latest_version)
+            if ok:
+                update_message = (
+                    "Обновление запущено. Сервис перезапустится автоматически. "
+                    "Обновите страницу через несколько минут."
+                )
+                log_action(
+                    "web",
+                    current_user.username,
+                    current_user.username,
+                    "app_update",
+                    f"{current_version} → {latest_version}",
+                    _get_client_ip(),
+                )
+            else:
+                update_error = err or "Не удалось запустить обновление."
+
+    return render_template(
+        "settings/update.html",
+        current_version=current_version,
+        latest_version=latest_version,
+        update_available=update_available,
+        update_running=is_update_running(),
+        update_log=read_update_log_tail(),
+        update_message=update_message,
+        update_error=update_error,
+        github_error=github_error,
+        active_page="settings_update",
+    )
+
+
+@app.route("/api/settings/update/status")
+@login_required
+def api_settings_update_status():
+    update_available, current_version, latest_version = is_update_available()
+    return jsonify(
+        {
+            "update_available": update_available,
+            "current_version": current_version,
+            "latest_version": latest_version,
+            "running": is_update_running(),
+            "log": read_update_log_tail(),
+        }
     )
 
 

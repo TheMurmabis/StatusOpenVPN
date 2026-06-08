@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Обновление{% endblock %}
+
+{% block page_title %}Обновление{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Обновление приложения</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="dash-mon settings-shell">
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-3">
+      <i class="bi bi-arrow-down-circle dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Версии</span>
+    </div>
+
+    <dl class="row mb-0 small">
+      <dt class="col-sm-4 col-md-3 text-muted">Текущая</dt>
+      <dd class="col-sm-8 col-md-9"><code>{{ current_version }}</code></dd>
+      <dt class="col-sm-4 col-md-3 text-muted">Доступная</dt>
+      <dd class="col-sm-8 col-md-9">
+        {% if latest_version %}
+        <code>{{ latest_version }}</code>
+        {% else %}
+        <span class="text-muted">—</span>
+        {% endif %}
+      </dd>
+    </dl>
+
+    {% if github_error %}
+    <div class="alert alert-warning py-2 mt-3 mb-0 small" role="alert">
+      Не удалось проверить теги на GitHub: {{ github_error }}
+    </div>
+    {% endif %}
+  </section>
+
+  {% if update_message %}
+  <div class="alert alert-success py-2 mb-3" role="alert">{{ update_message }}</div>
+  {% endif %}
+  {% if update_error %}
+  <div class="alert alert-danger py-2 mb-3" role="alert">{{ update_error }}</div>
+  {% endif %}
+
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-3">
+      <i class="bi bi-download dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Установка обновления</span>
+    </div>
+
+    {% if update_available and not update_running %}
+    <p class="small text-muted mb-3">
+      Обновление выполняется автоматически без дополнительных вопросов: загрузка тега с GitHub,
+      зависимости Python и перезапуск служб. Панель может быть недоступна несколько минут.
+    </p>
+    <form method="post" id="updateForm">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+        Обновить до {{ latest_version }}
+      </button>
+    </form>
+    {% elif update_running %}
+    <p class="small text-muted mb-2">Обновление выполняется…</p>
+    <div class="spinner-border spinner-border-sm text-primary mb-3" role="status" aria-hidden="true"></div>
+    {% elif latest_version and current_version == latest_version %}
+    <p class="small text-success mb-0">Установлена последняя версия.</p>
+    {% else %}
+    <p class="small text-muted mb-0">Новых версий не найдено.</p>
+    {% endif %}
+  </section>
+
+  <section class="dash-panel mb-0" id="updateLogPanel" {% if not update_log and not update_running %}style="display:none"{% endif %}>
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-terminal dash-panel__hd-ic text-secondary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Журнал</span>
+    </div>
+    <pre class="update-log small mb-0 p-3 rounded" id="updateLog">{{ update_log }}</pre>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='js/update_page.js') }}"></script>
+
+{% endblock %}
