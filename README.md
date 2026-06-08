@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/stargazers">
-    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat&labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat&labelColor=d3d3d3&color=blue"/></a>
   <a href="/CHANGELOG.md">
     <img src="https://img.shields.io/github/v/tag/TheMurmabis/StatusOpenVPN?label=version&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
@@ -10,7 +10,7 @@
   <a href="#">
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/commits/main/">
-    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3&color=blue"/></a>
 </p>
 
 <p align="center">
@@ -38,7 +38,8 @@
    
 ### TelegramBot
 1. Добавлена поддержка нескольких клиентских имён для одного Telegram ID ([50](https://github.com/TheMurmabis/StatusOpenVPN/issues/50)).
-2. Формат привязок клиентов перенесен из `.env` в `settings.json`.
+2. Добавлен раздел запросов (Клиенты бота -> Запросы).
+3. Формат привязок клиентов перенесен из `.env` в `settings.json`.
 
 </details>
 
