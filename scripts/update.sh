@@ -13,9 +13,11 @@ cleanup() {
 trap cleanup EXIT
 
 SCRIPT_DIR="/root/web/scripts"
+SCRIPT_PATH="$SCRIPT_DIR/setup.sh"
 
 if [[ -n "${1:-}" ]]; then
     export STATUSOPENVPN_UPDATE_TAG="$1"
 fi
 
-bash "$SCRIPT_DIR/setup.sh"
+curl -sSL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/main/scripts/setup.sh -o "$SCRIPT_PATH"
+bash "$SCRIPT_PATH"
