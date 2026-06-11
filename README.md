@@ -14,11 +14,17 @@
 </p>
 
 <p align="center">
-  <a href="#быстрый-старт"><b>Быстрый старт</b></a> ·
-  <a href="#установка-ssl-https"><b>Установка SSL</b></a> ·
-  <a href="https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot"><b>TelegramBot</b></a> ·
-  <a href="/CHANGELOG.md"><b>Changelog</b></a> ·
-  <a href="#faq"><b>FAQ</b></a>
+  <a href="#быстрый-старт">
+    <img src="https://img.shields.io/badge/%D0%91%D1%8B%D1%81%D1%82%D1%80%D1%8B%D0%B9%20%D1%81%D1%82%D0%B0%D1%80%D1%82-blue"/></a> 
+  <a href="#установка-ssl-https">
+    <img src="https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0%20SSL-blue"/></a> 
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot">
+    <img src="https://img.shields.io/badge/%20TelegramBot-blue"/></a> 
+  <a href="/CHANGELOG.md">
+    <img src="https://img.shields.io/badge/Changelog-blue"/></a> 
+  <a href="#faq">
+    <img src="https://img.shields.io/badge/FAQ-blue"/></a> 
+    
 </p>
 
 ---
