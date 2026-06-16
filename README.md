@@ -6,7 +6,7 @@
   <a href="/CHANGELOG.md">
     <img src="https://img.shields.io/github/v/tag/TheMurmabis/StatusOpenVPN?label=version&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
-    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3&color=blue"/></a>
   <a href="#">
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&labelColor=d3d3d3"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/commits/main/">
