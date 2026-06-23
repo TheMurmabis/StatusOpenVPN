@@ -74,6 +74,17 @@ save_setup_var() {
     fi
 }
 
+load_setup_file() {
+    if [[ -f "$SETUP_FILE" ]]; then
+        source "$SETUP_FILE" 2>/dev/null || true
+    fi
+}
+
+setup_var_saved() {
+    local key=$1
+    grep -q "^${key}=" "$SETUP_FILE" 2>/dev/null
+}
+
 load_server_url_from_setup() {
     if [[ -f "$SETUP_FILE" ]]; then
         local setup_server_url
@@ -224,10 +235,7 @@ EOF
 }
 
 setup_telegram_bot() {
-    if [[ -f "$SETUP_FILE" ]]; then
-        # shellcheck disable=SC1090
-        source "$SETUP_FILE" 2>/dev/null || true
-    fi
+    load_setup_file
     BOT_ENABLED=${BOT_ENABLED:-0}
 
     if [[ "$BOT_ENABLED" -eq 1 ]]; then
@@ -239,7 +247,12 @@ setup_telegram_bot() {
         return
     fi
 
-    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i Y INSTALL_BOT
+    local default_install_bot=Y
+    if setup_var_saved BOT_ENABLED && [[ "$BOT_ENABLED" -eq 0 ]]; then
+        default_install_bot=N
+    fi
+
+    read -e -p "Would you like to install the Telegram bot service? (Y/N): " -i "$default_install_bot" INSTALL_BOT
     if [[ "$INSTALL_BOT" =~ ^[Yy]$ ]]; then
         read -rsp "Enter Telegram bot API token: " BOT_TOKEN_INPUT
         echo
@@ -275,10 +288,7 @@ EOF
 }
 
 setup_https() {
-    if [[ -f "$SETUP_FILE" ]]; then
-        # shellcheck disable=SC1090
-        source "$SETUP_FILE" 2>/dev/null || true
-    fi
+    load_setup_file
     HTTPS_ENABLED=${HTTPS_ENABLED:-0}
 
     if [[ "$HTTPS_ENABLED" -ne 1 ]]; then
@@ -332,7 +342,9 @@ setup_https() {
                 if echo "" | bash "$SSL_SCRIPT" -i; then
                     echo -e "${GREEN}✅ HTTPS (IP-only) successfully enabled.${RESET}"
                     load_server_url_from_setup
-                    [[ -z "$SERVER_URL" ]] && SERVER_URL="https://$(get_server_ip)/status/"
+                    if [[ -z "$SERVER_URL" ]]; then
+                        SERVER_URL="https://$(get_server_ip)/status/"
+                    fi
                 else
                     echo -e "${RED}❌ SSL setup failed.${RESET}"
                     HTTPS_ENABLED=0
@@ -366,7 +378,9 @@ setup_https() {
                 if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
                     echo -e "${GREEN}✅ HTTPS successfully enabled for: $DOMAIN${RESET}"
                     load_server_url_from_setup
-                    [[ -z "$SERVER_URL" ]] && SERVER_URL="https://$DOMAIN/status/"
+                    if [[ -z "$SERVER_URL" ]]; then
+                        SERVER_URL="https://$DOMAIN/status/"
+                    fi
                 else
                     echo -e "${RED}❌ SSL setup failed.${RESET}"
                     HTTPS_ENABLED=0
@@ -379,6 +393,7 @@ setup_https() {
             fi
         fi
     fi
+    return 0
 }
 
 refresh_nginx_location() {
@@ -476,6 +491,11 @@ install_flow() {
     create_wg_stats_service
 
     setup_telegram_bot
+
+    echo "Running initial admin setup..."
+    local ADMIN_PASS
+    ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
+
     setup_https
     setup_vnstat
 
@@ -494,10 +514,6 @@ install_flow() {
 
     local EXTERNAL_IP
     EXTERNAL_IP=$(curl -4 -s ifconfig.me)
-    echo "Running initial admin setup..."
-    local ADMIN_PASS
-    ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
-
     if [[ -z "$SERVER_URL" ]]; then
         SERVER_URL="http://$EXTERNAL_IP:$PORT"
     fi
