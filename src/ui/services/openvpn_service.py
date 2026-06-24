@@ -321,12 +321,15 @@ def read_csv(file_path, protocol):
     total_received, total_sent = 0, 0
     current_time = datetime.now()
 
-    if not os.path.exists(file_path):
+    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
         return [], 0, 0, None
 
     with open(file_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.reader(csvfile)
-        next(reader)
+        try:
+            next(reader)
+        except StopIteration:
+            return [], 0, 0, None
 
         for row in reader:
             if row[0] == "CLIENT_LIST":

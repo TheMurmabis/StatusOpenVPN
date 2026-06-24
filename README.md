@@ -41,6 +41,10 @@
 4. На странице WireGuard добавлено переименование имени клиента ([51](https://github.com/TheMurmabis/StatusOpenVPN/issues/51)).
 5. Обновлены описания Antizapret параметров в `/settings/install`.
 6. На странице Телеграм обновлено отображение списка привязок (количество + список клиентов).
+
+UPD: 24.06.2026
+7. Исправлены ошибки в `setup.sh`.
+8. Исправлена ошибка в чтение пустых логов OpenVPN.
    
 ### TelegramBot
 1. Добавлена поддержка нескольких клиентских имён для одного Telegram ID ([50](https://github.com/TheMurmabis/StatusOpenVPN/issues/50)).
