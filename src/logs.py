@@ -221,12 +221,19 @@ def parse_log_file(log_file, protocol):
     if not os.path.exists(log_file):
         print(f"Файл не найден: {log_file}")
         return []
+    if os.path.getsize(log_file) == 0:
+        return []
 
     with open(log_file, newline="", encoding="utf-8") as file:
         reader = csv.reader(file)
-        next(reader)
+        try:
+            next(reader)
+        except StopIteration:
+            return []
 
         for row in reader:
+            if not row:
+                continue
             if row[0] == "CLIENT_LIST":
                 parse_count += 1
                 client_name = row[1]
