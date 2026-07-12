@@ -2,13 +2,50 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.5.0](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.0) — 10.07.2026
+
+### StatusOpenVPN
+
+**Добавлено:**
+- На странице OpenVPN:
+  - кнопки создания и удаления клиентов;
+  - кнопка продления сертификата, если срок действия меньше 30 дней или сертификат уже истёк.
+- На странице WireGuard:
+  - кнопки создания и удаления клиентов;
+  - QR-код профиля в окне скачивания конфигурации.
+- Вкладка «Резервные копии» в настройках.
+- Ограничение количества неудачных попыток входа и задержка между повторными попытками (до 60 секунд).
+- Уведомление в Telegram-боте: после 3-й подряд неудачной попытки входа администраторам отправляется уведомление.
+
+**Исправлено/улучшено:**
+- В `setup.sh` при переустановке восстанавливаются базы данных и `settings.json` из резервной копии; пароль администратора не создаётся заново.
+- В `uninstall.sh` перед удалением предлагается сохранить базы данных `.db` и `settings.json` в `/opt/StatusOpenVPN/backup/`.
+- В `ssl.sh` в шаблон nginx для `/status/` добавлен параметр `client_max_body_size 50m`.
+- В журнале аудита исправлено отображение бейджей.
+- Исправлена ошибка в чтение пустых логов OpenVPN.
+
+### TelegramBot
+
+**Добавлено:**
+- Раздел «Процессы», отображающий топ-10 процессов по использованию CPU и RAM.
+- Главное меню: кнопка «Создать бэкап» теперь открывает подменю с резервными копиями клиентов, архивом базы данных и `settings.json`.
+- Импорт настроек: для этого необходимо отправить боту файл `settings.json`.
+
+
+<details>
+<summary>v1.4.5 - 08.06.2026</summary>
+
 ## [v1.4.5](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.5) - 08.06.2026
 
 **Исправлено/улучшено:**
 - Исправлены ошибки в скриптах `/scripts/`.
 - Исправлены цвета в веб-интерфейсе.
 
----
+
+</details>
+
+<details>
+<summary>v1.4.4 - 08.06.2026</summary>
 
 ## [v1.4.4](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.4) - 08.06.2026
 
@@ -33,7 +70,11 @@
 **Исправлено/улучшено:**
 - Формат привязок клиентов перенесён из `.env` в `settings.json`.
 
----
+
+</details>
+
+<details>
+<summary>v1.4.3 - 24.05.2026</summary>
 
 ## [v1.4.3](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.3) - 24.05.2026
 
@@ -55,7 +96,11 @@
 **Исправлено/улучшено:**
 - Исправлена обработка статусов клиентов.
   
----
+
+</details>
+
+<details>
+<summary>v1.4.2 - 19.05.2026</summary>
 
 ## [v1.4.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.2) - 19.05.2026
 
@@ -66,7 +111,11 @@
     - если скрипт запущен не от `root`, используется `sudo` только при его наличии.
     - если `sudo` отсутствует и запуск не от `root`, выводится рекомендация запустить скрипт от `root`.
 - Расчет и отображение нагрузки ОЗУ на главной странице.
----
+
+</details>
+
+<details>
+<summary>v1.4.1 - 18.05.2026</summary>
 
 ## [v1.4.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.1) - 18.05.2026
 
@@ -80,7 +129,11 @@
 - Когда служба появляется обратно и переходит в `active`, мониторинг продолжает работу в штатном режиме.
 - Увеличено время начала мониторинга служб.
 
----
+
+</details>
+
+<details>
+<summary>v1.4.0 - 17.05.2026</summary>
 
 ## [v1.4.0](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.4.0) - 17.05.2026
 
@@ -107,7 +160,11 @@
 - Перед отправкой файлов добавлены проверки существования, размера и непустого файла.
 - Текст подтверждения переименования сделан более универсальным для разных приложений.
 
----
+
+</details>
+
+<details>
+<summary>v1.3.5 - 26.04.2026</summary>
 
 ## [v1.3.5](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.5) - 26.04.2026
 
@@ -134,7 +191,11 @@
 - Исправлено пустое состояние фильтров на странице клиентов WireGuard: если подходящих клиентов нет, скрываются секции интерфейсов и остаётся только плашка.
 - Если за выбранный период нет статистики ни по одному клиенту, на страницах статистики OpenVPN и WireGuard скрываются таблица клиентов и блок графика.
 
----
+
+</details>
+
+<details>
+<summary>v1.3.4 - 13.04.2026</summary>
 
 ## [v1.3.4](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.4) - 13.04.2026
 
@@ -151,7 +212,11 @@
 ### Улучшено
 - Удалена зависимость от CDN: все статические ресурсы (JS, CSS, шрифты) подключаются локально.
 
----
+
+</details>
+
+<details>
+<summary>v1.3.3 - 08.04.2026</summary>
 
 ## [v1.3.3](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.3) - 08.04.2026
 
@@ -162,7 +227,11 @@
 - Исправлено отображение итогов на странице статистики OpenVPN.
 - На странице «Клиенты» добавлен порт сервера. Порт клиента отображается при наведении.
 
----
+
+</details>
+
+<details>
+<summary>v1.3.2 - 06.04.2026</summary>
 
 ## [v1.3.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.2) - 06.04.2026
 
@@ -178,7 +247,11 @@
 **Исправлено/улучшено:**
 - Отображение протокола Wireguard в разделе "Кто онлайн"
 
----
+
+</details>
+
+<details>
+<summary>v1.3.1 - 06.04.2026</summary>
 
 ## [v1.3.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.3.1) - 06.04.2026
 
@@ -212,7 +285,11 @@
 - Исправлена логика запросов: бот отвечает только добавленным клиентам и администраторам.
 - Исправлено сохранение описания бота и раздела «О боте» (редактирование через `@BotFather`).
 
----
+
+</details>
+
+<details>
+<summary>v1.2.2 - 21.03.2026</summary>
 
 ## [v1.2.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.2.2) - 21.03.2026
 
@@ -223,7 +300,11 @@
 1. На странице **«Статистика OpenVPN»** исправлено отображение итогов.
 2. На странице **«Журнал»** добавлена подсказка.
 
----
+
+</details>
+
+<details>
+<summary>v1.2.1 - 16.03.2026</summary>
 
 ## [v1.2.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.2.1) - 16.03.2026
 
@@ -263,7 +344,12 @@
 1. Мониторинг нагрузки на сервер: уведомления теперь отправляются, если высокая нагрузка держится более 5 минут.
 2. Общая оптимизация работы бота.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.16 - 08.02.2026</summary>
+
 ## [v1.1.16](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.16) - 08.02.2026
 
 ### Добавлено:
@@ -294,7 +380,12 @@
 ### Оптимизировано:
 - Базы данных перенесены в директорию `/src/databases/`.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.15 - 19.10.2025</summary>
+
 ## [v1.1.15](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.15) - 19.10.2025
 
 ### Добавлено:
@@ -318,7 +409,12 @@
 - На мобильных устройствах оптимизировано отображение фильтров графика.
 
 
----
+
+</details>
+
+<details>
+<summary>v1.1.14 - 19.08.2025</summary>
+
 ## [v1.1.14](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.14) - 19.08.2025
 
 ### Добавлено:
@@ -334,6 +430,10 @@
 - Для успешного получения сертификата в **Antizapret-VPN** необходимо отключить резервные порты OpenVPN.  
   На запрос:  `Use TCP/UDP ports 80 and 443 as backup for OpenVPN connections? [y/n]:` нужно ответить **N**.
 
+</details>
+
+<details>
+<summary>v1.1.13 - 16.07.2025</summary>
 
 ## [v1.1.13](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.13) - 16.07.2025
 
@@ -347,7 +447,11 @@
 ### Исправлено:
 - Исправлено отображение "Истории" клиентов OpenVPN.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.12 - 23.05.2025</summary>
 
 ## [v1.1.12](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.12) - 23.05.2025
 
@@ -363,7 +467,11 @@
 - При создании клиента теперь выдаются оба конфигурационных файла (antizapret и vpn).
 - Добавлена поддержка выдачи конфигурационных файлов с доменом или IP. Конфигурационный файл выдается вне зависимости от содержимого в скобках в имени файла (домен или IP).
 
----
+
+</details>
+
+<details>
+<summary>v1.1.11 - 03.04.2025</summary>
 
 ## [v1.1.11](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.11) - 03.04.2025
 ### Добавлено:
@@ -376,7 +484,11 @@
     - Сокращение имени файла для Wireguard/AmneziaWG.
     - Удаление всех конфиг файлов клиента, после удаления клиента.
 - Добавлена "Инструкция по настройке бота", которая доступна по [ссылке](https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot).
----
+
+</details>
+
+<details>
+<summary>v1.1.10 - 17.02.2025</summary>
 
 ## [v1.1.10](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.10) - 17.02.2025
 ### Исправлено:
@@ -393,7 +505,11 @@
     - Добавлено отображение статистики по сетевому интерфейсу в зависимости от системы.
 - Исключена функция удаления префикса из имени клиента.
 - Чтение лога /etc/openvpn/server/logs/antizapret-no-cipher-status.log отключено.
----
+
+</details>
+
+<details>
+<summary>v1.1.9 - 13.01.2025</summary>
 
 ## [v1.1.9](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.9) - 13.01.2025
 ### Добавлено:
@@ -403,7 +519,11 @@
 ### Оптимизировано:
 - Быстродействие при открытии главной страницы.
 - Оптимизация интерфейса для мобильных устройств.
----
+
+</details>
+
+<details>
+<summary>v1.1.8 - 23.12.2024</summary>
 
 ## [v1.1.8](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.8) - 23.12.2024
 ### Добавлено:
@@ -413,7 +533,11 @@
 - Ограничение количества отображаемых IP-адресов в столбце `Разрешенные IP`.
 ### Исправлено:
 - Подсчет скорости клиентов OpenVPN.
----
+
+</details>
+
+<details>
+<summary>v1.1.7 - 16.12.2024</summary>
 
 ## [v1.1.7](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.7) - 16.12.2024
 ### Добавлено:
@@ -421,7 +545,11 @@
 - Чтение файла `antizapret-no-cipher-status.log`.
 ### Оптимизировано:
 - Чтение файлов OpenVPN
----
+
+</details>
+
+<details>
+<summary>v1.1.6 - 02.12.2024</summary>
 
 ## [v1.1.6](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.6) - 02.12.2024
 ### Добавлено:
@@ -430,7 +558,11 @@
 ### Исправлено:
 - Ошибки в скрипте смены пароля `change_passwd.sh`.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.5 - 15.11.2024</summary>
 
 ## [v1.1.5](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.5) - 15.11.2024
 ### Добавлено:
@@ -441,13 +573,21 @@
 - Улучшена структура `main.css` для поддержки обеих тем.
 - Общие исправления ошибок.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.4 - 07.11.2024</summary>
 
 ## [v1.1.4](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.4) - 07.11.2024
 ### Исправлено:
 - В скрипт `update.sh` добавлена проверка текущего порта перед обновлением.
 
----
+
+</details>
+
+<details>
+<summary>v1.1.1 - v1.1.3 - 01.11.2024</summary>
 
 ## [v1.1.1 - v1.1.3](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.1.1) - 01.11.2024
 ### Добавлено:
@@ -460,7 +600,11 @@
 - Исправлены ошибки в шаблоне отображения страниц.
 - Общие багфиксы.
 
----
+
+</details>
+
+<details>
+<summary>v1.0.0 - 29.10.2024</summary>
 
 ## [v1.0.0](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.0.0) - 29.10.2024
 ### Добавлено:
@@ -473,3 +617,4 @@
 ### Исправлено:
 - Оптимизирован код в `main.py` для повышения производительности.
 
+</details>

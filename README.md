@@ -2,28 +2,23 @@
 
 <p align="center">
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/stargazers">
-    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat&labelColor=d3d3d3&color=blue"/></a>
+    <img src="https://img.shields.io/github/stars/TheMurmabis/StatusOpenVPN?style=flat"/></a>
   <a href="/CHANGELOG.md">
-    <img src="https://img.shields.io/github/v/tag/TheMurmabis/StatusOpenVPN?label=version&labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/github/v/tag/TheMurmabis/StatusOpenVPN?label=version"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/releases">
-    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3&color=blue"/></a>
+    <img src="https://img.shields.io/github/release-date/TheMurmabis/StatusOpenVPN"/></a>
   <a href="#">
-    <img src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&labelColor=d3d3d3"/></a>
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue"/></a>
   <a href="https://github.com/TheMurmabis/StatusOpenVPN/commits/main/">
-    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN?labelColor=d3d3d3&color=blue"/></a>
+    <img src="https://img.shields.io/github/last-commit/TheMurmabis/StatusOpenVPN"/></a>
 </p>
 
 <p align="center">
-  <a href="#быстрый-старт">
-    <img src="https://img.shields.io/badge/%D0%91%D1%8B%D1%81%D1%82%D1%80%D1%8B%D0%B9%20%D1%81%D1%82%D0%B0%D1%80%D1%82-blue"/></a> 
-  <a href="#установка-ssl-https">
-    <img src="https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0%20SSL-blue"/></a> 
-  <a href="https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot">
-    <img src="https://img.shields.io/badge/%20TelegramBot-blue"/></a> 
-  <a href="/CHANGELOG.md">
-    <img src="https://img.shields.io/badge/Changelog-blue"/></a> 
-  <a href="#faq">
-    <img src="https://img.shields.io/badge/FAQ-blue"/></a> 
+  <a href="#быстрый-старт">Быстрый старт</a> ·
+  <a href="#установка-ssl-https"> Установка SSL</a> ·
+  <a href="https://github.com/TheMurmabis/StatusOpenVPN/wiki/TelegramBot">TelegramBot</a> ·
+  <a href="/CHANGELOG.md">Changelog</a> ·
+  <a href="#faq">FAQ</a> 
     
 </p>
 
@@ -32,25 +27,30 @@
 # Установка и настройка 
 
 <details>
-  <summary>Правка от 08.06.2026</summary>
+  <summary>Правка от 12.07.2026</summary>
 
 ### StatusOpenVPN
-1. Логика установки и обновления объединена в `setup.sh` (установка/обновление в одном скрипте);
-2. В боковое меню добавлен индикатор доступного обновления.
-3. В `ssl.sh` добавлена обработка внешних nginx-конфигов ([49](https://github.com/TheMurmabis/StatusOpenVPN/issues/49));
-4. На странице WireGuard добавлено переименование имени клиента ([51](https://github.com/TheMurmabis/StatusOpenVPN/issues/51)).
-5. Обновлены описания Antizapret параметров в `/settings/install`.
-6. На странице Телеграм обновлено отображение списка привязок (количество + список клиентов).
+1. Правка скриптов:
+    + `setup.sh`: при переустановке восстанавливает базы данных и `settings.json` из резервной копии; пароль администратора не создаётся заново.
+    + `uninstall.sh`: перед удалением предлагает сохранить базы данных `.db` и `settings.json` в `/opt/StatusOpenVPN/backup/`.
+    + `ssl.sh`: в шаблон nginx добавлен параметр `client_max_body_size 50m`.
+2. OpenVPN (профили):
+    + Добавлены кнопки создания и удаления клиентов.
+    + Добавлена кнопка продления сертификата, если срок действия меньше 30 дней или сертификат уже истёк.
+3. WireGuard:
+    + Добавлены кнопки создания и удаления клиентов.
+    + В окно скачивания конфигурации добавлен QR-код.
+    + Стили модальных окон унифицированы со страницей OpenVPN.
+4. В настройках добавлена вкладка «Резервные копии».
+5. На странице входа:
+    + Добавлено ограничение количества неудачных попыток входа и задержка между повторными попытками (до 60 секунд).
+    + Добавлено уведомление в Telegram-бот: после 3-й подряд неудачной попытки входа администраторам отправляется уведомление.
 
-UPD: 24.06.2026
+### Telegram Bot
 
-7. Исправлены ошибки в `setup.sh`.
-8. Исправлена ошибка в чтение пустых логов OpenVPN.
-   
-### TelegramBot
-1. Добавлена поддержка нескольких клиентских имён для одного Telegram ID ([50](https://github.com/TheMurmabis/StatusOpenVPN/issues/50)).
-2. Добавлен раздел запросов (Клиенты бота -> Запросы).
-3. Формат привязок клиентов перенесен из `.env` в `settings.json`.
+1. В меню сервера добавлен раздел «Процессы», который показывает топ-10 процессов по использованию CPU и RAM.
+2. В главном меню кнопка «Создать бэкап» теперь открывает подменю с резервными копиями клиентов, архивом базы данных и `settings.json`.
+3. Добавлен импорт настроек. Для этого необходимо отправить боту файл `settings.json`.
 
 </details>
 
@@ -178,6 +178,7 @@ cd /root/web/scripts
 ```nginx
 location /status/ {
     proxy_pass http://127.0.0.1:<порт>;
+    client_max_body_size 50m;
 
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -196,6 +197,7 @@ location /status/ {
 ```nginx
 location / {
     proxy_pass http://127.0.0.1:<порт>;
+    client_max_body_size 50m;
 
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

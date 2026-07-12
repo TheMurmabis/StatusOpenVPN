@@ -2,6 +2,7 @@ let autoRefreshEnabled = false;
 let refreshInterval = null;
 
 let pendingMenuDisable = null;
+let pendingWgDelete = null;
 let wgRenameState = { oldName: "", iface: "", btn: null };
 
 function wgIfaceDisplay(iface) {
@@ -121,6 +122,15 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
                             <span class="wg-action-label">Скачать конфигурацию</span>
                         </button>
                     </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <button type="button"
+                            class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn text-danger"
+                            data-action="delete-client" data-client="${clientAttr}">
+                            <i class="fa fa-trash fa-fw" aria-hidden="true"></i>
+                            <span class="wg-action-label">Удалить клиента</span>
+                        </button>
+                    </li>
                 </ul>
             </div>
         </td>`;
@@ -179,6 +189,23 @@ document.addEventListener("DOMContentLoaded", () => {
         pendingMenuDisable = null;
     });
 
+    document.getElementById("wgDeleteClientConfirmBtn")?.addEventListener("click", () => {
+        const modalEl = document.getElementById("wgDeleteClientModal");
+        const modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+        if (modal) {
+            modal.hide();
+        }
+        if (pendingWgDelete) {
+            const { clientName, btn } = pendingWgDelete;
+            pendingWgDelete = null;
+            deleteWgClient(clientName, btn);
+        }
+    });
+
+    document.getElementById("wgDeleteClientModal")?.addEventListener("hidden.bs.modal", () => {
+        pendingWgDelete = null;
+    });
+
     document.getElementById("wgRenameSubmitBtn")?.addEventListener("click", async () => {
         await submitWgRename();
     });
@@ -189,6 +216,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const newInput = document.getElementById("wgRenameNewName");
         if (currentNameEl) currentNameEl.textContent = "";
         if (newInput) newInput.value = "";
+    });
+
+    document.getElementById("wgConfigDownloadModal")?.addEventListener("hidden.bs.modal", () => {
+        resetWgConfigModal();
     });
 
     document.getElementById("wg-stats-container").addEventListener("click", (e) => {
@@ -208,6 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
             openWgRenameModal(clientName, iface, btn);
             return;
         }
+        if (action === "delete-client") {
+            openWgDeleteModal(clientName, btn);
+            return;
+        }
         if (action === "enable") {
             wgExecuteToggle(peer, iface, clientName, true, btn);
             return;
@@ -218,6 +253,8 @@ document.addEventListener("DOMContentLoaded", () => {
             bootstrap.Modal.getOrCreateInstance(document.getElementById("confirmDisableModal")).show();
         }
     });
+
+    setupWgCreateClient();
 
     const wgDownloadBtn = document.getElementById("wgConfigDownloadBtn");
     if (wgDownloadBtn) {
@@ -330,6 +367,153 @@ async function submitWgRename() {
     } catch (e) {
         console.error(e);
         alert(e.message || "Ошибка переименования");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = oldText;
+    }
+}
+
+function openWgDeleteModal(clientName, btn) {
+    const modalEl = document.getElementById("wgDeleteClientModal");
+    const nameEl = document.getElementById("wgDeleteClientName");
+    if (!modalEl || !nameEl) return;
+
+    pendingWgDelete = {
+        clientName: (clientName || "").trim(),
+        btn: btn || null,
+    };
+    nameEl.textContent = pendingWgDelete.clientName;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+async function deleteWgClient(clientName, btn) {
+    const api = window.wgApi || {};
+    const url = absoluteApiUrl(api.clientDelete);
+    if (!url) {
+        alert("API удаления клиента недоступен.");
+        return;
+    }
+
+    const labelEl = btn && btn.querySelector(".wg-action-label");
+    const originalText = labelEl ? labelEl.textContent : btn ? btn.textContent : "";
+    if (btn) {
+        btn.disabled = true;
+        if (labelEl) labelEl.textContent = "…";
+        else btn.textContent = "…";
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ client_name: clientName }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "Не удалось удалить клиента.");
+        }
+
+        await updateStats();
+        applyFilters();
+    } catch (e) {
+        console.error(e);
+        alert(e.message || "Ошибка при удалении клиента");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            if (labelEl) labelEl.textContent = originalText;
+            else btn.textContent = originalText;
+        }
+    }
+}
+
+let wgCreateResultClient = null;
+
+function setupWgCreateClient() {
+    const createBtn = document.getElementById("wgCreateClientBtn");
+    const modalEl = document.getElementById("wgCreateClientModal");
+    const nameInput = document.getElementById("wgCreateClientName");
+    const submitBtn = document.getElementById("wgCreateClientSubmit");
+    const resultModalEl = document.getElementById("wgCreateResultModal");
+    const resultMessageEl = document.getElementById("wgCreateResultMessage");
+    const resultDownloadBtn = document.getElementById("wgCreateResultDownloadBtn");
+
+    if (createBtn && modalEl) {
+        createBtn.addEventListener("click", () => {
+            if (nameInput) nameInput.value = "";
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            if (nameInput) setTimeout(() => nameInput.focus(), 200);
+        });
+    }
+
+    if (submitBtn) {
+        submitBtn.addEventListener("click", async () => {
+            await submitWgCreateClient(nameInput, submitBtn, modalEl, resultModalEl, resultMessageEl);
+        });
+    }
+
+    if (nameInput) {
+        nameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                submitBtn?.click();
+            }
+        });
+    }
+
+    if (resultDownloadBtn && resultModalEl) {
+        resultDownloadBtn.addEventListener("click", () => {
+            if (!wgCreateResultClient) return;
+            const inst = bootstrap.Modal.getInstance(resultModalEl);
+            if (inst) inst.hide();
+            openWgConfigModal(wgCreateResultClient);
+        });
+    }
+}
+
+async function submitWgCreateClient(nameInput, submitBtn, modalEl, resultModalEl, resultMessageEl) {
+    const api = window.wgApi || {};
+    const url = absoluteApiUrl(api.clientCreate);
+    if (!url) {
+        alert("API создания клиента недоступен.");
+        return;
+    }
+
+    const name = (nameInput ? nameInput.value : "").trim();
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(name)) {
+        alert("Некорректное имя. Используйте латиницу, цифры, _ и - (до 32 символов).");
+        return;
+    }
+
+    const oldText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Выполняется…";
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ client_name: name }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error((data.message || "Не удалось создать клиента.").replace(/<[^>]+>/g, ""));
+        }
+
+        wgCreateResultClient = data.client_name || name;
+        if (modalEl) {
+            const inst = bootstrap.Modal.getInstance(modalEl);
+            if (inst) inst.hide();
+        }
+        if (resultMessageEl) resultMessageEl.innerHTML = data.message || "Клиент создан.";
+        if (resultModalEl) bootstrap.Modal.getOrCreateInstance(resultModalEl).show();
+
+        await updateStats();
+        applyFilters();
+    } catch (e) {
+        console.error(e);
+        alert(e.message || "Ошибка при выполнении запроса.");
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = oldText;
@@ -473,6 +657,7 @@ function applyFilters() {
     const showOnlyDisabled = document.getElementById("disabled-only-toggle").checked;
     const sections = document.querySelectorAll("#wg-stats-container .dash-panel");
     const noClientsCard = document.getElementById("no-active-clients");
+    const createClientBtn = document.getElementById("wgCreateClientBtn");
     const filtersActive = showOnlyOnline || showOnlyDisabled;
 
     let anyVisibleClients = false;
@@ -508,10 +693,14 @@ function applyFilters() {
         if (visibleCount > 0) anyVisibleClients = true;
     });
 
-    if (filtersActive && !anyVisibleClients) {
+    const showNoClientsCard = filtersActive && !anyVisibleClients;
+    if (showNoClientsCard) {
         noClientsCard.classList.add("show");
     } else {
         noClientsCard.classList.remove("show");
+    }
+    if (createClientBtn) {
+        createClientBtn.classList.toggle("d-none", showNoClientsCard);
     }
 }
 
@@ -577,27 +766,88 @@ async function runWgConfigDownload() {
     URL.revokeObjectURL(u);
 }
 
+function buildWgQrHref(clientName, index) {
+    const api = window.wgApi;
+    if (!api || !api.clientConfigQr) return "";
+    const base = absoluteApiUrl(api.clientConfigQr);
+    if (!base) return "";
+    const u = new URL(base);
+    u.searchParams.set("client_name", clientName);
+    u.searchParams.set("index", String(index));
+    return u.toString();
+}
+
+function resetWgConfigModal() {
+    wgDownloadState = { clientName: "", items: [], index: 0 };
+    const img = document.getElementById("wgConfigQrImage");
+    const loadingEl = document.getElementById("wgConfigDownloadLoading");
+    const bodyEl = document.getElementById("wgConfigDownloadBody");
+    const errorEl = document.getElementById("wgConfigQrError");
+    const selectEl = document.getElementById("wgConfigProfileSelect");
+    const profileSelectLabel = document.querySelector('label[for="wgConfigProfileSelect"]');
+
+    if (img) {
+        if (img._prevUrl) {
+            URL.revokeObjectURL(img._prevUrl);
+            img._prevUrl = null;
+        }
+        img.removeAttribute("src");
+    }
+    if (loadingEl) loadingEl.classList.remove("d-none");
+    if (bodyEl) bodyEl.classList.add("d-none");
+    if (errorEl) {
+        errorEl.classList.add("d-none");
+        errorEl.textContent = "";
+    }
+    if (selectEl) {
+        selectEl.classList.add("d-none");
+        selectEl.innerHTML = "";
+        selectEl.onchange = null;
+    }
+    if (profileSelectLabel) profileSelectLabel.classList.add("d-none");
+}
+
+async function loadWgConfigQr(clientName, index) {
+    const img = document.getElementById("wgConfigQrImage");
+    const errorEl = document.getElementById("wgConfigQrError");
+    if (!img || !errorEl) return;
+
+    const url = buildWgQrHref(clientName, index);
+    if (!url) {
+        throw new Error("Не задан URL API QR-кода.");
+    }
+
+    const r = await fetch(url, { credentials: "same-origin" });
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    if (!r.ok || ct.includes("application/json")) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.message || `Ошибка ${r.status}`);
+    }
+
+    const blob = await r.blob();
+    if (img._prevUrl) URL.revokeObjectURL(img._prevUrl);
+    img._prevUrl = URL.createObjectURL(blob);
+    img.src = img._prevUrl;
+    errorEl.classList.add("d-none");
+}
+
 function openWgConfigModal(clientName) {
     const api = window.wgApi;
-    if (!api || !api.clientConfig || !api.clientConfigDownload) return;
+    if (!api || !api.clientConfig || !api.clientConfigDownload || !api.clientConfigQr) return;
 
     const modalElCfg = document.getElementById("wgConfigDownloadModal");
     const loadingEl = document.getElementById("wgConfigDownloadLoading");
     const bodyEl = document.getElementById("wgConfigDownloadBody");
     const selectEl = document.getElementById("wgConfigProfileSelect");
     const profileSelectLabel = document.querySelector('label[for="wgConfigProfileSelect"]');
+    const errorEl = document.getElementById("wgConfigQrError");
 
     if (!modalElCfg || !loadingEl || !bodyEl || !selectEl) return;
 
-    loadingEl.classList.remove("d-none");
-    bodyEl.classList.add("d-none");
-    selectEl.classList.add("d-none");
-    selectEl.innerHTML = "";
-    if (profileSelectLabel) profileSelectLabel.classList.add("d-none");
+    resetWgConfigModal();
 
     const listBase = absoluteApiUrl(api.clientConfig);
     if (!listBase) {
-        loadingEl.classList.add("d-none");
         alert("Не задан URL API конфигурации.");
         return;
     }
@@ -614,48 +864,55 @@ function openWgConfigModal(clientName) {
             return r.json();
         })
         .then(async (data) => {
-            loadingEl.classList.add("d-none");
             if (!data.success) {
-                alert(data.message || "Не удалось получить список профилей.");
-                return;
+                throw new Error(data.message || "Не удалось получить список профилей.");
             }
             const items = data.items || [];
             if (items.length === 0) {
-                alert("Не найдено файлов .conf для этого клиента.");
-                return;
+                throw new Error("Не найдено файлов .conf для этого клиента.");
             }
 
             wgDownloadState = { clientName, items, index: items[0].index };
 
-            if (items.length === 1) {
-                try {
-                    await runWgConfigDownload();
-                } catch (e) {
-                    console.error(e);
-                    alert(e.message || "Ошибка скачивания");
-                }
-                return;
+            if (items.length > 1) {
+                selectEl.classList.remove("d-none");
+                if (profileSelectLabel) profileSelectLabel.classList.remove("d-none");
+                items.forEach((it) => {
+                    const opt = document.createElement("option");
+                    opt.value = String(it.index);
+                    opt.textContent = it.label || `Профиль ${it.index}`;
+                    selectEl.appendChild(opt);
+                });
+                selectEl.value = String(items[0].index);
+                selectEl.onchange = async () => {
+                    const idx = parseInt(selectEl.value, 10);
+                    wgDownloadState.index = idx;
+                    if (errorEl) errorEl.classList.add("d-none");
+                    try {
+                        await loadWgConfigQr(clientName, idx);
+                    } catch (e) {
+                        console.error(e);
+                        if (errorEl) {
+                            errorEl.textContent = e.message || "Не удалось сгенерировать QR-код.";
+                            errorEl.classList.remove("d-none");
+                        }
+                    }
+                };
             }
 
+            loadingEl.classList.add("d-none");
             bodyEl.classList.remove("d-none");
-            selectEl.classList.remove("d-none");
-            if (profileSelectLabel) profileSelectLabel.classList.remove("d-none");
-
-            items.forEach((it) => {
-                const opt = document.createElement("option");
-                opt.value = String(it.index);
-                opt.textContent = it.label || `Профиль ${it.index}`;
-                selectEl.appendChild(opt);
-            });
-            selectEl.value = String(items[0].index);
-
-            selectEl.onchange = () => {
-                const idx = parseInt(selectEl.value, 10);
-                wgDownloadState.index = idx;
-            };
-
-            wgDownloadState.index = items[0].index;
             bootstrap.Modal.getOrCreateInstance(modalElCfg).show();
+
+            try {
+                await loadWgConfigQr(clientName, items[0].index);
+            } catch (e) {
+                console.error(e);
+                if (errorEl) {
+                    errorEl.textContent = e.message || "Не удалось сгенерировать QR-код.";
+                    errorEl.classList.remove("d-none");
+                }
+            }
         })
         .catch((e) => {
             console.error(e);

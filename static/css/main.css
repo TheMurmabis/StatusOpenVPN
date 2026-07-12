@@ -2569,6 +2569,11 @@ footer a {
     font-weight: 600;
 }
 
+.vpn-page .wg-qr-image {
+    max-width: 320px;
+    image-rendering: pixelated;
+}
+
 /* Первый столбец для онлайн клиентов — обычный цвет */
 .vpn-page table.vpn-data-table tbody tr.traffic-online td.vpn-table-client {
     color: var(--dm-text);
@@ -2716,6 +2721,125 @@ footer a {
         color: #f5f5f5 !important;
         border-color: rgba(255, 255, 255, 0.12) !important;
     }
+
+    .vpn-page #ovpnCreateClientBtn.btn-primary,
+    .vpn-page #wgCreateClientBtn.btn-primary {
+        background-color: #2c2c2c;
+        border-color: rgba(255, 255, 255, 0.14);
+        color: #f5f5f5;
+    }
+
+    .vpn-page #ovpnCreateClientBtn.btn-primary:hover,
+    .vpn-page #ovpnCreateClientBtn.btn-primary:focus,
+    .vpn-page #wgCreateClientBtn.btn-primary:hover,
+    .vpn-page #wgCreateClientBtn.btn-primary:focus {
+        background-color: #3a3f44;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .ovpn-client-modal .modal-content {
+        background-color: #1a1d21;
+        color: var(--login-fg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .ovpn-client-modal .modal-header,
+    .ovpn-client-modal .modal-footer {
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .ovpn-client-modal .form-label {
+        color: var(--login-fg);
+    }
+
+    .ovpn-client-modal .form-control,
+    .ovpn-client-modal .form-select {
+        background-color: var(--search-input-bg) !important;
+        border: 1px solid var(--search-input-border) !important;
+        color: var(--search-input-fg) !important;
+    }
+
+    .ovpn-client-modal .form-control::placeholder {
+        color: var(--search-input-placeholder);
+    }
+
+    .ovpn-client-modal .form-control:focus,
+    .ovpn-client-modal .form-select:focus {
+        background-color: var(--search-input-bg) !important;
+        border-color: #495057 !important;
+        color: var(--search-input-fg) !important;
+        box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
+    }
+
+    .ovpn-client-modal .form-control:read-only {
+        opacity: 0.85;
+    }
+
+    .ovpn-client-modal code {
+        color: #e9ecef;
+        background-color: rgba(255, 255, 255, 0.08);
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+    }
+
+    .ovpn-client-modal .btn-primary {
+        background-color: #3a3f44;
+        border-color: rgba(255, 255, 255, 0.14);
+        color: #f5f5f5;
+    }
+
+    .ovpn-client-modal .btn-primary:hover,
+    .ovpn-client-modal .btn-primary:focus {
+        background-color: #4a5056;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .ovpn-client-modal .btn-outline-primary {
+        color: #d0d4d8;
+        border-color: rgba(255, 255, 255, 0.22);
+        background-color: transparent;
+    }
+
+    .ovpn-client-modal .btn-outline-primary:hover,
+    .ovpn-client-modal .btn-outline-primary:focus {
+        color: #fff;
+        background-color: #3a3f44;
+        border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    .ovpn-client-modal .btn-secondary {
+        background-color: #1e2124;
+        border-color: #3d4349;
+        color: #e9ecef;
+    }
+
+    .ovpn-client-modal .btn-secondary:hover,
+    .ovpn-client-modal .btn-secondary:focus {
+        background-color: #2a2e32;
+        border-color: #4a5056;
+        color: #fff;
+    }
+
+    .ovpn-client-modal .btn-danger {
+        background-color: #5c2b2b;
+        border-color: rgba(220, 53, 69, 0.45);
+        color: #f8d7da;
+    }
+
+    .ovpn-client-modal .btn-danger:hover,
+    .ovpn-client-modal .btn-danger:focus {
+        background-color: #7a3535;
+        border-color: rgba(220, 53, 69, 0.65);
+        color: #fff;
+    }
+
+    .ovpn-client-modal .btn-danger:disabled {
+        background-color: #3a2a2a;
+        border-color: rgba(220, 53, 69, 0.2);
+        color: rgba(248, 215, 218, 0.45);
+    }
 }
 
 /* На случай оставшегося text-primary у иконок заголовков */
@@ -2759,6 +2883,19 @@ footer a {
         background: #2c2c2c !important;
         color: #f5f5f5 !important;
         border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    .settings-shell .settings-action-btn.btn-primary {
+        background-color: #2c2c2c;
+        border-color: rgba(255, 255, 255, 0.14);
+        color: #f5f5f5;
+    }
+
+    .settings-shell .settings-action-btn.btn-primary:hover,
+    .settings-shell .settings-action-btn.btn-primary:focus {
+        background-color: #3a3f44;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
     }
 }
 

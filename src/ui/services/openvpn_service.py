@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 import socket
 import subprocess
 from datetime import datetime, timedelta
@@ -26,6 +27,11 @@ from src.ui.utils.format_utils import (
     normalize_real_address,
 )
 from src.ui.utils.openvpn_naming import extract_client_name_from_ovpn
+
+
+OPENVPN_CLIENT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
+OPENVPN_CERT_RENEW_WARN_DAYS = 30
+OPENVPN_EASYRSA_ISSUED_DIR = "/etc/openvpn/easyrsa3/pki/issued"
 
 
 def read_banned_clients():
@@ -213,6 +219,107 @@ def count_openvpn_expiring_certs(days=30):
         if expiry_dt is not None and now < expiry_dt < limit:
             total += 1
     return total
+
+
+def openvpn_client_cert_exists(client_name: str) -> bool:
+    return os.path.isfile(os.path.join(OPENVPN_EASYRSA_ISSUED_DIR, f"{client_name}.crt"))
+
+
+def get_openvpn_cert_renew_state(expiry_dt):
+    if expiry_dt is None:
+        return "unknown"
+    now = datetime.utcnow()
+    if expiry_dt <= now:
+        return "expired"
+    if expiry_dt < now + timedelta(days=OPENVPN_CERT_RENEW_WARN_DAYS):
+        return "expiring"
+    return "ok"
+
+
+def run_openvpn_add_or_renew_client(client_name: str, days: int) -> dict:
+    if not OPENVPN_CLIENT_NAME_RE.fullmatch(client_name):
+        return {
+            "success": False,
+            "message": "Некорректное имя. Используйте латиницу, цифры, _ и - (до 32 символов).",
+        }
+    if not isinstance(days, int) or not (1 <= days <= 3650):
+        return {
+            "success": False,
+            "message": "Срок действия должен быть от 1 до 3650 дней.",
+        }
+    if not os.path.exists(CLIENT_SH_PATH):
+        return {"success": False, "message": "Не найден скрипт client.sh"}
+
+    existed = openvpn_client_cert_exists(client_name)
+    was_expired = False
+    if existed:
+        expiry_dt, _ = get_openvpn_client_cert_expiry(client_name)
+        was_expired = expiry_dt is not None and expiry_dt <= datetime.utcnow()
+
+    env = os.environ.copy()
+    env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    try:
+        proc = subprocess.run(
+            [CLIENT_SH_PATH, "1", client_name, str(days)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "Превышено время ожидания client.sh"}
+    except OSError as e:
+        return {"success": False, "message": str(e)}
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        return {
+            "success": False,
+            "message": err or f"client.sh завершился с кодом {proc.returncode}",
+        }
+
+    if not openvpn_client_cert_exists(client_name):
+        err = (proc.stderr or proc.stdout or "").strip()
+        return {
+            "success": False,
+            "message": err or "Сертификат не создан. Проверьте права StatusOpenVPN (нужен root).",
+        }
+
+    expiry_dt, expiry_label = get_openvpn_client_cert_expiry(client_name)
+    if expiry_label == "—" and expiry_dt is not None:
+        expiry_label = expiry_dt.strftime("%d.%m.%Y")
+
+    if existed:
+        if was_expired:
+            message = (
+                f"Сертификат клиента <b>{client_name}</b> продлён до <b>{expiry_label}</b>. "
+                "Старые файлы .ovpn больше не действуют — скачайте новую конфигурацию."
+            )
+        else:
+            message = (
+                f"Сертификат клиента <b>{client_name}</b> продлён до <b>{expiry_label}</b>."
+            )
+        return {
+            "success": True,
+            "renewed": True,
+            "was_expired": was_expired,
+            "client_name": client_name,
+            "cert_expiry_label": expiry_label,
+            "message": message,
+        }
+
+    message = (
+        f"Клиент <b>{client_name}</b> создан. "
+        f"Срок действия сертификата: до <b>{expiry_label}</b>."
+    )
+    return {
+        "success": True,
+        "renewed": False,
+        "was_expired": False,
+        "client_name": client_name,
+        "cert_expiry_label": expiry_label,
+        "message": message,
+    }
 
 
 def send_openvpn_command(socket_name, command, timeout=5):

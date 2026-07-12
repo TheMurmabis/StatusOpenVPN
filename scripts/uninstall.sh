@@ -5,6 +5,13 @@ RED="\e[31m"
 YELLOW="\e[33m"
 RESET="\e[0m"
 
+TARGET_DIR="/root/web"
+BACKUP_DIR="/opt/StatusOpenVPN/backup"
+DATABASES_DIR="$TARGET_DIR/src/databases"
+DB_BACKUP_DIR="$BACKUP_DIR/src/databases"
+SETTINGS_FILE="$TARGET_DIR/src/settings.json"
+SETTINGS_BACKUP_FILE="$BACKUP_DIR/src/settings.json"
+
 run_as_root() {
   if [[ "$EUID" -eq 0 ]]; then
     "$@"
@@ -27,6 +34,84 @@ error_status() {
 
 info_status() {
   echo -e "${YELLOW}ℹ $1${RESET}"
+}
+
+has_database_files() {
+  if [[ -d "$DATABASES_DIR" ]] && compgen -G "$DATABASES_DIR/*.db" > /dev/null; then
+    return 0
+  fi
+  if compgen -G "$TARGET_DIR/src/*.db" > /dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+has_backup_files() {
+  if has_database_files; then
+    return 0
+  fi
+  [[ -f "$SETTINGS_FILE" ]]
+}
+
+backup_user_data() {
+  local copied=0
+
+  if has_database_files; then
+    if ! mkdir -p "$DB_BACKUP_DIR"; then
+      return 1
+    fi
+
+    if [[ -d "$DATABASES_DIR" ]]; then
+      for db in "$DATABASES_DIR"/*.db; do
+        [[ -f "$db" ]] || continue
+        if cp -a "$db" "$DB_BACKUP_DIR"/; then
+          copied=$((copied + 1))
+        else
+          return 1
+        fi
+      done
+    fi
+
+    for db in "$TARGET_DIR/src"/*.db; do
+      [[ -f "$db" ]] || continue
+      if cp -a "$db" "$DB_BACKUP_DIR"/; then
+        copied=$((copied + 1))
+      else
+        return 1
+      fi
+    done
+  fi
+
+  if [[ -f "$SETTINGS_FILE" ]]; then
+    if ! mkdir -p "$(dirname "$SETTINGS_BACKUP_FILE")"; then
+      return 1
+    fi
+    if cp -a "$SETTINGS_FILE" "$SETTINGS_BACKUP_FILE"; then
+      copied=$((copied + 1))
+    else
+      return 1
+    fi
+  fi
+
+  [[ "$copied" -gt 0 ]]
+}
+
+offer_user_data_backup() {
+  if ! has_backup_files; then
+    info_status "No database files or settings.json found, skipping backup"
+    return
+  fi
+
+  read -e -p "Save backups (databases and settings.json) to $BACKUP_DIR? (Y/N): " -i Y SAVE_BACKUP
+  if [[ "$SAVE_BACKUP" =~ ^[Yy]$ ]]; then
+    if backup_user_data; then
+      success_status "Backups saved to $BACKUP_DIR"
+    else
+      error_status "Failed to save backups"
+    fi
+  else
+    info_status "Backup skipped"
+  fi
 }
 
 # === Подгрузка setup файла ===
@@ -78,9 +163,12 @@ else
     error_status "Failed to reload systemd"
 fi
 
+# === Резервное копирование баз данных и settings.json ===
+offer_user_data_backup
+
 # === Удаление директории с проектом ===
-info_status "Deleting project directory /root/web"
-if run_as_root rm -rf /root/web; then
+info_status "Deleting project directory $TARGET_DIR"
+if run_as_root rm -rf "$TARGET_DIR"; then
     success_status "Directory deleted successfully"
 else
     error_status "Failed to delete the directory"

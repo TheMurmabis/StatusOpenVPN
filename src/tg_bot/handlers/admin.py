@@ -2,6 +2,8 @@
 
 import os
 import re
+import tarfile
+import tempfile
 
 from aiogram import Router, types
 from aiogram.types import FSInputFile
@@ -10,6 +12,7 @@ from aiogram.fsm.context import FSMContext
 from ..config import (
     get_admin_ids,
     ITEMS_PER_PAGE,
+    SETTINGS_PATH,
     add_client_mapping,
     ban_user,
     remove_client_mapping,
@@ -17,6 +20,7 @@ from ..config import (
 )
 from ..keyboards import (
     create_main_menu,
+    create_backups_menu,
     create_client_list_keyboard,
     create_client_actions_keyboard,
     create_confirmation_keyboard,
@@ -423,7 +427,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await callback.answer()
             return
         
-        if data == "8":
+        if data in ["8", "backup_vpn"]:
             await callback.message.edit_text("⏳ Создаю бэкап...")
             result = await execute_script("8")
             
@@ -438,6 +442,20 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                 await callback.message.edit_text(f"❌ Ошибка при создании бэкапа: {result['stderr']}")
             
             await callback.answer()
+            return
+
+        if data == "backup_statusopenvpn":
+            if await _send_statusopenvpn_backup(callback.from_user.id):
+                await callback.answer("Бэкап отправлен")
+            else:
+                await callback.answer("Бэкап StatusOpenVPN не найден", show_alert=True)
+            return
+
+        if data == "backup_settings":
+            if await _send_settings_backup(callback.from_user.id):
+                await callback.answer("settings.json отправлен")
+            else:
+                await callback.answer("settings.json не найден", show_alert=True)
             return
     
     except Exception as e:
@@ -507,3 +525,88 @@ async def _send_backup(chat_id: int) -> bool:
             return False
     
     return False
+
+
+async def _send_settings_backup(chat_id: int) -> bool:
+    if not os.path.isfile(SETTINGS_PATH):
+        return False
+
+    bot = await _get_bot()
+    try:
+        await bot.send_document(
+            chat_id=chat_id,
+            document=FSInputFile(SETTINGS_PATH, filename="settings.json"),
+            caption="⚙️ settings.json",
+        )
+        return True
+    except Exception as e:
+        print(f"Ошибка отправки settings.json ({SETTINGS_PATH}): {e}")
+        return False
+
+
+async def _send_statusopenvpn_backup(chat_id: int) -> bool:
+    sources = _get_statusopenvpn_backup_sources()
+    if not sources:
+        return False
+
+    bot = await _get_bot()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            archive_path = os.path.join(tmpdir, "StatusOpenVPN-backup.tar.gz")
+            with tarfile.open(archive_path, "w:gz") as archive:
+                for source_path, archive_name in sources:
+                    archive.add(source_path, arcname=archive_name)
+            await bot.send_document(
+                chat_id=chat_id,
+                document=FSInputFile(
+                    archive_path,
+                    filename="StatusOpenVPN-backup.tar.gz",
+                ),
+                caption="📊 Бэкап StatusOpenVPN",
+            )
+        return True
+    except Exception as e:
+        print(f"Ошибка отправки бэкапа StatusOpenVPN: {e}")
+        return False
+
+
+def _get_statusopenvpn_backup_sources() -> list[tuple[str, str]]:
+    base_dir = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    candidates = [
+        os.path.join(base_dir, "databases"),
+        base_dir,
+        "/root/StatusOpenVPN-backup",
+    ]
+    sources: list[tuple[str, str]] = []
+    seen = set()
+
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            for root, _, files in os.walk(candidate):
+                for name in files:
+                    path = os.path.join(root, name)
+                    if candidate.endswith(os.path.join("src", "databases")):
+                        archive_name = os.path.join(
+                            "src",
+                            "databases",
+                            os.path.relpath(path, candidate),
+                        )
+                    elif candidate.endswith("src"):
+                        if not name.endswith(".db"):
+                            continue
+                        archive_name = os.path.join("src", os.path.relpath(path, candidate))
+                    else:
+                        archive_name = os.path.join(os.path.basename(candidate), os.path.relpath(path, candidate))
+                    real_path = os.path.realpath(path)
+                    if real_path not in seen:
+                        seen.add(real_path)
+                        sources.append((path, archive_name))
+        elif os.path.isfile(candidate):
+            real_path = os.path.realpath(candidate)
+            if real_path not in seen:
+                seen.add(real_path)
+                sources.append((candidate, os.path.basename(candidate)))
+
+    return sources

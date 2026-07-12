@@ -59,6 +59,99 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/login_page.js') }}"></script>
+  <script>
+    (function () {
+      const STORAGE_KEY = "loginRateLimitState";
+      const MAX_DELAY_SECONDS = 60;
+      const hasLoginError = {{ "true" if error_message else "false" }};
+      const DEFAULT_SUBMIT_TEXT = "Вход";
+
+      function getState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) {
+            return { failedAttempts: 0, nextAllowedAt: 0 };
+          }
+          const parsed = JSON.parse(raw);
+          const failedAttempts = Number(parsed.failedAttempts) || 0;
+          const nextAllowedAt = Number(parsed.nextAllowedAt) || 0;
+          return { failedAttempts, nextAllowedAt };
+        } catch (e) {
+          return { failedAttempts: 0, nextAllowedAt: 0 };
+        }
+      }
+
+      function saveState(state) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function getDelaySeconds(failedAttempts) {
+        if (failedAttempts <= 1) {
+          return 0;
+        }
+        return Math.min(2 ** (failedAttempts - 2), MAX_DELAY_SECONDS);
+      }
+
+      function formatButtonText(seconds) {
+        return "Вход " + seconds + " сек...";
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.querySelector("form");
+        const submitButton = document.getElementById("submit");
+        if (!form || !submitButton) {
+          return;
+        }
+
+        const state = getState();
+
+        if (hasLoginError) {
+          state.failedAttempts += 1;
+          const delaySeconds = getDelaySeconds(state.failedAttempts);
+          state.nextAllowedAt = delaySeconds > 0 ? Date.now() + delaySeconds * 1000 : 0;
+          saveState(state);
+        }
+
+        let timerId = null;
+
+        function refreshLockState() {
+          const now = Date.now();
+          const remainingMs = state.nextAllowedAt - now;
+          if (remainingMs > 0) {
+            const remainingSeconds = Math.ceil(remainingMs / 1000);
+            submitButton.disabled = true;
+            submitButton.textContent = formatButtonText(remainingSeconds);
+          } else {
+            submitButton.disabled = false;
+            submitButton.textContent = DEFAULT_SUBMIT_TEXT;
+            state.nextAllowedAt = 0;
+            saveState(state);
+            if (timerId) {
+              clearInterval(timerId);
+              timerId = null;
+            }
+          }
+        }
+
+        if (state.nextAllowedAt > Date.now()) {
+          refreshLockState();
+          timerId = setInterval(refreshLockState, 250);
+        } else {
+          submitButton.textContent = DEFAULT_SUBMIT_TEXT;
+        }
+
+        form.addEventListener("submit", function (event) {
+          if (Date.now() < state.nextAllowedAt) {
+            event.preventDefault();
+            refreshLockState();
+            if (!timerId) {
+              timerId = setInterval(refreshLockState, 250);
+            }
+          }
+        });
+      });
+    })();
+  </script>
 
 </body>
 

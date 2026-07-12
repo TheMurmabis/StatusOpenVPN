@@ -6,6 +6,14 @@ from datetime import datetime
 from src.ui.constants import DEFAULT_SETTINGS, LEGACY_ADMIN_INFO_PATH, SETTINGS_PATH
 
 
+def get_display_app_name():
+    raw = read_settings().get("app_name", DEFAULT_SETTINGS.get("app_name", "StatusOpenVPN"))
+    if not isinstance(raw, str):
+        return DEFAULT_SETTINGS.get("app_name", "StatusOpenVPN")
+    name = raw.strip()
+    return name or DEFAULT_SETTINGS.get("app_name", "StatusOpenVPN")
+
+
 def write_settings_data(settings_data):
     with open(SETTINGS_PATH, "w", encoding="utf-8") as settings_file:
         json.dump(settings_data, settings_file, ensure_ascii=False, indent=4)

@@ -30,4 +30,4 @@ threading.Thread(target=update_system_info_loop, daemon=True).start()
 
 if __name__ == "__main__":
     add_admin()
-    app.run(debug=False, host="0.0.0.0", port=1234)
+    app.run(debug=True, host="0.0.0.0", port=1234)

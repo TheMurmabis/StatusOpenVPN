@@ -112,6 +112,8 @@
                                     class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings' else '' }}">Общие</a>
                                 <a href="{{ url_for('settings_telegram') }}"
                                     class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_telegram' else '' }}">Телеграм</a>
+                                <a href="{{ url_for('settings_backups') }}"
+                                    class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_backups' else '' }}">Резервные копии</a>
                                 <a href="{{ url_for('settings_audit') }}"
                                     class="nav-link app-sidebar__subitem py-1 px-2 small text-white-50 {{ 'active text-white' if active_page == 'settings_audit' else '' }}">Журнал</a>
                                 <a href="{{ url_for('settings_install') }}"

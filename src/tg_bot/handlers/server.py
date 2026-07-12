@@ -20,10 +20,12 @@ from ..keyboards import (
     create_back_keyboard,
     create_server_services_keyboard,
     create_services_status_keyboard,
+    create_htop_keyboard,
 )
 from ..states import VPNSetup
 from ..server import (
     get_server_stats,
+    get_htop_text,
     get_services_status_text,
     get_vpn_monitor_menu_text,
     get_online_clients_text,
@@ -37,6 +39,27 @@ from ..bot import (
 from ..audit import log_action, notify_admins
 
 router = Router()
+
+
+def _htop_sort_from_callback(callback_data: str) -> str:
+    return "mem" if "mem" in callback_data else "cpu"
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("server_htop"))
+async def handle_server_htop(callback: types.CallbackQuery):
+    admin_ids = get_admin_ids()
+
+    if callback.from_user.id not in admin_ids:
+        await callback.answer("Доступ запрещен!", show_alert=True)
+        return
+
+    sort_by = _htop_sort_from_callback(callback.data)
+    htop_text = await get_htop_text(sort_by)
+    await callback.message.edit_text(
+        htop_text,
+        reply_markup=create_htop_keyboard(sort_by),
+    )
+    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "server_stats")

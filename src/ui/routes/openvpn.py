@@ -13,6 +13,7 @@ from src.ui.services.env_service import get_openvpn_server_ports
 from src.ui.services.openvpn_service import (
     cert_days_left_fields,
     get_all_openvpn_clients,
+    get_openvpn_cert_renew_state,
     get_openvpn_client_cert_expiry,
     read_banned_clients,
     read_csv,
@@ -171,6 +172,7 @@ def _build_openvpn_client_status_sorted(sort_by, order):
         days_left, days_label = cert_days_left_fields(exp_dt)
         row["cert_days_left"] = days_left
         row["cert_days_left_label"] = days_label
+        row["cert_renew_state"] = get_openvpn_cert_renew_state(exp_dt)
 
     all_clients_list = _dedupe_openvpn_client_status_rows(all_clients_list)
 

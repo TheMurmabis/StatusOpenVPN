@@ -15,6 +15,7 @@
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
       <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
     </nav>
@@ -101,10 +102,32 @@
               <span class="badge bg-dark">Токен бота</span>
               {% elif log.action == 'bot_admins_change' %}
               <span class="badge bg-primary">Админ Telegram</span>
+              {% elif log.action == 'app_update' %}
+              <span class="badge bg-primary">Обновление</span>
+              {% elif log.action == 'settings_import' %}
+              <span class="badge bg-info text-dark">Импорт настроек</span>
+              {% elif log.action == 'wg_client_create' %}
+              <span class="badge bg-success">Создание WG</span>
+              {% elif log.action == 'wg_client_delete' %}
+              <span class="badge bg-danger">Удаление WG</span>
+              {% elif log.action == 'client_cert_renew' %}
+              <span class="badge bg-warning text-dark">Продление сертификата</span>
               {% elif log.action == 'user_ban' %}
               <span class="badge bg-danger">Блокировка</span>
               {% elif log.action == 'user_unban' %}
               <span class="badge bg-success">Разблокировка</span>
+              {% elif log.action == 'wg_client_rename' %}
+              <span class="badge bg-success">Переименование</span>
+              {% elif log.action == 'backup_download_vpn' %}
+              <span class="badge bg-primary">Бэкап VPN</span>
+              {% elif log.action == 'backup_download_statusopenvpn' %}
+              <span class="badge bg-primary">Бэкап StatusOpenVPN</span>
+              {% elif log.action == 'backup_download_settings' %}
+              <span class="badge bg-primary">Бэкап настроек</span>
+              {% elif log.action == 'backup_restore_statusopenvpn' %}
+              <span class="badge bg-warning text-dark">Восстановление БД</span>
+              {% elif log.action == 'backup_restore_settings' %}
+              <span class="badge bg-warning text-dark">Восстановление настроек</span>
               {% else %}
               {{ log.action }}
               {% endif %}

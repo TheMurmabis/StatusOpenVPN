@@ -44,23 +44,8 @@ def get_admin_ids():
     return [int(x) for x in raw.split(",") if x.strip().isdigit()]
 
 
-def load_settings():
-    """Загрузить настройки из JSON-файла (с кэшированием)."""
-    global _settings_cache, _settings_mtime
-
-    try:
-        current_mtime = os.path.getmtime(SETTINGS_PATH)
-        if _settings_cache is not None and current_mtime == _settings_mtime:
-            return _settings_cache.copy()
-    except OSError:
-        pass
-
-    try:
-        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-
+def normalize_settings_data(data):
+    """Привести словарь настроек к ожидаемой структуре."""
     if not isinstance(data, dict):
         data = {}
 
@@ -78,6 +63,28 @@ def load_settings():
     pending = data.get(TG_BOT_PENDING_REQUESTS_KEY)
     if not isinstance(pending, dict):
         data[TG_BOT_PENDING_REQUESTS_KEY] = {}
+
+    return data
+
+
+def load_settings():
+    """Загрузить настройки из JSON-файла (с кэшированием)."""
+    global _settings_cache, _settings_mtime
+
+    try:
+        current_mtime = os.path.getmtime(SETTINGS_PATH)
+        if _settings_cache is not None and current_mtime == _settings_mtime:
+            return _settings_cache.copy()
+    except OSError:
+        pass
+
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+
+    data = normalize_settings_data(data)
 
     _settings_cache = data
     try:

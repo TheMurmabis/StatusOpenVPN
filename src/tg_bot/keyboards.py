@@ -38,7 +38,7 @@ def create_main_menu(server_ip: str):
             ],
             [
                 InlineKeyboardButton(text="🔄 Пересоздать файлы", callback_data="7"),
-                InlineKeyboardButton(text="📦 Создать бэкап", callback_data="8"),
+                InlineKeyboardButton(text="📦 Создать бэкап", callback_data="backups_menu"),
             ],
             [
                 InlineKeyboardButton(
@@ -53,6 +53,32 @@ def create_main_menu(server_ip: str):
                     text="🔔 Уведомления", callback_data="notifications_menu"
                 ),
             ],
+        ]
+    )
+
+
+def create_backups_menu():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📦 Бэкап клиентов",
+                    callback_data="backup_vpn",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📊 StatusOpenVPN",
+                    callback_data="backup_statusopenvpn",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⚙️ Файл настроек",
+                    callback_data="backup_settings",
+                )
+            ],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")],
         ]
     )
 
@@ -94,10 +120,34 @@ def create_server_menu():
                 InlineKeyboardButton(
                     text="⚠️ Пороги нагрузки", callback_data="server_thresholds"
                 ),
+                InlineKeyboardButton(text="📈 Процессы", callback_data="server_htop"),
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
             ],
+        ]
+    )
+
+
+def create_htop_keyboard(sort_by: str = "cpu"):
+    sort_by = "mem" if sort_by == "mem" else "cpu"
+    cpu_mark = "✅ " if sort_by == "cpu" else ""
+    mem_mark = "✅ " if sort_by == "mem" else ""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"{cpu_mark}CPU", callback_data="server_htop_cpu"
+                ),
+                InlineKeyboardButton(
+                    text=f"{mem_mark}RAM", callback_data="server_htop_mem"
+                ),
+                InlineKeyboardButton(
+                    text="🔄",
+                    callback_data=f"server_htop_refresh_{sort_by}",
+                ),
+            ],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="server_menu")],
         ]
     )
 
@@ -1229,6 +1279,24 @@ def create_rename_confirmation_keyboard():
             [
                 InlineKeyboardButton(text="✅ Да", callback_data="confirm_rename"),
                 InlineKeyboardButton(text="❌ Нет", callback_data="no_rename"),
+            ]
+        ]
+    )
+
+
+def create_settings_import_keyboard():
+    """Создать клавиатуру подтверждения замены settings.json."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Заменить",
+                    callback_data="settings_import_confirm",
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="settings_import_cancel",
+                ),
             ]
         ]
     )

@@ -10,7 +10,7 @@ from flask_login import current_user, login_required
 from tzlocal import get_localzone
 
 from src.tg_bot.audit import log_action
-from src.ui.constants import MONTH_OPTIONS_RU
+from src.ui.constants import CLIENT_SH_PATH, MONTH_OPTIONS_RU
 from src.ui.extensions import app
 from src.ui.services.settings_service import read_settings
 from src.ui.services.wireguard_service import (
@@ -143,6 +143,158 @@ def toggle_wg_peer():
         return jsonify({"success": True, "enabled": enable})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wg/client/create", methods=["POST"])
+@login_required
+def api_wg_client_create():
+    data = request.get_json(silent=True) or {}
+    client_name = (data.get("client_name") or "").strip()
+
+    strict_name_pattern = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+    if not strict_name_pattern.fullmatch(client_name):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Некорректное имя. Используйте латиницу, цифры, _ и - (до 32 символов).",
+                }
+            ),
+            400,
+        )
+
+    if not os.path.isfile(CLIENT_SH_PATH):
+        return (
+            jsonify({"success": False, "message": "Не найден скрипт client.sh"}),
+            500,
+        )
+
+    try:
+        proc = subprocess.run(
+            [CLIENT_SH_PATH, "4", client_name],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env={
+                **os.environ,
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            },
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            jsonify({"success": False, "message": "Превышено время ожидания client.sh"}),
+            500,
+        )
+    except OSError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": err or f"client.sh завершился с кодом {proc.returncode}",
+                }
+            ),
+            500,
+        )
+
+    existed = "already exists" in (proc.stdout or "")
+    if existed:
+        message = (
+            f"Клиент <b>{client_name}</b> уже существовал — файлы профилей пересозданы."
+        )
+    else:
+        message = f"Клиент <b>{client_name}</b> создан."
+
+    log_action(
+        "web",
+        current_user.username,
+        current_user.username,
+        "wg_client_create",
+        client_name,
+    )
+
+    return jsonify(
+        {
+            "success": True,
+            "client_name": client_name,
+            "existed": existed,
+            "message": message,
+        }
+    )
+
+
+@app.route("/api/wg/client/delete", methods=["POST"])
+@login_required
+def api_wg_client_delete():
+    data = request.get_json(silent=True) or {}
+    client_name = (data.get("client_name") or "").strip()
+
+    strict_name_pattern = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+    if not strict_name_pattern.fullmatch(client_name):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Некорректное имя. Используйте латиницу, цифры, _ и - (до 32 символов).",
+                }
+            ),
+            400,
+        )
+
+    if not os.path.isfile(CLIENT_SH_PATH):
+        return (
+            jsonify({"success": False, "message": "Не найден скрипт client.sh"}),
+            500,
+        )
+
+    try:
+        proc = subprocess.run(
+            [CLIENT_SH_PATH, "5", client_name],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env={
+                **os.environ,
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            },
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            jsonify({"success": False, "message": "Превышено время ожидания client.sh"}),
+            500,
+        )
+    except OSError as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": err or f"client.sh завершился с кодом {proc.returncode}",
+                }
+            ),
+            500,
+        )
+
+    log_action(
+        "web",
+        current_user.username,
+        current_user.username,
+        "wg_client_delete",
+        client_name,
+    )
+    return jsonify(
+        {
+            "success": True,
+            "client_name": client_name,
+            "message": f"Клиент <b>{client_name}</b> удалён.",
+        }
+    )
 
 
 @app.route("/api/wg/client/rename", methods=["POST"])

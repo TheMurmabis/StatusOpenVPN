@@ -2,7 +2,10 @@
 
 import asyncio
 import datetime
+import html
 from typing import Optional, Tuple
+
+HTOP_TOP_LIMIT = 10
 
 from .utils import (
     get_color_by_percent,
@@ -26,6 +29,53 @@ def _lazy_psutil():
     """Ленивый импорт psutil."""
     import psutil
     return psutil
+
+
+def _sample_processes():
+    psutil = _lazy_psutil()
+    psutil.cpu_percent(interval=0.3)
+    rows = []
+    for proc in psutil.process_iter(["pid", "name", "memory_percent"]):
+        try:
+            rows.append(
+                {
+                    "pid": proc.info["pid"],
+                    "name": (proc.info.get("name") or "?")[:24],
+                    "cpu": proc.cpu_percent(interval=None) or 0.0,
+                    "mem": proc.info.get("memory_percent") or 0.0,
+                }
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return rows
+
+
+def _format_htop_table(rows: list[dict], sort_by: str) -> str:
+    sort_key = "cpu" if sort_by == "cpu" else "mem"
+    rows.sort(key=lambda item: item[sort_key], reverse=True)
+    lines = [f"{'PID':>6}  {'CPU%':>5}  {'MEM%':>5}  Имя"]
+    for row in rows[:HTOP_TOP_LIMIT]:
+        safe_name = html.escape(row["name"])
+        lines.append(
+            f"{row['pid']:>6}  {row['cpu']:5.1f}  {row['mem']:5.1f}  {safe_name}"
+        )
+    return "\n".join(lines)
+
+
+async def get_htop_text(sort_by: str = "cpu"):
+    sort_by = "mem" if sort_by == "mem" else "cpu"
+    try:
+        rows = await asyncio.to_thread(_sample_processes)
+        if not rows:
+            return "❌ Не удалось получить список процессов."
+        sort_label = "CPU" if sort_by == "cpu" else "RAM"
+        table = _format_htop_table(rows, sort_by)
+        return (
+            f"<b>📈 Процессы — топ потребителей ({sort_label})</b>\n\n"
+            f"<pre>{table}</pre>"
+        )
+    except Exception as e:
+        return f"❌ Ошибка получения списка процессов: {html.escape(str(e))}"
 
 
 async def get_server_stats():

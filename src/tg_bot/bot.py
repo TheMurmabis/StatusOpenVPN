@@ -34,7 +34,7 @@ def get_dispatcher():
 
 def _register_handlers(dp):
     """Зарегистрировать все обработчики в диспетчере."""
-    from .handlers import common, menus, server, vpn, admin
+    from .handlers import common, menus, server, vpn, admin, settings_import
     from .middlewares import BannedUserMiddleware, UnlistedUserSilenceMiddleware
 
     dp.update.outer_middleware(BannedUserMiddleware())
@@ -43,6 +43,7 @@ def _register_handlers(dp):
     dp.include_router(menus.router)
     dp.include_router(server.router)
     dp.include_router(vpn.router)
+    dp.include_router(settings_import.router)
     dp.include_router(admin.router)
 
 

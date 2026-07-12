@@ -297,6 +297,7 @@ server {
 
     location /status/ {
         proxy_pass http://127.0.0.1:FLASK_PORT_PLACEHOLDER;
+        client_max_body_size 512m;
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -458,6 +459,7 @@ server {
 
     location /status/ {
         proxy_pass http://127.0.0.1:$FLASK_PORT;
+        client_max_body_size 512m;
 
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;

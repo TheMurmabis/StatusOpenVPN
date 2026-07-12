@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки · Резервные копии{% endblock %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Резервные копии</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="dash-mon settings-shell">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
+      <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
+
+  {% if backup_message %}
+  <div class="alert alert-success py-2 mb-3" role="alert">{{ backup_message }}</div>
+  {% endif %}
+  {% if backup_error %}
+  <div class="alert alert-danger py-2 mb-3" role="alert">{{ backup_error }}</div>
+  {% endif %}
+
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-download dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Скачать резервную копию</span>
+    </div>
+    <p class="settings-field-hint small mb-3">
+      Резервные копии: VPN клиентов, баз {{ app_display_name }} и файла настроек.
+    </p>
+
+    <div class="d-flex flex-column gap-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="min-w-0">
+          <div class="fw-semibold">Резервная копия клиентов VPN</div>
+          <small class="settings-field-hint d-block">Архив через client.sh.</small>
+        </div>
+        <a href="{{ url_for('settings_backups_download_vpn') }}" class="btn btn-sm btn-primary settings-action-btn flex-shrink-0">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Скачать
+        </a>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="min-w-0">
+          <div class="fw-semibold">{{ app_display_name }}</div>
+          <small class="settings-field-hint d-block">Архив баз данных (src/databases).</small>
+        </div>
+        <a href="{{ url_for('settings_backups_download_statusopenvpn') }}" class="btn btn-sm btn-primary settings-action-btn flex-shrink-0">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Скачать
+        </a>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="min-w-0">
+          <div class="fw-semibold">Файл настроек</div>
+          <small class="settings-field-hint d-block">settings.json текущей панели.</small>
+        </div>
+        {% if settings_available %}
+        <a href="{{ url_for('settings_backups_download_settings') }}" class="btn btn-sm btn-primary settings-action-btn flex-shrink-0">
+          <i class="bi bi-download me-1" aria-hidden="true"></i>Скачать
+        </a>
+        {% else %}
+        <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0" disabled>Файл не найден</button>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-arrow-counterclockwise dash-panel__hd-ic text-warning" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Восстановление</span>
+    </div>
+    <p class="settings-field-hint small mb-3">
+      Восстановление из резервных копий, полученных из бота или этой панели.
+    </p>
+
+    <div class="d-flex flex-column gap-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="min-w-0">
+          <div class="fw-semibold">{{ app_display_name }}</div>
+          <small class="settings-field-hint d-block">Архив StatusOpenVPN-backup.tar.gz. Файлы .db в src/databases будут заменены.</small>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary settings-action-btn flex-shrink-0" data-bs-toggle="modal" data-bs-target="#restoreStatusOpenvpnModal">
+          <i class="bi bi-folder2-open me-1" aria-hidden="true"></i>Выбрать архив
+        </button>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="min-w-0">
+          <div class="fw-semibold">Файл настроек</div>
+          <small class="settings-field-hint d-block">Файл settings.json. Текущий файл настроек будет полностью заменён.</small>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary settings-action-btn flex-shrink-0" data-bs-toggle="modal" data-bs-target="#restoreSettingsModal">
+          <i class="bi bi-file-earmark-arrow-up me-1" aria-hidden="true"></i>Выбрать файл
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal fade ovpn-client-modal" id="restoreStatusOpenvpnModal" tabindex="-1" aria-labelledby="restoreStatusOpenvpnModalLabel" aria-hidden="true" data-confirm-phrase="{{ restore_phrase }}">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="restoreStatusOpenvpnModalLabel">Восстановление из архива</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Будут заменены базы данных {{ app_display_name }}. Это действие нельзя отменить. Для подтверждения введите слово <code>{{ restore_phrase }}</code>.</p>
+        <form method="post" enctype="multipart/form-data" id="restoreStatusOpenvpnForm" autocomplete="off">
+          <input type="hidden" name="form_type" value="restore_statusopenvpn" />
+          <div class="mb-3">
+            <label for="restoreArchiveFile" class="form-label">Архив .tar.gz</label>
+            <input type="file" class="form-control" id="restoreArchiveFile" name="archive" accept=".tar.gz,.tgz,application/gzip,application/x-gzip,application/x-tar" required />
+          </div>
+          <div class="mb-0">
+            <label for="restoreConfirmPhrase" class="form-label">Подтверждение</label>
+            <input type="text" class="form-control font-monospace" id="restoreConfirmPhrase" name="confirm_phrase" autocomplete="off" placeholder="{{ restore_phrase }}" />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="submit" class="btn btn-danger" id="restoreStatusOpenvpnSubmit" form="restoreStatusOpenvpnForm" disabled>Восстановить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade ovpn-client-modal" id="restoreSettingsModal" tabindex="-1" aria-labelledby="restoreSettingsModalLabel" aria-hidden="true" data-confirm-phrase="{{ settings_restore_phrase }}">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="restoreSettingsModalLabel">Восстановление settings.json</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Будет полностью заменён текущий settings.json. Это действие нельзя отменить. Для подтверждения введите <code>{{ settings_restore_phrase }}</code>.</p>
+        <form method="post" enctype="multipart/form-data" id="restoreSettingsForm" autocomplete="off">
+          <input type="hidden" name="form_type" value="restore_settings" />
+          <div class="mb-3">
+            <label for="restoreSettingsFile" class="form-label">Файл settings.json</label>
+            <input type="file" class="form-control" id="restoreSettingsFile" name="settings_file" accept=".json,application/json" required />
+          </div>
+          <div class="mb-0">
+            <label for="restoreSettingsConfirmPhrase" class="form-label">Подтверждение</label>
+            <input type="text" class="form-control font-monospace" id="restoreSettingsConfirmPhrase" name="confirm_phrase" autocomplete="off" placeholder="{{ settings_restore_phrase }}" />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="submit" class="btn btn-danger" id="restoreSettingsSubmit" form="restoreSettingsForm" disabled>Восстановить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  function bindRestoreModal(modalId, fileInputId, phraseInputId, submitId) {
+    const modal = document.getElementById(modalId);
+    const fileInput = document.getElementById(fileInputId);
+    const phraseInput = document.getElementById(phraseInputId);
+    const submitBtn = document.getElementById(submitId);
+    if (!modal || !fileInput || !phraseInput || !submitBtn) return;
+
+    const expected = modal.getAttribute('data-confirm-phrase') || '';
+
+    function sync() {
+      const hasFile = fileInput.files && fileInput.files.length > 0;
+      submitBtn.disabled = !(hasFile && phraseInput.value.trim() === expected);
+    }
+
+    fileInput.addEventListener('change', sync);
+    phraseInput.addEventListener('input', sync);
+    modal.addEventListener('shown.bs.modal', function () {
+      fileInput.value = '';
+      phraseInput.value = '';
+      sync();
+      phraseInput.focus();
+    });
+    modal.addEventListener('hidden.bs.modal', function () {
+      fileInput.value = '';
+      phraseInput.value = '';
+      sync();
+    });
+  }
+
+  bindRestoreModal(
+    'restoreStatusOpenvpnModal',
+    'restoreArchiveFile',
+    'restoreConfirmPhrase',
+    'restoreStatusOpenvpnSubmit'
+  );
+  bindRestoreModal(
+    'restoreSettingsModal',
+    'restoreSettingsFile',
+    'restoreSettingsConfirmPhrase',
+    'restoreSettingsSubmit'
+  );
+})();
+</script>
+
+{% endblock %}

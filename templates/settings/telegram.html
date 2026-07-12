@@ -15,6 +15,7 @@
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
       <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
     </nav>

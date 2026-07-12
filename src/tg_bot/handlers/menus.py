@@ -41,6 +41,7 @@ from ..keyboards import (
     create_banned_list_keyboard,
     create_admins_menu,
     create_notifications_menu,
+    create_backups_menu,
     create_clientmap_delete_menu,
     create_client_user_menu,
     create_clientmap_users_menu,
@@ -71,6 +72,7 @@ def _get_server_ip():
         "server_menu",
         "clients_menu",
         "admins_menu",
+        "backups_menu",
     ]
 )
 async def handle_main_menus(callback: types.CallbackQuery, state: FSMContext):
@@ -103,6 +105,8 @@ async def handle_main_menus(callback: types.CallbackQuery, state: FSMContext):
         )
     elif callback.data == "admins_menu":
         await callback.message.edit_text("Администраторы:", reply_markup=create_admins_menu(admin_ids))
+    elif callback.data == "backups_menu":
+        await callback.message.edit_text("📦 Бэкапы:", reply_markup=create_backups_menu())
     else:
         await callback.message.edit_text("Меню WireGuard:", reply_markup=create_wireguard_menu())
     

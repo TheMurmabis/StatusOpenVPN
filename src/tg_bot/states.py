@@ -21,3 +21,4 @@ class VPNSetup(StatesGroup):
     entering_memory_threshold = State()
     entering_request_client_name = State()
     entering_ban_user_id = State()
+    confirming_settings_import = State()

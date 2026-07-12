@@ -1,6 +1,7 @@
 import os
+import tempfile
 
-from flask import abort, jsonify, render_template, request, send_file
+from flask import abort, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
 from src.tg_bot.audit import get_logs, get_logs_count, log_action
@@ -21,6 +22,14 @@ from src.ui.services.admins_service import (
     parse_admin_ids,
     read_admin_info,
 )
+from src.ui.services.backup_service import (
+    SETTINGS_RESTORE_PHRASE,
+    build_statusopenvpn_backup_archive,
+    create_vpn_clients_backup,
+    restore_settings_from_file,
+    restore_statusopenvpn_from_archive,
+    settings_file_path,
+)
 from src.ui.services.bot_service import (
     get_telegram_bot_status,
     restart_telegram_bot,
@@ -32,6 +41,7 @@ from src.ui.services.env_service import (
     update_env_values,
 )
 from src.ui.services.settings_service import (
+    get_display_app_name,
     parse_history_max_records,
     parse_stats_retention_days,
     read_settings,
@@ -300,6 +310,182 @@ def settings_telegram():
     )
 
 
+@app.route("/settings/backups", methods=["GET", "POST"])
+@login_required
+def settings_backups():
+    backup_message = None
+    backup_error = None
+    app_display_name = get_display_app_name()
+    restore_phrase = app_display_name
+
+    if request.method == "GET":
+        q_error = (request.args.get("error") or "").strip()
+        q_message = (request.args.get("message") or "").strip()
+        if q_message:
+            backup_error = q_message
+        elif q_error == "vpn":
+            backup_error = "Не удалось создать бэкап клиентов VPN."
+        elif q_error == "statusopenvpn":
+            backup_error = f"Не удалось создать бэкап {app_display_name}."
+
+    if request.method == "POST":
+        form_type = request.form.get("form_type")
+        if form_type == "restore_statusopenvpn":
+            phrase = (request.form.get("confirm_phrase") or "").strip()
+            if phrase != restore_phrase:
+                backup_error = f"Неверная фраза. Введите: {restore_phrase}"
+            else:
+                archive = request.files.get("archive")
+                if not archive or not archive.filename:
+                    backup_error = "Выберите архив для восстановления."
+                else:
+                    ok, msg = restore_statusopenvpn_from_archive(
+                        archive.stream, archive.filename
+                    )
+                    if ok:
+                        backup_message = msg
+                        log_action(
+                            "web",
+                            current_user.username,
+                            current_user.username,
+                            "backup_restore_statusopenvpn",
+                            archive.filename,
+                            _get_client_ip(),
+                        )
+                    else:
+                        backup_error = msg
+
+        elif form_type == "restore_settings":
+            phrase = (request.form.get("confirm_phrase") or "").strip()
+            if phrase != SETTINGS_RESTORE_PHRASE:
+                backup_error = f"Неверная фраза. Введите: {SETTINGS_RESTORE_PHRASE}"
+            else:
+                settings_file = request.files.get("settings_file")
+                if not settings_file or not settings_file.filename:
+                    backup_error = "Выберите файл settings.json для восстановления."
+                else:
+                    ok, msg = restore_settings_from_file(
+                        settings_file.stream, settings_file.filename
+                    )
+                    if ok:
+                        backup_message = msg
+                        log_action(
+                            "web",
+                            current_user.username,
+                            current_user.username,
+                            "backup_restore_settings",
+                            settings_file.filename,
+                            _get_client_ip(),
+                        )
+                    else:
+                        backup_error = msg
+
+    return render_template(
+        "settings/backups.html",
+        backup_message=backup_message,
+        backup_error=backup_error,
+        settings_available=bool(settings_file_path()),
+        app_display_name=app_display_name,
+        restore_phrase=restore_phrase,
+        settings_restore_phrase=SETTINGS_RESTORE_PHRASE,
+        active_page="settings_backups",
+    )
+
+
+@app.route("/settings/backups/download/vpn")
+@login_required
+def settings_backups_download_vpn():
+    ok, err, path = create_vpn_clients_backup()
+    if not ok or not path:
+        return redirect(
+            url_for("settings_backups", error="vpn", message=err or "Ошибка бэкапа")
+        )
+    log_action(
+        "web",
+        current_user.username,
+        current_user.username,
+        "backup_download_vpn",
+        os.path.basename(path),
+        _get_client_ip(),
+    )
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="application/gzip",
+    )
+
+
+@app.route("/settings/backups/download/statusopenvpn")
+@login_required
+def settings_backups_download_statusopenvpn():
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="StatusOpenVPN-backup-",
+        suffix=".tar.gz",
+        delete=False,
+    )
+    tmp_path = tmp.name
+    tmp.close()
+    ok, err = build_statusopenvpn_backup_archive(tmp_path)
+    if not ok:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        return redirect(
+            url_for(
+                "settings_backups",
+                error="statusopenvpn",
+                message=err or "Ошибка бэкапа",
+            )
+        )
+    log_action(
+        "web",
+        current_user.username,
+        current_user.username,
+        "backup_download_statusopenvpn",
+        "StatusOpenVPN-backup.tar.gz",
+        _get_client_ip(),
+    )
+
+    def _cleanup():
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    response = send_file(
+        tmp_path,
+        as_attachment=True,
+        download_name="StatusOpenVPN-backup.tar.gz",
+        mimetype="application/gzip",
+    )
+    response.call_on_close(_cleanup)
+    return response
+
+
+@app.route("/settings/backups/download/settings")
+@login_required
+def settings_backups_download_settings():
+    path = settings_file_path()
+    if not path:
+        abort(404)
+    log_action(
+        "web",
+        current_user.username,
+        current_user.username,
+        "backup_download_settings",
+        "settings.json",
+        _get_client_ip(),
+    )
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name="settings.json",
+        mimetype="application/json",
+    )
+
+
 @app.route("/settings/audit")
 @login_required
 def settings_audit():
@@ -319,19 +505,31 @@ def settings_audit():
 
     action_labels = {
         "client_create": "Создание клиента",
+        "client_cert_renew": "Продление сертификата OpenVPN",
         "client_delete": "Удаление клиента",
         "files_recreate": "Пересоздание файлов",
         "server_reboot": "Перезагрузка сервера",
         "web_login": "Вход в панель",
         "peer_toggle": "Переключение WG пира",
+        "wg_client_create": "Создание клиента WireGuard",
+        "wg_client_delete": "Удаление клиента WireGuard",
+        "wg_client_rename": "Переименование клиента WireGuard",
         "bot_token_change": "Изменение токена бота",
         "bot_admins_change": "Изменение админов бота",
         "bot_toggle": "Вкл/выкл бота",
         "request_approve": "Привязка клиента",
         "request_reject": "Отклонение запроса",
+        "settings_import": "Импорт settings.json",
+        "user_ban": "Блокировка пользователя",
+        "user_unban": "Разблокировка пользователя",
         "stats_db_clear_ovpn": "Очистка БД OpenVPN",
         "stats_db_clear_wg": "Очистка БД WireGuard",
         "app_update": "Обновление приложения",
+        "backup_download_vpn": "Скачивание бэкапа VPN",
+        "backup_download_statusopenvpn": "Скачивание бэкапа StatusOpenVPN",
+        "backup_download_settings": "Скачивание settings.json",
+        "backup_restore_statusopenvpn": "Восстановление БД StatusOpenVPN",
+        "backup_restore_settings": "Восстановление settings.json",
     }
 
     return render_template(

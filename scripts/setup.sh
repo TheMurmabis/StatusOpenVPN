@@ -10,6 +10,10 @@ RESET='\e[0m'
 TARGET_DIR="/root/web"
 SRC="$TARGET_DIR/src"
 DST="$TARGET_DIR/src/databases"
+BACKUP_DIR="/opt/StatusOpenVPN/backup"
+DB_BACKUP_DIR="$BACKUP_DIR/src/databases"
+SETTINGS_FILE="$TARGET_DIR/src/settings.json"
+SETTINGS_BACKUP_FILE="$BACKUP_DIR/src/settings.json"
 DEFAULT_PORT=1234
 ENV_FILE="$TARGET_DIR/src/.env"
 SERVICE_FILE="/etc/systemd/system/StatusOpenVPN.service"
@@ -43,6 +47,38 @@ is_installed() {
     [[ -f "$SERVICE_FILE" && -d "$TARGET_DIR/venv" ]]
 }
 
+restore_databases_from_backup() {
+    if [[ ! -d "$DB_BACKUP_DIR" ]] || ! compgen -G "$DB_BACKUP_DIR/*.db" > /dev/null; then
+        return 1
+    fi
+
+    echo "Restoring database backups from $DB_BACKUP_DIR..."
+    mkdir -p "$DST"
+    if cp -a "$DB_BACKUP_DIR"/*.db "$DST"/; then
+        echo -e "${GREEN}Database backups restored successfully.${RESET}"
+        return 0
+    fi
+
+    echo -e "${RED}Failed to restore database backups.${RESET}"
+    return 1
+}
+
+restore_settings_from_backup() {
+    if [[ ! -f "$SETTINGS_BACKUP_FILE" ]]; then
+        return 1
+    fi
+
+    echo "Restoring settings.json from $SETTINGS_BACKUP_FILE..."
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
+    if cp -a "$SETTINGS_BACKUP_FILE" "$SETTINGS_FILE"; then
+        echo -e "${GREEN}settings.json restored successfully.${RESET}"
+        return 0
+    fi
+
+    echo -e "${RED}Failed to restore settings.json.${RESET}"
+    return 1
+}
+
 install_python_venv() {
     PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     echo "Detected Python version: $PYTHON_VERSION"
@@ -53,6 +89,18 @@ install_python_venv() {
     else
         echo "python${PYTHON_VERSION}-venv is already installed."
     fi
+}
+
+ensure_qrencode() {
+    if command -v qrencode >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "Installing qrencode..."
+    run_as_root apt update && run_as_root apt install -y qrencode || {
+        echo -e "${RED}❌ Failed to install qrencode${RESET}"
+        exit 1
+    }
 }
 
 check_port_free() {
@@ -472,6 +520,15 @@ install_flow() {
     fi
     cd "$TARGET_DIR"
 
+    local DATABASES_RESTORED=0
+    local SETTINGS_RESTORED=0
+    if restore_databases_from_backup; then
+        DATABASES_RESTORED=1
+    fi
+    if restore_settings_from_backup; then
+        SETTINGS_RESTORED=1
+    fi
+
     install_python_venv
     if [ ! -d "$TARGET_DIR/venv" ]; then
         echo "Creating virtual environment..."
@@ -494,9 +551,14 @@ install_flow() {
 
     echo "Running initial admin setup..."
     local ADMIN_PASS
-    ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
+    if [[ "$DATABASES_RESTORED" -eq 1 ]]; then
+        PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; add_admin()" >/dev/null
+    else
+        ADMIN_PASS=$(PYTHONIOENCODING=utf-8 python3 -c "from main import add_admin; print(add_admin())")
+    fi
 
     setup_https
+    ensure_qrencode
     setup_vnstat
 
     echo "Reloading systemd daemon..."
@@ -523,7 +585,14 @@ install_flow() {
     echo "--------------------------------------------"
     echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
     echo -e "Admin login: ${GREEN}admin${RESET}"
-    echo -e "Admin password: ${GREEN}$ADMIN_PASS${RESET}"
+    if [[ "$DATABASES_RESTORED" -eq 1 ]]; then
+        echo -e "Admin password: ${GREEN}restored from backup${RESET}"
+    else
+        echo -e "Admin password: ${GREEN}$ADMIN_PASS${RESET}"
+    fi
+    if [[ "$SETTINGS_RESTORED" -eq 1 ]]; then
+        echo -e "Settings: ${GREEN}restored from backup${RESET}"
+    fi
     echo "--------------------------------------------"
 }
 
@@ -591,6 +660,7 @@ update_flow() {
     fi
 
     setup_telegram_bot
+    ensure_qrencode
     setup_vnstat
 
     if compgen -G "$SRC/*.db" > /dev/null; then
