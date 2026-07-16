@@ -57,6 +57,7 @@ OPENVPN_CONFIG_PATHS = [
     "/root/antizapret/client/openvpn/vpn-udp",
 ]
 
+OPENVPN_EASYRSA_ISSUED_DIR = "/etc/openvpn/easyrsa3/pki/issued"
 OPENVPN_KEYS_DIR = "/etc/openvpn/client/keys"
 OPENVPN_KEYS_DISABLED_DIR = os.path.join(OPENVPN_KEYS_DIR, "disabled")
 

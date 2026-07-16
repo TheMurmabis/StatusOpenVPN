@@ -69,7 +69,10 @@ def count_online_clients(file_paths):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 for line in f:
-                    if line.startswith("CLIENT_LIST"):
+                    if not line.startswith("CLIENT_LIST,"):
+                        continue
+                    parts = line.split(",", 2)
+                    if len(parts) > 1 and parts[1] != "UNDEF":
                         total_openvpn += 1
         except Exception:
             continue

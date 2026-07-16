@@ -251,7 +251,7 @@ def _get_openvpn_online_entries():
                     if len(parts) < 2:
                         continue
                     client_name = parts[1].strip()
-                    if not client_name:
+                    if not client_name or client_name == "UNDEF":
                         continue
                     connected = "—"
                     if len(parts) > 7:
@@ -517,7 +517,10 @@ def _count_online_clients():
         try:
             with open(path, "r", encoding="utf-8") as f:
                 for line in f:
-                    if line.startswith("CLIENT_LIST"):
+                    if not line.startswith("CLIENT_LIST,"):
+                        continue
+                    parts = line.split(",", 2)
+                    if len(parts) > 1 and parts[1] != "UNDEF":
                         total_openvpn += 1
         except Exception:
             continue

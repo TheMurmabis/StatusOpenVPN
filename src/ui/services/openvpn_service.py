@@ -14,6 +14,7 @@ from src.ui.constants import (
     OPENVPN_BANNED_CLIENTS_FILE,
     OPENVPN_CLIENT_CONNECT_SCRIPT,
     OPENVPN_CONFIG_PATHS,
+    OPENVPN_EASYRSA_ISSUED_DIR,
     OPENVPN_KEYS_DIR,
     OPENVPN_KEYS_DISABLED_DIR,
     OPENVPN_SOCKETS,
@@ -31,7 +32,6 @@ from src.ui.utils.openvpn_naming import extract_client_name_from_ovpn
 
 OPENVPN_CLIENT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
 OPENVPN_CERT_RENEW_WARN_DAYS = 30
-OPENVPN_EASYRSA_ISSUED_DIR = "/etc/openvpn/easyrsa3/pki/issued"
 
 
 def read_banned_clients():
@@ -133,11 +133,16 @@ def get_all_openvpn_clients():
 
 
 def list_openvpn_client_crt_files(client_name):
-    """Пути к .crt клиента в активной и отключённой директориях."""
+    """Пути к .crt: сначала easyrsa3, затем legacy client/keys и disabled."""
     paths = []
     clean = (client_name or "").strip()
     if not clean:
         return paths
+
+    easyrsa_crt = os.path.join(OPENVPN_EASYRSA_ISSUED_DIR, f"{clean}.crt")
+    if os.path.isfile(easyrsa_crt):
+        paths.append(easyrsa_crt)
+
     for base in (OPENVPN_KEYS_DIR, OPENVPN_KEYS_DISABLED_DIR):
         if not os.path.isdir(base):
             continue
@@ -146,7 +151,9 @@ def list_openvpn_client_crt_files(client_name):
                 if not filename.endswith(".crt"):
                     continue
                 if clean in filename:
-                    paths.append(os.path.join(base, filename))
+                    path = os.path.join(base, filename)
+                    if path not in paths:
+                        paths.append(path)
         except OSError:
             continue
     return paths
@@ -222,7 +229,9 @@ def count_openvpn_expiring_certs(days=30):
 
 
 def openvpn_client_cert_exists(client_name: str) -> bool:
-    return os.path.isfile(os.path.join(OPENVPN_EASYRSA_ISSUED_DIR, f"{client_name}.crt"))
+    if os.path.isfile(os.path.join(OPENVPN_EASYRSA_ISSUED_DIR, f"{client_name}.crt")):
+        return True
+    return os.path.isfile(os.path.join(OPENVPN_KEYS_DIR, f"{client_name}.crt"))
 
 
 def get_openvpn_cert_renew_state(expiry_dt):
