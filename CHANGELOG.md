@@ -4,11 +4,8 @@
 
 ## [v1.5.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.1) — 16.07.2026
 
-### StatusOpenVPN
-
 **Добавлено:**
 - Добавлено чтение ключей из `/etc/openvpn/easyrsa3`.
-
 
 **Исправлено/улучшено:**
 - Исправлена ошибка в подсчете клиентов на главной странице.
