@@ -2,6 +2,22 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.5.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.1) — 16.07.2026
+
+### StatusOpenVPN
+
+**Добавлено:**
+- Добавлено чтение ключей из `/etc/openvpn/easyrsa3`.
+
+
+**Исправлено/улучшено:**
+- Исправлена ошибка в подсчете клиентов на главной странице.
+
+---
+
+<details>
+<summary>v1.5.0 - 10.07.2026</summary>
+
 ## [v1.5.0](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.0) — 10.07.2026
 
 ### StatusOpenVPN
@@ -31,6 +47,7 @@
 - Главное меню: кнопка «Создать бэкап» теперь открывает подменю с резервными копиями клиентов, архивом базы данных и `settings.json`.
 - Импорт настроек: для этого необходимо отправить боту файл `settings.json`.
 
+</details>
 
 <details>
 <summary>v1.4.5 - 08.06.2026</summary>
