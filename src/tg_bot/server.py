@@ -234,46 +234,39 @@ def _format_connected_dt(dt: Optional[datetime.datetime]) -> str:
 
 def _get_openvpn_online_entries():
     """Онлайн-клиенты OpenVPN: имя, протокол (инстанс), время подключения."""
-    file_paths = [
-        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "Antizapret UDP"),
-        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "Antizapret TCP"),
-        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN UDP"),
-        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN TCP"),
-    ]
+    from src.openvpn_status import (
+        OPENVPN_STATUS_LABELS,
+        OPENVPN_STATUS_SOURCES,
+        get_openvpn_status_text,
+        iter_client_list_rows,
+    )
+
     entries = []
-    for file_path, protocol in file_paths:
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                for line in file:
-                    if not line.startswith("CLIENT_LIST"):
-                        continue
-                    parts = line.strip().split(",")
-                    if len(parts) < 2:
-                        continue
-                    client_name = parts[1].strip()
-                    if not client_name or client_name == "UNDEF":
-                        continue
-                    connected = "—"
-                    if len(parts) > 7:
-                        try:
-                            raw = parts[7].strip()
-                            start_dt = datetime.datetime.strptime(
-                                raw, "%Y-%m-%d %H:%M:%S"
-                            )
-                            connected = _format_connected_dt(start_dt)
-                        except (ValueError, IndexError):
-                            pass
-                    entries.append(
-                        {
-                            "name": client_name,
-                            "protocol": f"OpenVPN · {protocol}",
-                            "connected": connected,
-                        }
-                    )
-        except FileNotFoundError:
+    for protocol, _, _ in OPENVPN_STATUS_SOURCES:
+        label = OPENVPN_STATUS_LABELS.get(protocol, protocol)
+        text, error = get_openvpn_status_text(protocol)
+        if error and not text:
+            print(f"Ошибка статуса OpenVPN ({protocol}): {error}")
             continue
-        except Exception as e:
-            print(f"Ошибка чтения {file_path}: {e}")
+        for parts in iter_client_list_rows(text):
+            client_name = parts[1].strip()
+            if not client_name or client_name == "UNDEF":
+                continue
+            connected = "—"
+            try:
+                start_dt = datetime.datetime.strptime(
+                    parts[7].strip(), "%Y-%m-%d %H:%M:%S"
+                )
+                connected = _format_connected_dt(start_dt)
+            except (ValueError, IndexError):
+                pass
+            entries.append(
+                {
+                    "name": client_name,
+                    "protocol": f"OpenVPN · {label}",
+                    "connected": connected,
+                }
+            )
 
     entries.sort(key=lambda x: (x["name"].lower(), x["protocol"]))
     return entries
@@ -482,21 +475,15 @@ def _count_online_clients():
     """Подсчитать онлайн-клиентов VPN."""
     import re
     import subprocess
-    
-    total_openvpn = 0
+
+    from src.openvpn_status import count_openvpn_online_from_status
+
     results = {}
-    
-    file_paths = [
-        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-    ]
-    
+
     try:
         wg_output = subprocess.check_output(["/usr/bin/wg", "show"], text=True)
         wg_latest_handshakes = re.findall(r"latest handshake: (.+)", wg_output)
-        
+
         online_wg = 0
         for handshake in wg_latest_handshakes:
             handshake_str = handshake.strip()
@@ -512,18 +499,6 @@ def _count_online_clients():
         results["WireGuard"] = online_wg
     except Exception:
         results["WireGuard"] = 0
-    
-    for path, _ in file_paths:
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if not line.startswith("CLIENT_LIST,"):
-                        continue
-                    parts = line.split(",", 2)
-                    if len(parts) > 1 and parts[1] != "UNDEF":
-                        total_openvpn += 1
-        except Exception:
-            continue
-    
-    results["OpenVPN"] = total_openvpn
+
+    results["OpenVPN"] = count_openvpn_online_from_status()
     return results

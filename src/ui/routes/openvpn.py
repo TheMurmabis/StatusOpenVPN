@@ -7,6 +7,7 @@ from flask_login import login_required
 from tzlocal import get_localzone
 from zoneinfo._common import ZoneInfoNotFoundError
 
+from src.openvpn_status import OPENVPN_STATUS_SOURCES
 from src.ui.constants import MONTH_OPTIONS_RU
 from src.ui.extensions import app
 from src.ui.services.env_service import get_openvpn_server_ports
@@ -40,12 +41,6 @@ def _collect_openvpn_clients_unsorted():
     """Собирает список клиентов OpenVPN без сортировки.
     Возвращает (all_clients_list, total_received, total_sent, errors,
     total_dl_speed, total_ul_speed)."""
-    file_paths = [
-        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-    ]
     server_ports = get_openvpn_server_ports()
 
     online_clients_raw = []
@@ -54,10 +49,10 @@ def _collect_openvpn_clients_unsorted():
     errors = []
     online_client_names = set()
 
-    for file_path, protocol in file_paths:
-        file_data, received, sent, error = read_csv(file_path, protocol)
+    for protocol, files, _ in OPENVPN_STATUS_SOURCES:
+        file_data, received, sent, error = read_csv(files[0], protocol)
         if error:
-            errors.append(f"Ошибка в файле {file_path}: {error}")
+            errors.append(f"Ошибка статуса OpenVPN ({protocol}): {error}")
         else:
             online_clients_raw.extend(file_data)
             total_received += received

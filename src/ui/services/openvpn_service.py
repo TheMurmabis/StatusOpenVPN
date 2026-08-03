@@ -1,4 +1,3 @@
-import csv
 import os
 import re
 import socket
@@ -8,6 +7,7 @@ from datetime import datetime, timedelta
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
+from src.openvpn_status import get_openvpn_status_text, iter_client_list_rows
 from src.ui.constants import (
     CLIENT_CONNECT_BAN_CHECK_BLOCK,
     CLIENT_SH_PATH,
@@ -437,72 +437,71 @@ def read_csv(file_path, protocol):
     total_received, total_sent = 0, 0
     current_time = datetime.now()
 
-    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-        return [], 0, 0, None
+    status_text, error = get_openvpn_status_text(protocol)
+    if not status_text:
+        return [], 0, 0, error
 
-    with open(file_path, newline="", encoding="utf-8") as csvfile:
-        reader = csv.reader(csvfile)
+    for row in iter_client_list_rows(status_text):
+        client_name = row[1]
+        real_address = normalize_real_address(row[2])
         try:
-            next(reader)
-        except StopIteration:
-            return [], 0, 0, None
+            received = int(row[5])
+            sent = int(row[6])
+        except (TypeError, ValueError):
+            continue
+        total_received += received
+        total_sent += sent
 
-        for row in reader:
-            if row[0] == "CLIENT_LIST":
-                client_name = row[1]
-                real_address = normalize_real_address(row[2])
-                received = int(row[5])
-                sent = int(row[6])
-                total_received += received
-                total_sent += sent
+        try:
+            start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+        duration = format_duration(start_date)
 
-                start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
-                duration = format_duration(start_date)
+        previous_data = client_cache.get(
+            client_name, {"received": 0, "sent": 0, "timestamp": current_time}
+        )
+        previous_received = previous_data["received"]
+        previous_sent = previous_data["sent"]
+        previous_time = previous_data["timestamp"]
 
-                previous_data = client_cache.get(
-                    client_name, {"received": 0, "sent": 0, "timestamp": current_time}
-                )
-                previous_received = previous_data["received"]
-                previous_sent = previous_data["sent"]
-                previous_time = previous_data["timestamp"]
+        time_diff = (current_time - previous_time).total_seconds()
+        if time_diff >= 30:
+            download_speed = (
+                (received - previous_received) / time_diff
+                if received >= previous_received
+                else 0
+            )
+            upload_speed = (
+                (sent - previous_sent) / time_diff
+                if sent >= previous_sent
+                else 0
+            )
+        else:
+            download_speed = 0
+            upload_speed = 0
 
-                time_diff = (current_time - previous_time).total_seconds()
-                if time_diff >= 30:
-                    download_speed = (
-                        (received - previous_received) / time_diff
-                        if received >= previous_received
-                        else 0
-                    )
-                    upload_speed = (
-                        (sent - previous_sent) / time_diff
-                        if sent >= previous_sent
-                        else 0
-                    )
-                else:
-                    download_speed = 0
-                    upload_speed = 0
+        client_cache[client_name] = {
+            "received": received,
+            "sent": sent,
+            "timestamp": current_time,
+        }
 
-                client_cache[client_name] = {
-                    "received": received,
-                    "sent": sent,
-                    "timestamp": current_time,
-                }
-
-                data.append(
-                    [
-                        client_name,
-                        real_address,
-                        row[3],
-                        format_bytes(received),
-                        format_bytes(sent),
-                        f"{format_bytes(max(download_speed, 0))}/s",
-                        f"{format_bytes(max(upload_speed, 0))}/s",
-                        format_date(row[7]),
-                        duration,
-                        protocol,
-                        max(download_speed, 0),
-                        max(upload_speed, 0),
-                    ]
-                )
+        data.append(
+            [
+                client_name,
+                real_address,
+                row[3],
+                format_bytes(received),
+                format_bytes(sent),
+                f"{format_bytes(max(download_speed, 0))}/s",
+                f"{format_bytes(max(upload_speed, 0))}/s",
+                format_date(row[7]),
+                duration,
+                protocol,
+                max(download_speed, 0),
+                max(upload_speed, 0),
+            ]
+        )
 
     return data, total_received, total_sent, None

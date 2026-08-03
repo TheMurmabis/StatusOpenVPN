@@ -8,3 +8,4 @@ test.py
 .env
 setup
 settings.json
+ovpn-status/

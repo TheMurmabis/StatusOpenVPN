@@ -14,6 +14,7 @@ from src.ui.constants import (
     MAX_HISTORY_SECONDS,
     SAMPLE_INTERVAL,
 )
+from src.openvpn_status import count_openvpn_online_from_status
 from src.ui.services.openvpn_service import (
     count_openvpn_expiring_certs,
     read_banned_clients,
@@ -32,8 +33,7 @@ from src.ui.utils.network_utils import (
 from src.ui.utils.time_utils import is_peer_online, parse_relative_time
 
 
-def count_online_clients(file_paths):
-    total_openvpn = 0
+def count_online_clients(file_paths=None):
     results = {}
 
     hide_warp = bool(read_settings().get("hide_wg_warp_interface", False))
@@ -65,19 +65,7 @@ def count_online_clients(file_paths):
     except Exception:
         results["WireGuard"] = 0
 
-    for path, _ in file_paths:
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if not line.startswith("CLIENT_LIST,"):
-                        continue
-                    parts = line.split(",", 2)
-                    if len(parts) > 1 and parts[1] != "UNDEF":
-                        total_openvpn += 1
-        except Exception:
-            continue
-
-    results["OpenVPN"] = total_openvpn
+    results["OpenVPN"] = count_openvpn_online_from_status()
     return results
 
 
@@ -101,13 +89,6 @@ def get_system_info():
 
 
 def update_system_info():
-    file_paths = [
-        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-    ]
-
     while True:
         current_time = time.time()
         if not state.cached_system_info or (
@@ -125,7 +106,7 @@ def update_system_info():
 
             interface = get_default_interface()
             network_stats = get_network_stats(interface) if interface else None
-            vpn_clients = count_online_clients(file_paths)
+            vpn_clients = count_online_clients()
             vpn_blocked = count_blocked_clients()
             openvpn_expiring_certs = count_openvpn_expiring_certs()
             vpn_services = get_vpn_systemd_states()

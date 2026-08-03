@@ -5,6 +5,7 @@ import shutil
 from datetime import datetime, timedelta
 
 from src.config import Config
+from src.openvpn_status import OPENVPN_STATUS_SOURCES
 from src.ui.services.openvpn_service import (
     ensure_client_connect_ban_check_block,
     kick_openvpn_client,
@@ -19,14 +20,6 @@ from src.ui.services.wireguard_service import (
     toggle_peer_config,
 )
 from src.ui.utils.format_utils import format_bytes
-
-
-OPENVPN_LOGS = (
-    ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-    ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-    ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-    ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-)
 
 
 def get_client_statuses(vpn_type: str, clients: list[str]) -> dict[str, dict]:
@@ -53,8 +46,8 @@ def set_client_block(vpn_type: str, client_name: str, should_block: bool) -> tup
 
 def _get_openvpn_statuses(clients: list[str]) -> dict[str, dict]:
     online_names = set()
-    for file_path, protocol in OPENVPN_LOGS:
-        rows, _, _, _ = read_csv(file_path, protocol)
+    for protocol, files, _ in OPENVPN_STATUS_SOURCES:
+        rows, _, _, _ = read_csv(files[0], protocol)
         for row in rows:
             name = row[0]
             if name and name != "UNDEF":

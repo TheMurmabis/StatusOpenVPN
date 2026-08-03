@@ -2,6 +2,18 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.5.2](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.2) — 03.08.2026
+
+**Добавлено:**
+- Чтение статуса OpenVPN через management-сокет (`socat`), если status-файлы отсутствуют.
+- Общий кэш ответов socat в `ovpn-status/`.
+
+
+## Предыдущие версии
+
+<details>
+<summary>v1.5.1 - 16.07.2026</summary>
+
 ## [v1.5.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.1) — 16.07.2026
 
 **Добавлено:**
@@ -10,7 +22,7 @@
 **Исправлено:**
 - Ошибка в подсчете клиентов на главной странице.
 
----
+</details>
 
 <details>
 <summary>v1.5.0 - 10.07.2026</summary>

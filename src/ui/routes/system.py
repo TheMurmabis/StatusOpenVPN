@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from flask import jsonify, request
 from flask_login import login_required
 
+from src.openvpn_status import OPENVPN_STATUS_SOURCES, STATUS_SOCAT_CACHE_TTL
 from src.ui.constants import LIVE_POINTS, VPN_SYSTEMD_UNIT_SET
 from src.ui.extensions import app
 from src.ui.services.stats_service import group_rows, resample_to_n
@@ -40,36 +41,33 @@ def api_restart_vpn_service():
 @login_required
 def api_ovpn_next_update():
     """Оценка времени следующего обновления логов OpenVPN."""
-    file_paths = [
-        ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-        ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-        ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-        ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-    ]
-
     mtimes = []
-    for path, _ in file_paths:
-        try:
-            if os.path.exists(path):
-                mtimes.append(os.path.getmtime(path))
-        except OSError:
-            continue
+    has_status_files = False
+    for _, files, _ in OPENVPN_STATUS_SOURCES:
+        for path in files:
+            try:
+                if os.path.exists(path) and os.path.getsize(path) > 0:
+                    has_status_files = True
+                    mtimes.append(os.path.getmtime(path))
+            except OSError:
+                continue
 
     now_ts = time.time()
+    interval = 30 if has_status_files else STATUS_SOCAT_CACHE_TTL
 
     if not mtimes:
-        next_update_ts = now_ts + 30
+        next_update_ts = now_ts + interval
     else:
         last_mtime = max(mtimes)
-        next_update_ts = last_mtime + 30
+        next_update_ts = last_mtime + interval
         if next_update_ts <= now_ts:
-            next_update_ts = now_ts + 30
+            next_update_ts = now_ts + interval
 
     return jsonify(
         {
             "server_time": int(now_ts),
             "next_update_ts": int(next_update_ts),
-            "interval_seconds": 30,
+            "interval_seconds": interval,
         }
     )
 

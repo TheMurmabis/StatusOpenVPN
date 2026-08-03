@@ -1,21 +1,22 @@
 import os
+import sys
 import sqlite3
-import csv
 import json
 
 from datetime import datetime, timedelta, timezone
 from tzlocal import get_localzone
 
-# Пути к файлам логов OpenVPN
-LOG_FILES = [
-    ("/etc/openvpn/server/logs/antizapret-udp-status.log", "UDP"),
-    ("/etc/openvpn/server/logs/antizapret-tcp-status.log", "TCP"),
-    ("/etc/openvpn/server/logs/vpn-udp-status.log", "VPN-UDP"),
-    ("/etc/openvpn/server/logs/vpn-tcp-status.log", "VPN-TCP"),
-]
-
-# Путь к базе данных
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BASE_DIR)
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from src.openvpn_status import (
+    OPENVPN_STATUS_SOURCES,
+    get_openvpn_status_text,
+    iter_client_list_rows,
+)
+
 DB_PATH = os.path.join(BASE_DIR, "databases", "openvpn_logs.db")
 SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 HISTORY_MAX_RECORDS_DEFAULT = 1000
@@ -211,52 +212,41 @@ def normalize_real_address(addr):
     return addr
 
 
-def parse_log_file(log_file, protocol):
-    """Читает и парсит файл лога."""
+def parse_log_file(protocol):
+    """Читает и парсит статус OpenVPN (файл или socat)."""
     logs = []
-    total_received = 0
-    total_sent = 0
-    parse_count = 0
-    skipped_count = 0
-    if not os.path.exists(log_file):
-        print(f"Файл не найден: {log_file}")
-        return []
-    if os.path.getsize(log_file) == 0:
+    status_text, error = get_openvpn_status_text(protocol)
+    if not status_text:
+        if error:
+            print(f"Статус OpenVPN ({protocol}): {error}")
         return []
 
-    with open(log_file, newline="", encoding="utf-8") as file:
-        reader = csv.reader(file)
+    for row in iter_client_list_rows(status_text):
+        client_name = row[1]
+        real_address = normalize_real_address(row[2])
         try:
-            next(reader)
-        except StopIteration:
-            return []
-
-        for row in reader:
-            if not row:
-                continue
-            if row[0] == "CLIENT_LIST":
-                parse_count += 1
-                client_name = row[1]
-                real_address = normalize_real_address(row[2])
-                received = int(row[5])
-                sent = int(row[6])
-                total_received += received
-                total_sent += sent
-                start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
-                duration = format_duration(start_date)
-                logs.append(
-                    {
-                        "client_name": client_name,
-                        "real_ip": mask_ip(real_address),
-                        "local_ip": row[3],
-                        "bytes_received": received,
-                        "connected_since": format_date(row[7]),
-                        "bytes_sent": sent,
-                        "duration": duration,
-                        "protocol": protocol,
-                    }
-                )
-                print(f"Обработано: {client_name}_{received}/{sent}")
+            received = int(row[5])
+            sent = int(row[6])
+        except (TypeError, ValueError):
+            continue
+        try:
+            start_date = datetime.strptime(row[7], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+        duration = format_duration(start_date)
+        logs.append(
+            {
+                "client_name": client_name,
+                "real_ip": mask_ip(real_address),
+                "local_ip": row[3],
+                "bytes_received": received,
+                "connected_since": format_date(row[7]),
+                "bytes_sent": sent,
+                "duration": duration,
+                "protocol": protocol,
+            }
+        )
+        print(f"Обработано: {client_name}_{received}/{sent}")
     return logs
 
 
@@ -542,8 +532,8 @@ def process_logs():
     initialize_database()
     ensure_column_exists()
     all_logs = []
-    for log_file, protocol in LOG_FILES:
-        all_logs.extend(parse_log_file(log_file, protocol))
+    for protocol, _, _ in OPENVPN_STATUS_SOURCES:
+        all_logs.extend(parse_log_file(protocol))
     save_daily_stats(all_logs)
     save_connection_logs(all_logs)
     aggregate_to_monthly()
