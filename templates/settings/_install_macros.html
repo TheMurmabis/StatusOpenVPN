@@ -1,11 +1,13 @@
 {% macro install_value_badge(key, value) -%}
   {% if key == 'OPENVPN_PATCH' %}
     {% if value == '0' %}
-      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">None</span>
+      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" title="Не устанавливать патч против цензуры или удалить, если уже установлен">None</span>
     {% elif value == '1' %}
-      <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Strong</span>
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Рекомендуется по умолчанию, случайно выбирает Strong или Error-Free">Random</span>
     {% elif value == '2' %}
-      <span class="badge bg-success-subtle text-success border border-success-subtle">Error-free</span>
+      <span class="badge bg-info-subtle text-info border border-info-subtle" title="Лучшая маскировка протокола">Strong</span>
+    {% elif value == '3' %}
+      <span class="badge bg-success-subtle text-success border border-success-subtle" title="Если патч Strong вызывает ошибку подключения, рекомендуется для роутеров">Error-Free</span>
     {% elif value %}
       <span class="badge bg-light text-dark border">{{ value }}</span>
     {% else %}

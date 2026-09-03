@@ -108,89 +108,49 @@
                         <td class="text-center">{{ client.cert_expiry_label }}</td>
                         <td class="text-center">
                             <div>{{ client.cert_days_left_label }}</div>
-                            {% if client.cert_renew_state in ['expiring', 'expired'] %}
-                            <a href="#"
-                                class="btn-renew-cert small d-block{% if client.cert_renew_state == 'expired' %} text-danger{% endif %}"
-                                data-client="{{ client.name }}"
-                                data-expired="{{ 'true' if client.cert_renew_state == 'expired' else 'false' }}"
-                                title="Продлить сертификат">продлить</a>
-                            {% endif %}
                         </td>
                         <td class="text-center actions-cell">
-                            <div class="d-inline-flex align-items-center justify-content-center gap-1 flex-wrap">
-                            <div class="dropdown ovpn-actions-dropdown d-inline-block">
-                                <button type="button" class="btn btn-sm btn-light border ovpn-actions-menu-btn"
-                                    data-bs-toggle="dropdown" data-bs-container="body" aria-expanded="false"
-                                    title="Действия" aria-label="Меню действий">
-                                    <i class="fa fa-ellipsis-v" aria-hidden="true"></i>
+                            <div class="vpn-actions-row">
+                                <button type="button" class="vpn-action-icon-btn" data-action="download-config"
+                                    data-client="{{ client.name }}" title="Скачать конфигурацию"
+                                    aria-label="Скачать конфигурацию">
+                                    <i class="fa fa-download" aria-hidden="true"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end ovpn-actions-menu shadow-sm">
-                                    {% if client.blocked %}
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-unblock ovpn-action-item--neutral"
-                                            data-action="unblock" data-client="{{ client.name }}"
-                                            data-client-online="{{ 'true' if client.online else 'false' }}">
-                                            <i class="fa fa-unlock fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Разблокировать</span>
-                                        </button>
-                                    </li>
-                                    {% elif client.online %}
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-kick text-danger"
-                                            data-action="kick" data-client="{{ client.name }}"
-                                            data-protocol="{{ client.protocol }}" data-client-online="true">
-                                            <i class="fa fa-ban fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Отключить и заблокировать</span>
-                                        </button>
-                                    </li>
-                                    {% else %}
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-block ovpn-action-item--neutral"
-                                            data-action="block" data-client="{{ client.name }}"
-                                            data-client-online="false">
-                                            <i class="fa fa-lock fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Заблокировать</span>
-                                        </button>
-                                    </li>
-                                    {% endif %}
-                                    {% if client.cert_renew_state in ['expiring', 'expired'] %}
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-renew-cert ovpn-action-item--neutral"
-                                            data-client="{{ client.name }}"
-                                            data-expired="{{ 'true' if client.cert_renew_state == 'expired' else 'false' }}">
-                                            <i class="fa fa-refresh fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Продлить сертификат</span>
-                                        </button>
-                                    </li>
-                                    {% endif %}
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-download-config ovpn-action-item--neutral"
-                                            data-action="download-config" data-client="{{ client.name }}">
-                                            <i class="fa fa-download fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Скачать конфигурацию</span>
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
-                                    <li>
-                                        <button type="button"
-                                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-delete-client text-danger"
-                                            data-action="delete-client" data-client="{{ client.name }}">
-                                            <i class="fa fa-trash fa-fw" aria-hidden="true"></i>
-                                            <span class="ovpn-action-label">Удалить клиента</span>
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
+                                <button type="button"
+                                    class="vpn-action-icon-btn btn-renew-cert{% if client.cert_renew_state == 'expired' %} is-danger{% endif %}"
+                                    data-client="{{ client.name }}"
+                                    data-expired="{{ 'true' if client.cert_renew_state == 'expired' else 'false' }}"
+                                    data-renew-state="{{ client.cert_renew_state }}"
+                                    title="Изменить/продлить срок сертификата"
+                                    aria-label="Изменить/продлить срок сертификата">
+                                    <i class="fa fa-arrows-rotate" aria-hidden="true"></i>
+                                </button>
+                                {% if client.blocked %}
+                                <button type="button" class="vpn-action-icon-btn" data-action="unblock"
+                                    data-client="{{ client.name }}"
+                                    data-client-online="{{ 'true' if client.online else 'false' }}"
+                                    title="Разблокировать" aria-label="Разблокировать">
+                                    <i class="fa fa-unlock" aria-hidden="true"></i>
+                                </button>
+                                {% elif client.online %}
+                                <button type="button" class="vpn-action-icon-btn is-danger" data-action="kick"
+                                    data-client="{{ client.name }}" data-protocol="{{ client.protocol }}"
+                                    data-client-online="true" title="Отключить и заблокировать"
+                                    aria-label="Отключить и заблокировать">
+                                    <i class="fa fa-ban" aria-hidden="true"></i>
+                                </button>
+                                {% else %}
+                                <button type="button" class="vpn-action-icon-btn is-danger" data-action="block"
+                                    data-client="{{ client.name }}" data-client-online="false" title="Заблокировать"
+                                    aria-label="Заблокировать">
+                                    <i class="fa fa-ban" aria-hidden="true"></i>
+                                </button>
+                                {% endif %}
+                                <button type="button" class="vpn-action-icon-btn is-danger" data-action="delete-client"
+                                    data-client="{{ client.name }}" title="Удалить клиента"
+                                    aria-label="Удалить клиента">
+                                    <i class="fa fa-trash" aria-hidden="true"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -211,67 +171,115 @@
 
     {% endif %}
 
-    <div class="modal fade ovpn-client-modal" id="ovpnCreateClientModal" tabindex="-1" aria-labelledby="ovpnCreateClientModalTitle"
-        aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="ovpnCreateClientModal" tabindex="-1"
+        aria-labelledby="ovpnCreateClientModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="ovpnCreateClientModalTitle">Создать клиента OpenVPN</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3">
-                        Укажите имя клиента. Имя может содержать только латинские буквы (A–Z, a–z), цифры (0–9), символы <code>_</code> и <code>-</code>.
-                        Если клиент с таким именем уже существует, будет продлён сертификат на указанный срок.
-                    </p>
-                    <div class="mb-3">
-                        <label class="form-label" for="ovpnCreateClientName">Имя клиента</label>
-                        <input type="text" class="form-control" id="ovpnCreateClientName" maxlength="32"
-                            pattern="[A-Za-z0-9_-]+" placeholder="например, user1" autocomplete="off">
+                <form id="ovpnCreateClientForm" novalidate>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            Если клиент с таким именем уже есть, сертификат будет продлён на указанный срок.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label" for="ovpnCreateClientName">Имя клиента</label>
+                            <input type="text" class="form-control" id="ovpnCreateClientName" maxlength="32"
+                                pattern="[A-Za-z0-9_-]+" placeholder="например, user1" autocomplete="off" required>
+                            <div class="form-text">Латиница, цифры, <code>_</code> и <code>-</code>, до 32 символов.
+                            </div>
+                            <div class="invalid-feedback" id="ovpnCreateClientNameError">Укажите корректное имя.</div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="ovpnCreateClientDays">Срок действия сертификата</label>
+                            <div class="ovpn-days-presets mb-2" role="group" aria-label="Готовый срок">
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="30">30 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="90">90 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="180">180 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="365">1 год</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="3650">10 лет</button>
+                            </div>
+                            <div class="has-validation">
+                                <div class="input-group" id="ovpnCreateClientDaysGroup">
+                                    <input type="number" class="form-control" id="ovpnCreateClientDays" min="1"
+                                        max="3650" value="3650" required>
+                                    <span class="input-group-text">дней</span>
+                                </div>
+                                <div class="form-text" id="ovpnCreateClientDaysHint"></div>
+                                <div class="invalid-feedback" id="ovpnCreateClientDaysError">Укажите срок от 1 до 3650
+                                    дней.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label" for="ovpnCreateClientDays">Срок действия сертификата (дней)</label>
-                        <input type="number" class="form-control" id="ovpnCreateClientDays" min="1" max="3650"
-                            value="3650">
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary" id="ovpnCreateClientSubmit">Создать</button>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-primary" id="ovpnCreateClientSubmit">Создать</button>
-                </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <div class="modal fade ovpn-client-modal" id="ovpnRenewClientModal" tabindex="-1" aria-labelledby="ovpnRenewClientModalTitle"
-        aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="ovpnRenewClientModal" tabindex="-1"
+        aria-labelledby="ovpnRenewClientModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="ovpnRenewClientModalTitle">Продлить сертификат</h5>
+                    <div class="ovpn-modal-heading me-auto min-w-0">
+                        <h5 class="modal-title" id="ovpnRenewClientModalTitle">Изменить/продлить срок сертификата</h5>
+                        <div class="ovpn-modal-kicker text-truncate">
+                            <code><span id="ovpnRenewClientName"></span></code>
+                        </div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3" id="ovpnRenewClientHint"></p>
-                    <div class="mb-3">
-                        <div class="form-label mb-1">Клиент: <code><span id="ovpnRenewClientName"></span></code></div>
+                <form id="ovpnRenewClientForm" novalidate>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3" id="ovpnRenewClientHint"></p>
+                        <div class="mb-0">
+                            <label class="form-label" for="ovpnRenewClientDays">Новый срок действия</label>
+                            <div class="ovpn-days-presets mb-2" role="group" aria-label="Готовый срок">
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="30">30 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="90">90 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="180">180 дн.</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="365">1 год</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary ovpn-days-preset"
+                                    data-days="3650">10 лет</button>
+                            </div>
+                            <div class="has-validation">
+                                <div class="input-group" id="ovpnRenewClientDaysGroup">
+                                    <input type="number" class="form-control" id="ovpnRenewClientDays" min="1"
+                                        max="3650" value="3650" required>
+                                    <span class="input-group-text">дней</span>
+                                </div>
+                                <div class="form-text" id="ovpnRenewClientDaysHint"></div>
+                                <div class="invalid-feedback" id="ovpnRenewClientDaysError">Укажите срок от 1 до 3650
+                                    дней.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label" for="ovpnRenewClientDays">Новый срок (дней)</label>
-                        <input type="number" class="form-control" id="ovpnRenewClientDays" min="1" max="3650"
-                            value="3650">
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary" id="ovpnRenewClientSubmit">Применить</button>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-primary" id="ovpnRenewClientSubmit">Продлить</button>
-                </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <div class="modal fade ovpn-client-modal" id="ovpnCertResultModal" tabindex="-1" aria-labelledby="ovpnCertResultModalTitle"
-        aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="ovpnCertResultModal" tabindex="-1"
+        aria-labelledby="ovpnCertResultModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -279,8 +287,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2" id="ovpnCertResultMessage"></p>
-                    <p class="text-muted small mb-0 d-none" id="ovpnCertResultConfigHint"></p>
+                    <div class="d-flex align-items-start gap-3">
+                        <i class="bi bi-check-circle ovpn-modal-result-icon" aria-hidden="true"></i>
+                        <div class="min-w-0">
+                            <p class="mb-2" id="ovpnCertResultMessage"></p>
+                            <p class="text-muted small mb-0 d-none" id="ovpnCertResultConfigHint"></p>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-primary d-none" id="ovpnCertResultDownloadBtn">
@@ -292,27 +305,73 @@
         </div>
     </div>
 
-    <div class="modal fade ovpn-client-modal" id="ovpnConfigDownloadModal" tabindex="-1" aria-labelledby="ovpnConfigDownloadModalTitle"
-        aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="ovpnConfigDownloadModal" tabindex="-1"
+        aria-labelledby="ovpnConfigDownloadModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="ovpnConfigDownloadModalTitle">Скачать конфигурацию</h5>
+                    <div class="ovpn-modal-heading me-auto min-w-0">
+                        <h5 class="modal-title" id="ovpnConfigDownloadModalTitle">Скачать конфигурацию</h5>
+                        <div class="ovpn-modal-kicker text-truncate" id="ovpnConfigDownloadClient"></div>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small mb-3">Выберите профиль и скачайте файл .ovpn для импорта в 
-                        <a href="https://openvpn.net/client/" target="_blank" rel="noopener noreferrer">OpenVPN</a>.
+                    <p class="text-muted small mb-2">Выберите профиль, протокол и добавьте в приложение
+                        <a href="https://openvpn.net/client/" target="_blank" rel="noopener noreferrer"
+                            class="text-decoration-none">OpenVPN
+                        </a>.
                     </p>
-                    <div id="ovpnConfigDownloadLoading" class="py-3 text-muted small">Загрузка…</div>
+                    <div id="ovpnConfigDownloadLoading" class="ovpn-modal-state">
+                        <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true">
+                        </div>
+                        <div class="small text-muted mt-2 mb-0">Загрузка профилей…</div>
+                    </div>
+
+                    <div id="ovpnConfigDownloadError" class="alert alert-danger py-2 px-3 small d-none mb-0"
+                        role="alert"></div>
+
                     <div id="ovpnConfigDownloadBody" class="d-none">
-                        <label class="form-label small text-muted mb-1 d-none"
-                            for="ovpnConfigProfileSelect">Профиль</label>
-                        <select id="ovpnConfigProfileSelect" class="form-select form-select-sm mb-3 d-none"
-                            aria-label="Профиль OpenVPN"></select>
-                        <div class="text-center">
-                            <a href="#" id="ovpnConfigDownloadBtn" class="btn btn-primary btn-sm" download>Скачать
-                                .ovpn</a>
+                        <div class="mb-3">
+                            <div class="form-label mb-2">Профиль:</div>
+                            <div id="ovpnProfileType" class="ovpn-config-choice-grid ovpn-config-choice-grid--profiles"
+                                role="group" aria-label="Профиль OpenVPN">
+                                <button type="button" class="btn ovpn-config-choice-btn" data-profile="antizapret"
+                                    aria-pressed="false">
+                                    <span class="ovpn-config-choice-btn__title">AntiZapret</span>
+                                    <span class="ovpn-config-choice-btn__hint">Раздельное туннелирование</span>
+                                </button>
+                                <button type="button" class="btn ovpn-config-choice-btn" data-profile="vpn"
+                                    aria-pressed="false">
+                                    <span class="ovpn-config-choice-btn__title">VPN</span>
+                                    <span class="ovpn-config-choice-btn__hint">Весь трафик</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-label mb-2">Протокол:</div>
+                            <div id="ovpnProtocolType"
+                                class="ovpn-config-choice-grid ovpn-config-choice-grid--protocols" role="group"
+                                aria-label="Протокол OpenVPN">
+                                <button type="button" class="btn ovpn-config-choice-btn" data-protocol="auto"
+                                    aria-pressed="false">Auto</button>
+                                <button type="button" class="btn ovpn-config-choice-btn" data-protocol="tcp"
+                                    aria-pressed="false">TCP</button>
+                                <button type="button" class="btn ovpn-config-choice-btn" data-protocol="udp"
+                                    aria-pressed="false">UDP</button>
+                            </div>
+                        </div>
+
+                        <select id="ovpnConfigProfileSelect" class="d-none" tabindex="-1" aria-hidden="true"></select>
+
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="wg-config-summary min-w-0">
+                                <span class="text-muted">Выбрано:</span>
+                                <strong id="ovpnConfigSelectionSummary"></strong>
+                            </div>
+                            <a href="#" id="ovpnConfigDownloadBtn" class="btn btn-primary flex-shrink-0"
+                                download>Скачать</a>
                         </div>
                     </div>
                 </div>
@@ -320,8 +379,8 @@
         </div>
     </div>
 
-    <div class="modal fade ovpn-client-modal" id="confirmOvpnBlockModal" tabindex="-1" aria-labelledby="confirmOvpnModalTitle"
-        aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="confirmOvpnBlockModal" tabindex="-1"
+        aria-labelledby="confirmOvpnModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">

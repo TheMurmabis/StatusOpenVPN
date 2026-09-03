@@ -107,7 +107,7 @@
         </div>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-3 settings-anchor-target" id="shorten_wg_filenames-wrap">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="shorten_wg_filenames" name="shorten_wg_filenames" {% if shorten_wg_filenames %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="shorten_wg_filenames">
@@ -329,6 +329,22 @@
     }
     panel.addEventListener('shown.bs.collapse', sync);
     panel.addEventListener('hidden.bs.collapse', sync);
+  })();
+
+  (function focusSettingsAnchor() {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (!el) return;
+    const target = el.closest('.settings-anchor-target') || el;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('settings-anchor-flash');
+    if (el.matches('input, select, textarea, button')) {
+      setTimeout(function () { el.focus({ preventScroll: true }); }, 350);
+    }
+    setTimeout(function () {
+      target.classList.remove('settings-anchor-flash');
+    }, 2600);
   })();
 })();
 </script>

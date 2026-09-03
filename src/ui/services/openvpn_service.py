@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 from src.openvpn_status import get_openvpn_status_text, iter_client_list_rows
 from src.ui.constants import (
     CLIENT_CONNECT_BAN_CHECK_BLOCK,
+    CLIENT_CONNECT_CERT_EXPIRE_BLOCK,
     CLIENT_SH_PATH,
     OPENVPN_BANNED_CLIENTS_FILE,
     OPENVPN_CLIENT_CONNECT_SCRIPT,
@@ -55,16 +56,7 @@ def write_banned_clients(clients):
             f.write("\n".join(ordered) + "\n")
 
 
-def ensure_client_connect_ban_check_block():
-    try:
-        with open(OPENVPN_CLIENT_CONNECT_SCRIPT, "r", encoding="utf-8") as f:
-            content = f.read()
-    except FileNotFoundError:
-        content = ""
-
-    if CLIENT_CONNECT_BAN_CHECK_BLOCK in content:
-        return
-
+def _insert_client_connect_block(content, block):
     if content.startswith("#!"):
         first_line_end = content.find("\n")
         if first_line_end == -1:
@@ -73,16 +65,26 @@ def ensure_client_connect_ban_check_block():
         else:
             shebang_line = content[: first_line_end + 1]
             rest = content[first_line_end + 1:]
-        new_content = (
-            shebang_line
-            + "\n"
-            + CLIENT_CONNECT_BAN_CHECK_BLOCK
-            + "\n"
-            + rest.lstrip("\n")
-        )
-    else:
-        new_content = CLIENT_CONNECT_BAN_CHECK_BLOCK + "\n" + content.lstrip("\n")
+        return shebang_line + "\n" + block + "\n" + rest.lstrip("\n")
+    return block + "\n" + content.lstrip("\n")
 
+
+def ensure_client_connect_ban_check_block():
+    try:
+        with open(OPENVPN_CLIENT_CONNECT_SCRIPT, "r", encoding="utf-8") as f:
+            content = f.read()
+    except FileNotFoundError:
+        return
+
+    missing = []
+    if CLIENT_CONNECT_BAN_CHECK_BLOCK not in content:
+        missing.append(CLIENT_CONNECT_BAN_CHECK_BLOCK)
+    if CLIENT_CONNECT_CERT_EXPIRE_BLOCK not in content:
+        missing.append(CLIENT_CONNECT_CERT_EXPIRE_BLOCK)
+    if not missing:
+        return
+
+    new_content = _insert_client_connect_block(content, "\n".join(missing))
     with open(OPENVPN_CLIENT_CONNECT_SCRIPT, "w", encoding="utf-8") as f:
         f.write(new_content)
 
@@ -223,7 +225,7 @@ def count_openvpn_expiring_certs(days=30):
     total = 0
     for client_name in get_all_openvpn_clients():
         expiry_dt, _ = get_openvpn_client_cert_expiry(client_name)
-        if expiry_dt is not None and now < expiry_dt < limit:
+        if expiry_dt is not None and now < expiry_dt <= limit:
             total += 1
     return total
 
@@ -240,9 +242,32 @@ def get_openvpn_cert_renew_state(expiry_dt):
     now = datetime.utcnow()
     if expiry_dt <= now:
         return "expired"
-    if expiry_dt < now + timedelta(days=OPENVPN_CERT_RENEW_WARN_DAYS):
+    if expiry_dt <= now + timedelta(days=OPENVPN_CERT_RENEW_WARN_DAYS):
         return "expiring"
     return "ok"
+
+
+def get_openvpn_enforced_cert_path(client_name):
+    clean = (client_name or "").strip()
+    if not OPENVPN_CLIENT_NAME_RE.fullmatch(clean):
+        return None
+    issued = os.path.join(OPENVPN_EASYRSA_ISSUED_DIR, f"{clean}.crt")
+    if os.path.isfile(issued):
+        return issued
+    legacy = os.path.join(OPENVPN_KEYS_DIR, f"{clean}.crt")
+    if os.path.isfile(legacy):
+        return legacy
+    return None
+
+
+def is_openvpn_client_cert_expired(client_name):
+    path = get_openvpn_enforced_cert_path(client_name)
+    if not path:
+        return False
+    expiry_dt = read_pem_cert_not_after_utc(path)
+    if expiry_dt is None:
+        return False
+    return expiry_dt <= datetime.utcnow()
 
 
 def run_openvpn_add_or_renew_client(client_name: str, days: int) -> dict:
@@ -430,6 +455,27 @@ def kick_openvpn_client(client_name, protocol=None):
                     errors.append(f"{proto}: Unexpected response: {response}")
 
     return kicked, errors
+
+
+def kick_online_expired_openvpn_clients():
+    try:
+        ensure_client_connect_ban_check_block()
+    except OSError:
+        pass
+
+    for proto in ("UDP", "TCP", "VPN-UDP", "VPN-TCP"):
+        clients, error = get_openvpn_clients_from_socket(proto)
+        if error:
+            continue
+        seen = set()
+        for client in clients:
+            name = (client.get("common_name") or "").strip()
+            if not name or name == "UNDEF" or name in seen:
+                continue
+            seen.add(name)
+            if not is_openvpn_client_cert_expired(name):
+                continue
+            kick_openvpn_client(name, protocol=proto)
 
 
 def read_csv(file_path, protocol):

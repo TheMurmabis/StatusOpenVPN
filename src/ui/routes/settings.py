@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime
 
 from flask import abort, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
@@ -53,10 +54,12 @@ from src.ui.services.stats_service import (
     get_ovpn_wg_database_sizes,
 )
 from src.ui.services.update_service import (
-    get_latest_github_version,
+    get_release_info,
     is_update_available,
     is_update_running,
     read_update_log_tail,
+    render_changelog_html,
+    split_changelog_markdown,
     start_silent_update,
 )
 from src.ui.utils.format_utils import format_bytes
@@ -549,9 +552,29 @@ def settings_update():
     update_message = None
     update_error = None
     update_available, current_version, latest_version = is_update_available()
-    github_error = None
-    if not latest_version:
-        latest_version, github_error = get_latest_github_version()
+    release_info = get_release_info()
+    latest_version = latest_version or release_info.get("latest")
+    github_error = release_info.get("error")
+    changelog_url = release_info.get("changelog_url")
+    changelog_md = release_info.get("changelog_md") or ""
+    changes_md, overview_md = split_changelog_markdown(changelog_md)
+    changelog_html = render_changelog_html(changes_md or changelog_md)
+    changelog_overview_html = (
+        render_changelog_html(overview_md) if overview_md else ""
+    )
+    check_time = release_info.get("at") or 0
+    last_check = None
+    if check_time:
+        last_check = datetime.fromtimestamp(check_time).strftime("%d.%m.%Y %H:%M")
+    published_at = None
+    published_raw = release_info.get("published_at")
+    if published_raw:
+        try:
+            published_at = datetime.fromisoformat(
+                published_raw.replace("Z", "+00:00")
+            ).strftime("%d.%m.%Y")
+        except ValueError:
+            published_at = None
 
     if request.method == "POST":
         if is_update_running():
@@ -586,6 +609,11 @@ def settings_update():
         update_message=update_message,
         update_error=update_error,
         github_error=github_error,
+        last_check=last_check,
+        published_at=published_at,
+        changelog_url=changelog_url,
+        changelog_html=changelog_html,
+        changelog_overview_html=changelog_overview_html,
         active_page="settings_update",
     )
 

@@ -560,13 +560,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const clientFilter = document.getElementById('clientFilter');
+    function applyClientNameFilter(rawValue) {
+        if (!clientFilter) return;
+        const filterValue = String(rawValue || '').toLowerCase();
+        document.querySelectorAll('.client-table tbody tr').forEach(row => {
+            const clientName = (row.dataset.client || row.querySelector('.client-name')?.textContent || '').toLowerCase();
+            row.style.display = clientName.includes(filterValue) ? '' : 'none';
+        });
+    }
     if (clientFilter) {
         clientFilter.addEventListener('input', function () {
-            const filterValue = clientFilter.value.toLowerCase();
-            document.querySelectorAll('.client-table tbody tr').forEach(row => {
-                const clientName = row.querySelector('.client-name').textContent.toLowerCase();
-                row.style.display = clientName.includes(filterValue) ? '' : 'none';
-            });
+            applyClientNameFilter(clientFilter.value);
         });
     }
 
@@ -629,33 +633,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Восстановление ранее выбранного клиента после перезагрузки/смены периода
     try {
-        const savedRaw = localStorage.getItem(WG_STORAGE_KEY);
-        if (savedRaw) {
-            let parsed = [];
-            try {
-                const maybeArray = JSON.parse(savedRaw);
-                if (Array.isArray(maybeArray)) parsed = maybeArray;
-                else if (typeof maybeArray === 'string' && maybeArray) parsed = [maybeArray];
-            } catch (_) {
-                parsed = [savedRaw];
+        const urlClient = (new URLSearchParams(window.location.search).get('client') || '').trim();
+        let restored = [];
+        if (urlClient) {
+            const exists = Array.from(document.querySelectorAll('.client-table tbody tr[data-client]'))
+                .some((row) => row.dataset.client === urlClient);
+            if (exists) {
+                restored = [urlClient];
+                if (clientFilter) {
+                    clientFilter.value = urlClient;
+                    applyClientNameFilter(urlClient);
+                }
             }
-            selectedClients = parsed
-                .filter((name) => document.querySelector(`.client-table tbody tr[data-client="${name}"]`))
-                .slice(0, MULTI_MAX_CLIENTS);
-            if (!isMultiMode() && selectedClients.length > 1) {
-                selectedClients = selectedClients.slice(0, 1);
+        }
+        if (!restored.length) {
+            const savedRaw = localStorage.getItem(WG_STORAGE_KEY);
+            if (savedRaw) {
+                let parsed = [];
+                try {
+                    const maybeArray = JSON.parse(savedRaw);
+                    if (Array.isArray(maybeArray)) parsed = maybeArray;
+                    else if (typeof maybeArray === 'string' && maybeArray) parsed = [maybeArray];
+                } catch (_) {
+                    parsed = [savedRaw];
+                }
+                restored = parsed
+                    .filter((name) => Array.from(document.querySelectorAll('.client-table tbody tr[data-client]'))
+                        .some((row) => row.dataset.client === name))
+                    .slice(0, MULTI_MAX_CLIENTS);
             }
-            if (selectedClients.length) {
-                const container = document.getElementById('clientChartContainer');
-                const nameEl = document.getElementById('chartClientName');
-                container.style.display = 'block';
-                nameEl.textContent = (isMultiMode() && selectedClients.length > 1)
-                    ? selectedClients.join(', ')
-                    : selectedClients[0];
-                updateRowSelectionUI();
-                updateClientChart();
+        }
+        selectedClients = restored;
+        if (!isMultiMode() && selectedClients.length > 1) {
+            selectedClients = selectedClients.slice(0, 1);
+        }
+        if (selectedClients.length) {
+            persistSelectedClients();
+            const container = document.getElementById('clientChartContainer');
+            const nameEl = document.getElementById('chartClientName');
+            container.style.display = 'block';
+            nameEl.textContent = (isMultiMode() && selectedClients.length > 1)
+                ? selectedClients.join(', ')
+                : selectedClients[0];
+            updateRowSelectionUI();
+            updateClientChart();
+            if (urlClient) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
     } catch (e) {

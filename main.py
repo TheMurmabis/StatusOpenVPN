@@ -10,6 +10,7 @@ from src.ui.services.system_info_service import (
     update_system_info,
     update_system_info_loop,
 )
+from src.ui.services.openvpn_service import ensure_client_connect_ban_check_block
 
 import src.ui.routes  # регистрирует Flask-маршруты на app
 
@@ -23,6 +24,11 @@ __all__ = [
     "create_users_table",
 ]
 
+
+try:
+    ensure_client_connect_ban_check_block()
+except OSError:
+    pass
 
 threading.Thread(target=update_system_info, daemon=True).start()
 threading.Thread(target=update_system_info_loop, daemon=True).start()

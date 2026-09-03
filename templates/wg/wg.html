@@ -10,261 +10,415 @@
 
 {% block content %}
 <div class="dash-mon vpn-page">
-  <header class="dash-mon__hero">
-    <div class="dash-mon__hero-top align-items-start flex-wrap gap-3 justify-content-end">
-      <div class="d-flex flex-wrap gap-3 align-items-center vpn-control-row">
-        <label class="switch d-flex align-items-center gap-2 mb-0">
-          <input type="checkbox" id="auto-refresh-toggle">
-          <span class="slider round"></span>
-          <span class="small" title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
-        </label>
-        <label class="switch d-flex align-items-center gap-2 mb-0">
-          <input type="checkbox" id="online-only-toggle">
-          <span class="slider round"></span>
-          <span class="small" title="Скрывать оффлайн клиентов">Только онлайн</span>
-        </label>
-        <label class="switch d-flex align-items-center gap-2 mb-0">
-          <input type="checkbox" id="disabled-only-toggle">
-          <span class="slider round"></span>
-          <span class="small" title="Показать только отключённых клиентов">Только отключённые</span>
-        </label>
-      </div>
-    </div>
-    <nav class="settings-tabs mt-3" aria-label="Разделы WireGuard">
-      <a href="{{ url_for('wg') }}" class="settings-tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
-      <a href="{{ url_for('wg_stats') }}" class="settings-tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
-    </nav>
-  </header>
-
-
-  <div id="no-active-clients" class="vpn-empty-panel text-center mb-3">
-    <p class="text-muted mb-0">Нет активных подключений по выбранным фильтрам.</p>
-  </div>
-
-  <div class="d-flex justify-content-end mb-2">
-    <button type="button" class="btn btn-sm btn-primary" id="wgCreateClientBtn">
-      <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Создать клиента
-    </button>
-  </div>
-
-  <div id="wg-stats-container">
-    {% for interface in stats %}
-    <section class="dash-panel mb-3 p-0">
-      <div class="px-3 py-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2"
-        style="border-color: var(--dm-border) !important;">
-        <div class="vpn-wg-interface-hd d-flex align-items-center flex-wrap gap-2 mb-0">
-          <span>
-            Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
-            interface.interface|capitalize }}
-          </span>
-          <span class="badge bg-secondary">
-            <strong id="online-count-{{ interface.interface }}">{{ interface.peers | selectattr('online') | list | length }}</strong>
-            / <strong>{{ interface.peers | length }}</strong>
-          </span>
-        </div>
-      </div>
-      <div class="table-responsive vpn-data-table-wrap w-100">
-        <table class="table vpn-data-table wg-clients-table align-middle text-center mb-0">
-          <thead>
-            <tr>
-              <th>Клиент</th>
-              <th>Статус</th>
-              <th>Реальный IP</th>
-              <th>Локальный IP</th>
-              <th style="width: 200px;">Рукопожатие</th>
-              <th colspan="2" title="Суточная статистика">Сегодня</th>
-              <th colspan="2" title="Итоговая статистика">Всего</th>
-              <th rowspan="2" class="text-center text-nowrap">Действия</th>
-            </tr>
-            <tr>
-              <th></th>
-              <th></th>
-              <th></th>
-              <th></th>
-              <th></th>
-              <th title="Передано клиенту">Получено</th>
-              <th title="Получено от клиента">Передано</th>
-              <th title="Передано клиенту">Получено</th>
-              <th title="Получено от клиента">Передано</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-{{ interface.interface }}"></tbody>
-        </table>
-      </div>
-    </section>
-    {% endfor %}
-  </div>
-</div>
-
-<div class="modal fade ovpn-client-modal" id="wgCreateClientModal" tabindex="-1" aria-labelledby="wgCreateClientModalTitle"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="wgCreateClientModalTitle">Создать клиента WireGuard/AmneziaWG</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+    <header class="dash-mon__hero">
+        <div class="dash-mon__hero-top align-items-start flex-wrap gap-3 justify-content-end">
+            <div class="d-flex flex-wrap gap-3 align-items-center vpn-control-row">
+                <label class="form-check-label d-flex align-items-center gap-2 mb-0">
+                    <input type="checkbox" id="auto-refresh-toggle" class="form-check-input">
+                    <span class="small" title="Автообновление данных страницы каждые 3 сек.">Автообновление</span>
+                </label>
+                <label class="form-check-label d-flex align-items-center gap-2 mb-0">
+                    <input type="checkbox" id="online-only-toggle" class="form-check-input">
+                    <span class="small" title="Скрывать оффлайн клиентов">Только онлайн</span>
+                </label>
+                <label class="form-check-label d-flex align-items-center gap-2 mb-0">
+                    <input type="checkbox" id="disabled-only-toggle" class="form-check-input">
+                    <span class="small" title="Показать только отключённых клиентов">Только отключённые</span>
+                </label>
             </div>
-            <div class="modal-body">
-                <p class="text-muted small mb-3">
-                    Укажите имя клиента. Имя может содержать только латинские буквы (A–Z, a–z), цифры (0–9), символы <code>_</code> и <code>-</code>. 
-                </p>
-                <div class="mb-0">
-                    <label class="form-label" for="wgCreateClientName">Имя клиента</label>
-                    <input type="text" class="form-control" id="wgCreateClientName" maxlength="32"
-                        pattern="[A-Za-z0-9_-]+" placeholder="например, user1" autocomplete="off">
+        </div>
+        <nav class="settings-tabs mt-3" aria-label="Разделы WireGuard">
+            <a href="{{ url_for('wg') }}"
+                class="settings-tab {% if active_page == 'wg_clients' %}active{% endif %}">Клиенты</a>
+            <a href="{{ url_for('wg_stats') }}"
+                class="settings-tab {% if active_page == 'wg_stats' %}active{% endif %}">Статистика</a>
+        </nav>
+    </header>
+
+
+    <div id="no-active-clients" class="vpn-empty-panel text-center mb-3">
+        <p class="text-muted mb-0">Нет активных подключений по выбранным фильтрам.</p>
+    </div>
+
+    <div class="d-flex justify-content-end mb-2">
+        <button type="button" class="btn btn-sm btn-primary" id="wgCreateClientBtn">
+            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Создать клиента
+        </button>
+    </div>
+
+    <div id="wg-stats-container">
+        {% for interface in stats %}
+        <section class="dash-panel mb-3 p-0">
+            <div class="px-3 py-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2"
+                style="border-color: var(--dm-border) !important;">
+                <div class="vpn-wg-interface-hd d-flex align-items-center flex-wrap gap-2 mb-0">
+                    <span>
+                        Интерфейс: {{ interface.interface.upper() if interface.interface|lower == 'vpn' else
+                        interface.interface|capitalize }}
+                    </span>
+                    <span class="badge bg-secondary">
+                        <strong id="online-count-{{ interface.interface }}">{{ interface.peers | selectattr('online') |
+                            list | length }}</strong>
+                        / <strong>{{ interface.peers | length }}</strong>
+                    </span>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" id="wgCreateClientSubmit">Создать</button>
+            <div class="table-responsive vpn-data-table-wrap w-100">
+                <table class="table vpn-data-table wg-clients-table align-middle text-center mb-0">
+                    <thead>
+                        <tr>
+                            <th>Клиент</th>
+                            <th>Статус</th>
+                            <th>Реальный IP</th>
+                            <th>Локальный IP</th>
+                            <th style="width: 200px;">Рукопожатие</th>
+                            <th colspan="2" title="Суточная статистика">Сегодня</th>
+                            <th colspan="2" title="Итоговая статистика">Всего</th>
+                            <th rowspan="2" class="text-center text-nowrap">Действия</th>
+                        </tr>
+                        <tr>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th title="Передано клиенту">Получено</th>
+                            <th title="Получено от клиента">Передано</th>
+                            <th title="Передано клиенту">Получено</th>
+                            <th title="Получено от клиента">Передано</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-{{ interface.interface }}"></tbody>
+                </table>
             </div>
-        </div>
+        </section>
+        {% endfor %}
     </div>
-</div>
 
-<div class="modal fade ovpn-client-modal" id="wgCreateResultModal" tabindex="-1" aria-labelledby="wgCreateResultModalTitle"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="wgCreateResultModalTitle">Готово</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-0" id="wgCreateResultMessage"></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-primary" id="wgCreateResultDownloadBtn">
-                    Скачать конфигурацию
-                </button>
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Закрыть</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade ovpn-client-modal" id="confirmDisableModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Отключение клиента</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-0">Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?</p>
-                <p class="text-muted small mt-2 mb-0">Пир будет закомментирован в конфигурации WireGuard; при необходимости его можно снова включить из меню действий.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" id="confirmDisableBtn">Отключить</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade ovpn-client-modal" id="wgDeleteClientModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Удаление клиента</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-0">Вы уверены, что хотите удалить клиента <strong id="wgDeleteClientName"></strong>?</p>
-                <p class="text-muted small mt-2 mb-0">Клиент и файлы конфигурации WireGuard/AmneziaWG будут удалены.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" id="wgDeleteClientConfirmBtn">Удалить</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade ovpn-client-modal" id="wgConfigDownloadModal" tabindex="-1" aria-labelledby="wgConfigDownloadModalTitle"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="wgConfigDownloadModalTitle">Скачать конфигурацию</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small mb-3">
-                    Файл <code>.conf</code> для импорта в
-                    <a href="https://www.wireguard.com/install/" target="_blank" rel="noopener noreferrer">WireGuard</a>
-                    или
-                    <a href="https://docs.amnezia.org/documentation/amnezia-wg/#native-amneziawg-clients" target="_blank" rel="noopener noreferrer">AmneziaWG</a>.
-                </p>
-                {% if shorten_wg_filenames %}
-                <p class="alert alert-success py-2 px-3 small mb-3">
-                    Конфигурация будет скачана c коротким именем файла.
-                </p>
-                {% else %}
-                <p class="alert alert-info py-2 px-3 small mb-3">
-                    Конфигурация будет скачана с полным именем файла. Чтобы скачать конфигурацию с коротким именем, откройте
-                    «Настройки → Общие → WireGuard» и активируйте пункт «Короткие имена файлов».
-                </p>
-                {% endif %}
-                <div id="wgConfigDownloadLoading" class="py-3 text-muted small text-center">Загрузка…</div>
-                <div id="wgConfigDownloadBody" class="d-none">
-                    <label class="form-label small text-muted mb-1 d-none" for="wgConfigProfileSelect">Профиль</label>
-                    <select id="wgConfigProfileSelect" class="form-select form-select-sm mb-3 d-none"
-                        aria-label="Профиль WireGuard"></select>
-                    <div id="wgConfigQrError" class="alert alert-danger py-2 px-3 small d-none mb-3" role="alert"></div>
-                    <div class="text-center mb-3">
-                        <img id="wgConfigQrImage" alt="QR-код WireGuard" class="img-fluid wg-qr-image" width="280" height="280">
-                    </div>
-                    <p class="text-muted small text-center mb-3">Отсканируйте QR-код или скачайте файл .conf</p>
-                    <div class="text-center">
-                        <button type="button" id="wgConfigDownloadBtn" class="btn btn-primary btn-sm">Скачать
-                            .conf</button>
+    <div class="modal fade ovpn-client-modal" id="wgCreateClientModal" tabindex="-1"
+        aria-labelledby="wgCreateClientModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wgCreateClientModalTitle">Создать клиента WireGuard/AmneziaWG</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Укажите имя клиента. Имя может содержать только латинские буквы (A–Z, a–z), цифры (0–9), символы
+                        <code>_</code> и <code>-</code>.
+                    </p>
+                    <div class="mb-0">
+                        <label class="form-label" for="wgCreateClientName">Имя клиента</label>
+                        <input type="text" class="form-control" id="wgCreateClientName" maxlength="32"
+                            pattern="[A-Za-z0-9_-]+" placeholder="например, user1" autocomplete="off">
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="wgCreateClientSubmit">Создать</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="modal fade ovpn-client-modal" id="wgRenameModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Переименование клиента</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small mb-2" style="width: 100%;">
-                    Будет изменено имя клиента в конфигурации интерфейса.
-                </p>
-                <div class="mb-3">
-                    <div class="form-label mb-1">Текущее имя: <code><span id="wgRenameCurrentName"></span></code></div>
+    <div class="modal fade ovpn-client-modal" id="wgCreateResultModal" tabindex="-1"
+        aria-labelledby="wgCreateResultModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wgCreateResultModalTitle">Готово</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
-                <div class="mb-0 d-flex align-items-center gap-2">
-                    <label for="wgRenameNewName" class="form-label" style="min-width: 95px;">Новое имя:</label>
-                    <input type="text" id="wgRenameNewName" class="form-control border" style="width: 35ch;" maxlength="32" 
-                        pattern="[A-Za-z0-9_-]{1,32}" title="Только латиница, цифры, _ и -"
-                        placeholder="Введите новое имя">
+                <div class="modal-body">
+                    <p class="mb-0" id="wgCreateResultMessage"></p>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" id="wgRenameSubmitBtn">Переименовать</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-primary" id="wgCreateResultDownloadBtn">
+                        Скачать конфигурацию
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    window.wgApi = {
-        peerToggle: "{{ url_for('toggle_wg_peer') }}",
-        clientCreate: "{{ url_for('api_wg_client_create') }}",
-        clientDelete: "{{ url_for('api_wg_client_delete') }}",
-        clientRename: "{{ url_for('api_wg_client_rename') }}",
-        clientConfig: "{{ url_for('api_wireguard_client_config') }}",
-        clientConfigDownload: "{{ url_for('api_wireguard_client_config_download') }}",
-        clientConfigQr: "{{ url_for('api_wireguard_client_config_qr') }}"
-    };
-</script>
-<script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
+    <div class="modal fade ovpn-client-modal" id="confirmDisableModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Отключение клиента</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?
+                    </p>
+                    <p class="text-muted small mt-2 mb-0">Пир будет закомментирован в конфигурации WireGuard; при
+                        необходимости его можно снова включить кнопкой в столбце действий.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="confirmDisableBtn">Отключить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade ovpn-client-modal" id="wgDeleteClientModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Удаление клиента</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Вы уверены, что хотите удалить клиента <strong id="wgDeleteClientName"></strong>?
+                    </p>
+                    <p class="text-muted small mt-2 mb-0">Клиент и файлы конфигурации WireGuard/AmneziaWG будут удалены.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="wgDeleteClientConfirmBtn">Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade ovpn-client-modal" id="wgConfigDownloadModal" tabindex="-1"
+        aria-labelledby="wgConfigDownloadModalTitle" aria-hidden="true">
+
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <div class="ovpn-modal-heading me-auto min-w-0">
+                        <h5 class="modal-title" id="wgConfigDownloadModalTitle">
+                            Скачать конфигурацию
+                        </h5>
+                        <div class="ovpn-modal-kicker text-truncate" id="wgConfigDownloadClient">
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p class="text-muted small mb-2">
+                        Выберите профиль и добавьте в приложение<span id="wgConfigAppLinks"></span>.
+                    </p>
+
+                    {% if not shorten_wg_filenames %}
+                    <p class="small text-muted mb-3">
+                        Имя .conf файла: полное
+                        <span class="mx-1">·</span>
+                        <a href="{{ url_for('settings') }}#shorten_wg_filenames"
+                            class="text-decoration-none">Изменить</a>
+                    </p>
+                    {% endif %}
+
+                    <div id="wgConfigDownloadLoading" class="ovpn-modal-state">
+
+                        <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true">
+                        </div>
+
+                        <div class="small text-muted mt-2 mb-0">
+                            Загрузка профилей…
+                        </div>
+                    </div>
+
+                    <div id="wgConfigDownloadError" class="alert alert-danger py-2 px-3 small d-none mb-0" role="alert">
+                    </div>
+
+                    <div id="wgConfigDownloadBody" class="d-none">
+
+                        <!-- Профиль -->
+                        <div class="mb-3" id="wgProfileTypeWrap">
+                            <div class="form-label mb-2">
+                                Профиль:
+                            </div>
+
+                            <div id="wgProfileType" class="ovpn-config-choice-grid ovpn-config-choice-grid--profiles"
+                                role="group" aria-label="Профиль WireGuard">
+
+                                <button type="button" class="btn ovpn-config-choice-btn" data-profile="antizapret"
+                                    aria-pressed="false">
+
+                                    <span class="ovpn-config-choice-btn__title">
+                                        AntiZapret
+                                    </span>
+
+                                    <span class="ovpn-config-choice-btn__hint">
+                                        Раздельное туннелирование
+                                    </span>
+                                </button>
+
+                                <button type="button" class="btn ovpn-config-choice-btn" data-profile="vpn"
+                                    aria-pressed="false">
+
+                                    <span class="ovpn-config-choice-btn__title">
+                                        VPN
+                                    </span>
+
+                                    <span class="ovpn-config-choice-btn__hint">
+                                        Весь трафик
+                                    </span>
+                                </button>
+
+                            </div>
+                        </div>
+
+                        <!-- Приложение -->
+                        <div class="mb-3" id="wgClientTypeWrap">
+
+                            <div class="form-label mb-2">
+                                Приложение:
+                            </div>
+
+                            <div id="wgClientType" class="ovpn-config-choice-grid ovpn-config-choice-grid--profiles"
+                                role="group" aria-label="Приложение WireGuard">
+
+                                <button type="button" class="btn ovpn-config-choice-btn" data-kind="wireguard"
+                                    aria-pressed="false">
+
+                                    <span class="ovpn-config-choice-btn__title">
+                                        WireGuard
+                                    </span>
+
+                                    <span class="ovpn-config-choice-btn__hint">
+                                        Обычный WireGuard
+                                    </span>
+                                </button>
+
+                                <button type="button" class="btn ovpn-config-choice-btn" data-kind="amnezia"
+                                    aria-pressed="false">
+
+                                    <span class="ovpn-config-choice-btn__title">
+                                        AmneziaWG
+                                    </span>
+
+                                    <span class="ovpn-config-choice-btn__hint">
+                                        Обфускация трафика
+                                    </span>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                        <label class="form-label small text-muted mb-1 d-none" for="wgConfigProfileSelect">
+                            Профиль
+                        </label>
+
+                        <select id="wgConfigProfileSelect" class="d-none" tabindex="-1" aria-hidden="true"
+                            aria-label="Профиль WireGuard">
+                        </select>
+
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="wg-config-summary min-w-0">
+                                <span class="text-muted">Выбрано:</span>
+                                <strong id="wgConfigSelectionSummary"></strong>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                <button type="button" id="wgConfigQrBtn" class="btn btn-outline-primary"
+                                    aria-label="Показать QR-код">
+                                    <i class="bi bi-qr-code" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" id="wgConfigDownloadBtn" class="btn btn-primary">
+                                    Скачать
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- QR -->
+                        <div id="wgConfigQrPanel" class="d-none mt-3 pt-3 border-top">
+
+                            <div id="wgConfigQrError" class="alert alert-danger py-2 px-3 small d-none mb-3"
+                                role="alert">
+                            </div>
+
+                            <div class="text-center wg-qr-stage">
+
+                                <div id="wgConfigQrLoading" class="wg-qr-placeholder">
+
+                                    <div class="spinner-border spinner-border-sm text-secondary" role="status"
+                                        aria-hidden="true">
+                                    </div>
+
+                                    <div class="small text-muted mt-2 mb-0">
+                                        Генерация QR-кода…
+                                    </div>
+                                </div>
+
+                                <div id="wgConfigQrUnavailable" class="wg-qr-placeholder d-none">
+
+                                    <i class="bi bi-qr-code fs-1 text-muted" aria-hidden="true">
+                                    </i>
+
+                                    <div class="small text-muted mt-2 mb-0">
+                                        QR-код недоступен
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        Можно скачать файл <code>.conf</code> выше
+                                    </div>
+                                </div>
+
+                                <img id="wgConfigQrImage" alt="QR-код конфигурации WireGuard"
+                                    class="img-fluid wg-qr-image d-none" width="280" height="280">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade ovpn-client-modal" id="wgRenameModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Переименование клиента</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2" style="width: 100%;">
+                        Будет изменено имя клиента в конфигурации интерфейса.
+                    </p>
+                    <div class="mb-3">
+                        <div class="form-label mb-1">Текущее имя: <code><span id="wgRenameCurrentName"></span></code>
+                        </div>
+                    </div>
+                    <div class="mb-0 d-flex align-items-center gap-2">
+                        <label for="wgRenameNewName" class="form-label" style="min-width: 95px;">Новое имя:</label>
+                        <input type="text" id="wgRenameNewName" class="form-control border" style="width: 35ch;"
+                            maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" title="Только латиница, цифры, _ и -"
+                            placeholder="Введите новое имя">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="wgRenameSubmitBtn">Переименовать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.wgApi = {
+            peerToggle: "{{ url_for('toggle_wg_peer') }}",
+            clientCreate: "{{ url_for('api_wg_client_create') }}",
+            clientDelete: "{{ url_for('api_wg_client_delete') }}",
+            clientRename: "{{ url_for('api_wg_client_rename') }}",
+            clientConfig: "{{ url_for('api_wireguard_client_config') }}",
+            clientConfigDownload: "{{ url_for('api_wireguard_client_config_download') }}",
+            clientConfigQr: "{{ url_for('api_wireguard_client_config_qr') }}",
+            statsPage: "{{ url_for('wg_stats') }}"
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/wg_page.js') }}"></script>
+</div>
 {% endblock %}

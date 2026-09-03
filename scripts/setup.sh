@@ -2,6 +2,8 @@
 
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -156,6 +158,52 @@ check_domain_ip() {
 
 is_silent_mode() {
     [[ "${STATUSOPENVPN_SILENT:-}" == "1" ]]
+}
+
+nginx_proxies_app() {
+    local domain=$1
+    local port=${2:-$DEFAULT_PORT}
+    local proxy_pattern="proxy_pass[[:space:]]+http://127[.]0[.]0[.]1:${port};"
+    local conf
+    for conf in "/etc/nginx/sites-enabled/$domain" "/etc/nginx/sites-available/$domain"; do
+        if [[ -f "$conf" ]] && grep -Eq "$proxy_pattern" "$conf"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+https_ready_for_domain() {
+    local domain=$1
+    local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+    local nginx_conf="/etc/nginx/sites-enabled/$domain"
+    local app_port=${PORT:-$DEFAULT_PORT}
+
+    if [[ ! -f "$cert_path" ]] || ! openssl x509 -checkend 86400 -noout -in "$cert_path" >/dev/null 2>&1; then
+        return 1
+    fi
+    if [[ -f "$nginx_conf" ]] && grep -q "# Created by StatusOpenVPN" "$nginx_conf"; then
+        return 0
+    fi
+    nginx_proxies_app "$domain" "$app_port"
+}
+
+keep_https_after_ssl_failure() {
+    local domain=$1
+    local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+
+    echo -e "${RED}❌ SSL setup failed.${RESET}"
+    if [[ -n "$domain" && -f "$cert_path" ]] && openssl x509 -checkend 86400 -noout -in "$cert_path" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Existing certificate is still valid; keeping HTTPS enabled.${RESET}"
+        HTTPS_ENABLED=1
+        save_setup_var "HTTPS_ENABLED" "1"
+        if [[ -z "$SERVER_URL" ]]; then
+            SERVER_URL="https://$domain/status/"
+        fi
+        return 0
+    fi
+    HTTPS_ENABLED=0
+    save_setup_var "HTTPS_ENABLED" "0"
 }
 
 ask_port() {
@@ -406,10 +454,8 @@ setup_https() {
         fi
     else
         local CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-        local NGINX_CONF="/etc/nginx/sites-enabled/$DOMAIN"
 
-        if [[ -f "$CERT_PATH" ]] && openssl x509 -checkend 86400 -noout -in "$CERT_PATH" >/dev/null 2>&1 \
-           && [[ -f "$NGINX_CONF" ]] && grep -q "# Created by StatusOpenVPN" "$NGINX_CONF"; then
+        if https_ready_for_domain "$DOMAIN"; then
             echo -e "${YELLOW}✅ HTTPS already enabled and valid for: $DOMAIN${RESET}"
             if ! openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
                 echo -e "${YELLOW}Certificate expires within 30 days. Renewing...${RESET}"
@@ -420,7 +466,10 @@ setup_https() {
                     echo -e "${RED}Certificate renewal failed.${RESET}"
                 fi
             fi
-            SERVER_URL="https://$DOMAIN/status/"
+            load_server_url_from_setup
+            if [[ -z "$SERVER_URL" ]]; then
+                SERVER_URL="https://$DOMAIN/status/"
+            fi
         else
             if [[ -f "$SSL_SCRIPT" ]]; then
                 if bash "$SSL_SCRIPT" -i "$DOMAIN"; then
@@ -430,14 +479,11 @@ setup_https() {
                         SERVER_URL="https://$DOMAIN/status/"
                     fi
                 else
-                    echo -e "${RED}❌ SSL setup failed.${RESET}"
-                    HTTPS_ENABLED=0
-                    save_setup_var "HTTPS_ENABLED" "0"
+                    keep_https_after_ssl_failure "$DOMAIN"
                 fi
             else
                 echo -e "${RED}❌ SSL script not found.${RESET}"
-                HTTPS_ENABLED=0
-                save_setup_var "HTTPS_ENABLED" "0"
+                keep_https_after_ssl_failure "$DOMAIN"
             fi
         fi
     fi
@@ -450,13 +496,16 @@ refresh_nginx_location() {
     fi
     if [[ -n "$DOMAIN" ]]; then
         local NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
+        if nginx_proxies_app "$DOMAIN" "${PORT:-$DEFAULT_PORT}"; then
+            return
+        fi
         if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /status/" "$NGINX_CONF"; then
-            bash "$SSL_SCRIPT" -i "$DOMAIN"
+            bash "$SSL_SCRIPT" -i "$DOMAIN" || true
         fi
     else
         local NGINX_CONF="/etc/nginx/sites-available/statusopenvpn-ip"
         if [[ ! -f "$NGINX_CONF" ]] || ! grep -q "location /status/" "$NGINX_CONF"; then
-            echo "" | bash "$SSL_SCRIPT" -i
+            echo "" | bash "$SSL_SCRIPT" -i || true
         fi
     fi
 }
@@ -464,11 +513,10 @@ refresh_nginx_location() {
 setup_vnstat() {
     if ! command -v vnstat &> /dev/null; then
         echo "📦 vnstat not found, installing..."
-        run_as_root apt update && run_as_root apt install -y vnstat
+        run_as_root apt-get update -qq && run_as_root apt-get install -y -qq vnstat
         changes_made=true
     else
-        echo "🔄 vnstat found, updating to the latest version..."
-        run_as_root apt update && run_as_root apt install --only-upgrade -y vnstat
+        echo "✅ vnstat already installed, skipping package upgrade."
     fi
 
     for iface in "${INTERFACES[@]}"; do

@@ -129,6 +129,50 @@ document.addEventListener("DOMContentLoaded", () => {
         return `<div>${client.protocol}</div><small class="text-muted d-block">(${serverPort || "-"})</small>`;
     }
 
+    function buildOvpnClientNameCell(container, client) {
+        const display = client.display_name || client.name;
+        const api = window.ovpnPageApi || {};
+        container.textContent = "";
+        if (!client.name) {
+            container.textContent = display;
+            return;
+        }
+
+        const wrap = document.createElement("span");
+        wrap.className = "vpn-client-name-cell";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "vpn-client-name-text";
+        nameEl.textContent = display;
+        wrap.appendChild(nameEl);
+
+        if (api.statsPage) {
+            const statsLink = document.createElement("a");
+            const statsUrl = new URL(api.statsPage, window.location.origin);
+            statsUrl.searchParams.set("client", client.name);
+            statsLink.href = statsUrl.pathname + statsUrl.search;
+            statsLink.className = "vpn-client-action-link";
+            statsLink.title = "Статистика клиента";
+            statsLink.setAttribute("aria-label", "Статистика клиента");
+            statsLink.innerHTML = '<i class="bi bi-graph-up" aria-hidden="true"></i>';
+            wrap.appendChild(statsLink);
+        }
+
+        if (api.profilesPage) {
+            const profileLink = document.createElement("a");
+            const profileUrl = new URL(api.profilesPage, window.location.origin);
+            profileUrl.searchParams.set("client", client.name);
+            profileLink.href = profileUrl.pathname + profileUrl.search;
+            profileLink.className = "vpn-client-action-link";
+            profileLink.title = "Профиль клиента";
+            profileLink.setAttribute("aria-label", "Профиль клиента");
+            profileLink.innerHTML = '<i class="bi bi-gear" aria-hidden="true"></i>';
+            wrap.appendChild(profileLink);
+        }
+
+        container.appendChild(wrap);
+    }
+
     function buildOvpnSessionRow(client) {
         const tr = document.createElement("tr");
         tr.className =
@@ -140,10 +184,9 @@ document.addEventListener("DOMContentLoaded", () => {
         tr.dataset.blocked = client.blocked ? "true" : "false";
         tr.dataset.protocol = client.protocol;
 
-        const display = client.display_name || client.name;
         const tdClient = document.createElement("td");
         tdClient.className = "text-center vpn-table-client";
-        tdClient.textContent = display;
+        buildOvpnClientNameCell(tdClient, client);
         tr.appendChild(tdClient);
 
         const tdReal = document.createElement("td");
@@ -224,8 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tr.dataset.blocked = client.blocked ? "true" : "false";
 
         const cells = tr.children;
-        const display = client.display_name || client.name;
-        cells[0].textContent = display;
+        buildOvpnClientNameCell(cells[0], client);
 
         const tdReal = cells[1];
         tdReal.className = "text-center";

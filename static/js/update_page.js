@@ -2,6 +2,16 @@
     var pollInterval = 4000;
     var logEl = document.getElementById("updateLog");
     var logPanel = document.getElementById("updateLogPanel");
+    var statusEl = document.getElementById("updateStatusText");
+    var runtimeErrorEl = document.getElementById("updateRuntimeError");
+    var stayOnPageEl = document.getElementById("updateStayOnPage");
+    var copyBtn = document.getElementById("updateLogCopyBtn");
+    var downloadBtn = document.getElementById("updateLogDownloadBtn");
+    var updateForm = document.getElementById("updateForm");
+    var installBodyEl = document.getElementById("updateInstallBody");
+    var currentVersionEl = document.getElementById("updateCurrentVersion");
+    var latestVersionEl = document.getElementById("updateLatestVersion");
+    var availableBadgeEl = document.getElementById("updateAvailableBadge");
     if (!logEl) return;
 
     var ANSI_COLORS = {
@@ -104,6 +114,132 @@
 
     render(logEl.textContent);
 
+    function setStatus(text) {
+        if (statusEl) statusEl.textContent = text;
+    }
+
+    function getLastLine(text) {
+        if (!text) return "";
+        var lines = text.replace(/\r\n/g, "\n").split("\n");
+        for (var i = lines.length - 1; i >= 0; i--) {
+            var value = lines[i].trim();
+            if (value) return value;
+        }
+        return "";
+    }
+
+    function setVersionClasses(el, mode) {
+        if (!el) return;
+        el.classList.remove(
+            "update-version--match",
+            "update-version--current",
+            "update-version--new"
+        );
+        el.classList.add("update-version--" + mode);
+    }
+
+    function hideRunningIndicators() {
+        var spinner = document.getElementById("updateRunningSpinner");
+        var runningText = document.getElementById("updateRunningText");
+        if (spinner) spinner.classList.add("d-none");
+        if (runningText) runningText.classList.add("d-none");
+        document.querySelectorAll("#updateInstallBody .spinner-border").forEach(function (el) {
+            el.classList.add("d-none");
+        });
+    }
+
+    function applyFinishedUi(data, failed) {
+        hideRunningIndicators();
+
+        var current = data.current_version || "";
+        var latest = data.latest_version || "";
+        var matched = !!(latest && current && latest === current);
+
+        if (currentVersionEl) {
+            currentVersionEl.textContent = current;
+            setVersionClasses(currentVersionEl, matched ? "match" : "current");
+        }
+        if (latestVersionEl) {
+            latestVersionEl.textContent = latest || latestVersionEl.textContent;
+            setVersionClasses(latestVersionEl, matched ? "match" : (data.update_available ? "new" : "current"));
+        }
+        if (availableBadgeEl) {
+            availableBadgeEl.classList.toggle("d-none", matched || !latest);
+        }
+
+        if (installBodyEl) {
+            if (failed) {
+                installBodyEl.innerHTML =
+                    '<p class="small text-danger mb-0">Обновление завершилось с ошибкой. Проверьте журнал.</p>';
+            } else if (matched) {
+                installBodyEl.innerHTML =
+                    '<p class="small text-success mb-0">Установлена последняя версия.</p>';
+            } else if (data.update_available && latest) {
+                installBodyEl.innerHTML =
+                    '<p class="small text-muted mb-3">' +
+                    "Обновление выполняется автоматически без дополнительных вопросов: загрузка тега с GitHub, " +
+                    "зависимости Python и перезапуск служб. Панель может быть недоступна несколько минут." +
+                    "</p>" +
+                    '<form method="post" id="updateForm">' +
+                    '<button type="submit" class="btn btn-sm btn-primary settings-action-btn">' +
+                    '<i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>' +
+                    "Обновить до " + escapeHtml(latest) +
+                    "</button></form>";
+                updateForm = document.getElementById("updateForm");
+                if (updateForm) {
+                    updateForm.addEventListener("submit", function () {
+                        var btn = updateForm.querySelector("button[type='submit']");
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.setAttribute("aria-disabled", "true");
+                        }
+                    });
+                }
+            } else {
+                installBodyEl.innerHTML =
+                    '<p class="small text-muted mb-0">Новых версий не найдено.</p>';
+            }
+        }
+    }
+
+    var wasRunning = !!document.querySelector(".spinner-border");
+
+    if (updateForm) {
+        updateForm.addEventListener("submit", function () {
+            var btn = updateForm.querySelector("button[type='submit']");
+            if (btn) {
+                btn.disabled = true;
+                btn.setAttribute("aria-disabled", "true");
+            }
+        });
+    }
+
+    if (copyBtn) {
+        copyBtn.addEventListener("click", function () {
+            var text = logEl.textContent || "";
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text);
+            }
+        });
+    }
+
+    if (downloadBtn) {
+        downloadBtn.addEventListener("click", function () {
+            var text = logEl.textContent || "";
+            if (!text) return;
+            var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+            var url = window.URL.createObjectURL(blob);
+            var link = document.createElement("a");
+            link.href = url;
+            link.download = "update.log";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        });
+    }
+
     function poll() {
         var base = window.basePath || "";
         fetch(base + "/api/settings/update/status", { credentials: "same-origin" })
@@ -114,13 +250,64 @@
                     if (logPanel) logPanel.style.display = "";
                 }
                 if (data.running) {
+                    wasRunning = true;
+                    if (runtimeErrorEl) runtimeErrorEl.classList.add("d-none");
+                    var lastLine = getLastLine(data.log || "");
+                    setStatus(lastLine || "🔄 Выполняется обновление");
                     setTimeout(poll, pollInterval);
+                } else if (wasRunning) {
+                    var updateFailed = !!data.update_available;
+                    if (updateFailed) {
+                        if (runtimeErrorEl) {
+                            runtimeErrorEl.textContent = "Обновление завершилось с ошибкой. Проверьте журнал.";
+                            runtimeErrorEl.classList.remove("d-none");
+                        }
+                        setStatus("Ошибка обновления");
+                        applyFinishedUi(data, true);
+                        wasRunning = false;
+                        return;
+                    }
+                    setStatus("🟢 Установлена последняя версия");
+                    applyFinishedUi(data, false);
+                    wasRunning = false;
+                    if (stayOnPageEl && stayOnPageEl.checked) return;
+                    window.location.href = base + "/";
+                } else {
+                    if (data.update_available) {
+                        setStatus("🟡 Доступно обновление");
+                    } else if (data.latest_version && data.current_version === data.latest_version) {
+                        setStatus("🟢 Установлена последняя версия");
+                    } else {
+                        setStatus("Нет обновлений");
+                    }
                 }
             })
-            .catch(function () { /* ignore */ });
+            .catch(function () {
+                if (wasRunning) {
+                    setTimeout(poll, pollInterval);
+                }
+            });
     }
 
     if (logEl.textContent.trim() || document.querySelector(".spinner-border")) {
         setTimeout(poll, pollInterval);
     }
+
+    (function syncChangelogChevron() {
+        var panel = document.getElementById("updateChangelogCollapse");
+        if (!panel) return;
+        var sel = '[data-bs-target="#updateChangelogCollapse"]';
+        function sync() {
+            var expanded = panel.classList.contains("show");
+            document.querySelectorAll(sel + ".install-panel-chevron").forEach(function (ch) {
+                ch.classList.toggle("collapsed", !expanded);
+                ch.setAttribute("aria-expanded", expanded ? "true" : "false");
+            });
+            document.querySelectorAll(sel + ".install-panel-header__toggle").forEach(function (el) {
+                el.setAttribute("aria-expanded", expanded ? "true" : "false");
+            });
+        }
+        panel.addEventListener("shown.bs.collapse", sync);
+        panel.addEventListener("hidden.bs.collapse", sync);
+    })();
 })();

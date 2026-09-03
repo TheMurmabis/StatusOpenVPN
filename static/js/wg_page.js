@@ -41,25 +41,14 @@ function absoluteApiUrl(pathFromFlask) {
     }
 }
 
-function initWgRowDropdowns(tbody) {
-    tbody.querySelectorAll(".ovpn-actions-menu-btn").forEach((el) => {
-        if (typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
-            bootstrap.Dropdown.getOrCreateInstance(el, {
-                popperConfig(defaultBsPopperConfig) {
-                    return { ...defaultBsPopperConfig, strategy: "fixed" };
-                },
-            });
-        }
-    });
-}
-
-/** Не перерисовывать таблицу по таймеру, пока открыто меню действий или модалка — иначе DOM меню уничтожается (tbody.innerHTML). */
 function wgAutoRefreshPaused() {
     const root = document.getElementById("wg-stats-container");
     if (!root) return true;
-    if (document.body.classList.contains("modal-open")) return true;
-    if (root.querySelector('.ovpn-actions-menu-btn[aria-expanded="true"]')) return true;
-    return false;
+    return document.body.classList.contains("modal-open");
+}
+
+function buildWgActionIconBtn({ action, title, iconClass, extraClass = "", attrs = "" }) {
+    return `<button type="button" class="vpn-action-icon-btn wg-client-action-btn ${extraClass}" data-action="${action}" ${attrs} title="${title}" aria-label="${title}"><i class="${iconClass}" aria-hidden="true"></i></button>`;
 }
 
 function buildWgActionsCell(peer, ifaceName, isEnabled) {
@@ -68,70 +57,53 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
     const peerAttr = escapeAttr(peer.peer);
     const ifaceAttr = escapeAttr(ifaceName);
     const clientAttr = escapeAttr(client);
+    const clientAttrs = `data-client="${clientAttr}"`;
+    const toggleAttrs = `data-peer="${peerAttr}" data-interface="${ifaceAttr}" data-client="${clientAttr}"`;
 
-    let toggleBlock;
-    if (!isEnabled) {
-        toggleBlock = `
-            <li>
-                <button type="button"
-                    class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn ovpn-action-item--neutral"
-                    data-action="enable" data-peer="${peerAttr}"
-                    data-interface="${ifaceAttr}" data-client="${clientAttr}">
-                    <i class="fa fa-unlock fa-fw" aria-hidden="true"></i>
-                    <span class="wg-action-label">Включить (${escapeAttr(ifaceDisp)})</span>
-                </button>
-            </li>`;
-    } else {
-        toggleBlock = `
-            <li>
-                <button type="button"
-                    class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn text-danger"
-                    data-action="disable" data-peer="${peerAttr}"
-                    data-interface="${ifaceAttr}" data-client="${clientAttr}">
-                    <i class="fa fa-ban fa-fw" aria-hidden="true"></i>
-                    <span class="wg-action-label">Отключить (${escapeAttr(ifaceDisp)})</span>
-                </button>
-            </li>`;
-    }
+    const toggleBtn = isEnabled
+        ? buildWgActionIconBtn({
+            action: "disable",
+            title: `Отключить (${escapeAttr(ifaceDisp)})`,
+            iconClass: "fa fa-ban",
+            extraClass: "is-danger",
+            attrs: toggleAttrs,
+        })
+        : buildWgActionIconBtn({
+            action: "enable",
+            title: `Включить (${escapeAttr(ifaceDisp)})`,
+            iconClass: "fa fa-unlock",
+            attrs: toggleAttrs,
+        });
 
     return `
         <td class="text-center actions-cell">
-            <div class="dropdown ovpn-actions-dropdown d-inline-block">
-                <button type="button" class="btn btn-sm btn-light border ovpn-actions-menu-btn"
-                    data-bs-toggle="dropdown" data-bs-container="body" aria-expanded="false"
-                    title="Действия" aria-label="Меню действий">
-                    <i class="fa fa-ellipsis-v" aria-hidden="true"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end ovpn-actions-menu shadow-sm">
-                    ${toggleBlock}
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                        <button type="button"
-                            class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn ovpn-action-item--neutral"
-                            data-action="rename" data-client="${clientAttr}" data-interface="${ifaceAttr}">
-                            <i class="fa fa-pencil fa-fw" aria-hidden="true"></i>
-                            <span class="wg-action-label">Переименовать</span>
-                        </button>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                        <button type="button"
-                            class="dropdown-item d-flex align-items-center gap-2 btn-action btn-download-config ovpn-action-item--neutral wg-client-action-btn"
-                            data-action="download-config" data-client="${clientAttr}">
-                            <i class="fa fa-download fa-fw" aria-hidden="true"></i>
-                            <span class="wg-action-label">Скачать конфигурацию</span>
-                        </button>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                        <button type="button"
-                            class="dropdown-item d-flex align-items-center gap-2 btn-action wg-client-action-btn text-danger"
-                            data-action="delete-client" data-client="${clientAttr}">
-                            <i class="fa fa-trash fa-fw" aria-hidden="true"></i>
-                            <span class="wg-action-label">Удалить клиента</span>
-                        </button>
-                    </li>
-                </ul>
+            <div class="vpn-actions-row">
+                ${buildWgActionIconBtn({
+                    action: "download-config",
+                    title: "QR-код",
+                    iconClass: "bi bi-qr-code",
+                    attrs: `${clientAttrs} data-open-qr="true"`,
+                })}
+                ${buildWgActionIconBtn({
+                    action: "download-config",
+                    title: "Скачать конфигурацию",
+                    iconClass: "fa fa-download",
+                    attrs: clientAttrs,
+                })}
+                ${buildWgActionIconBtn({
+                    action: "rename",
+                    title: "Переименовать",
+                    iconClass: "fa fa-pencil",
+                    attrs: `${clientAttrs} data-interface="${ifaceAttr}"`,
+                })}
+                ${toggleBtn}
+                ${buildWgActionIconBtn({
+                    action: "delete-client",
+                    title: "Удалить клиента",
+                    iconClass: "fa fa-trash",
+                    extraClass: "is-danger",
+                    attrs: clientAttrs,
+                })}
             </div>
         </td>`;
 }
@@ -232,7 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const clientName = btn.dataset.client || "";
 
         if (action === "download-config") {
-            openWgConfigModal(clientName);
+            openWgConfigModal(clientName, { openQr: btn.dataset.openQr === "true" });
             return;
         }
         if (action === "rename") {
@@ -266,12 +238,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const wgQrBtn = document.getElementById("wgConfigQrBtn");
+    if (wgQrBtn) {
+        wgQrBtn.addEventListener("click", () => {
+            if (wgDownloadState.qrOpen) {
+                hideWgQrPanel();
+                return;
+            }
+            showWgQrPanel();
+        });
+    }
+
     const wgStatsRoot = document.getElementById("wg-stats-container");
-    wgStatsRoot.addEventListener("hidden.bs.dropdown", () => {
-        if (!autoRefreshEnabled) return;
-        if (wgAutoRefreshPaused()) return;
-        updateStats().then(applyFilters);
-    });
 
     updateStats().then(() => {
         applyFilters();
@@ -394,13 +372,7 @@ async function deleteWgClient(clientName, btn) {
         return;
     }
 
-    const labelEl = btn && btn.querySelector(".wg-action-label");
-    const originalText = labelEl ? labelEl.textContent : btn ? btn.textContent : "";
-    if (btn) {
-        btn.disabled = true;
-        if (labelEl) labelEl.textContent = "…";
-        else btn.textContent = "…";
-    }
+    if (btn) btn.disabled = true;
 
     try {
         const response = await fetch(url, {
@@ -420,11 +392,7 @@ async function deleteWgClient(clientName, btn) {
         console.error(e);
         alert(e.message || "Ошибка при удалении клиента");
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            if (labelEl) labelEl.textContent = originalText;
-            else btn.textContent = originalText;
-        }
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -529,21 +497,11 @@ function stopAutoRefresh() {
 
 async function wgExecuteToggle(peer, iface, clientName, enable, btn) {
     const api = window.wgApi;
-    const labelEl = btn && btn.querySelector(".wg-action-label");
-    const originalText = labelEl ? labelEl.textContent : btn ? btn.textContent : "";
-    if (btn) {
-        btn.disabled = true;
-        if (labelEl) labelEl.textContent = "…";
-        else btn.textContent = "…";
-    }
+    if (btn) btn.disabled = true;
 
     const url = absoluteApiUrl(api && api.peerToggle);
     if (!url) {
-        if (btn) {
-            btn.disabled = false;
-            if (labelEl) labelEl.textContent = originalText;
-            else btn.textContent = originalText;
-        }
+        if (btn) btn.disabled = false;
         return;
     }
 
@@ -571,11 +529,7 @@ async function wgExecuteToggle(peer, iface, clientName, enable, btn) {
         console.error(e);
         alert(e.message || "Ошибка при выполнении запроса");
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            if (labelEl) labelEl.textContent = originalText;
-            else btn.textContent = originalText;
-        }
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -611,8 +565,10 @@ async function updateStats() {
                       ? "traffic-online"
                       : "traffic-offline wg_table";
 
+                const clientName = peer.client || "Unknown";
+
                 tr.innerHTML = `
-                    <td class="text-center vpn-table-client" title="Peer: ${peer.masked_peer}">${peer.client}</td>
+                    <td class="text-center vpn-table-client" title="Peer: ${peer.masked_peer}">${escapeAttr(clientName)}</td>
                     <td>
                         <div class="d-flex flex-column align-items-center">
                             <small class="${!isEnabled ? "text-muted" : peer.online ? "text-success" : "traffic-offline"}">
@@ -644,8 +600,6 @@ async function updateStats() {
 
                 tbody.appendChild(tr);
             });
-
-            initWgRowDropdowns(tbody);
         });
     } catch (error) {
         console.error("Ошибка при обновлении данных:", error);
@@ -716,7 +670,152 @@ function toggleIps(index) {
     });
 }
 
-let wgDownloadState = { clientName: "", items: [], index: 0 };
+let wgDownloadState = { clientName: "", items: [], index: 0, qrOpen: false };
+
+function parseWgProfile(label) {
+    const raw = String(label || "").trim();
+    const parts = raw.split(" · ").map((p) => p.trim());
+    const parent = (parts[0] || "").toLowerCase();
+    const kindRaw = (parts[1] || "").toLowerCase();
+    const rest = raw.toLowerCase();
+
+    let group = "other";
+    if (parent === "antizapret" || rest.startsWith("antizapret")) {
+        group = "antizapret";
+    } else if (parent === "vpn" || rest.startsWith("vpn")) {
+        group = "vpn";
+    }
+
+    let kind = "other";
+    if (kindRaw === "amneziawg" || rest.includes("amnezia")) {
+        kind = "amnezia";
+    } else if (kindRaw === "wireguard" || rest.includes("wireguard")) {
+        kind = "wireguard";
+    }
+
+    return { group, kind };
+}
+
+function wgProfileTitle(profile) {
+    if (profile === "antizapret") return "Antizapret";
+    if (profile === "vpn") return "VPN";
+    return "";
+}
+
+function wgKindTitle(kind) {
+    if (kind === "amnezia") return "AmneziaWG";
+    if (kind === "wireguard") return "WireGuard";
+    return "";
+}
+
+function wgAppDownloadLink(href, label) {
+    return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">${escapeAttr(label)}</a>`;
+}
+
+function wgDisposeAppLinkDropdowns(root) {
+    if (!root || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
+    root.querySelectorAll('[data-bs-toggle="dropdown"]').forEach((el) => {
+        const inst = bootstrap.Dropdown.getInstance(el);
+        if (inst) inst.dispose();
+    });
+}
+
+function wgAppPlatformMenu(app) {
+    const items = app.links
+        .map(
+            (item) =>
+                `<li><a class="dropdown-item" href="${escapeAttr(item.href)}" target="_blank" rel="noopener noreferrer">${escapeAttr(item.label)}</a></li>`
+        )
+        .join("");
+    return `<span class="dropdown d-inline">
+        <button type="button" class="btn btn-link p-0 align-baseline text-decoration-none wg-app-platform-toggle dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">${escapeAttr(app.label)}</button>
+        <ul class="dropdown-menu wg-app-platform-menu shadow-sm">${items}</ul>
+    </span>`;
+}
+
+function wgAppLinkMeta(kind) {
+    if (kind === "amnezia") {
+        return {
+            label: "AmneziaWG",
+            links: [
+                { href: "https://play.google.com/store/apps/details?id=org.amnezia.awg", label: "Android" },
+                { href: "https://apps.apple.com/app/amneziawg/id6478942365", label: "iOS" },
+                { href: "https://github.com/amnezia-vpn/amneziawg-windows-client/releases/latest", label: "Windows" },
+            ],
+        };
+    }
+    if (kind === "wireguard") {
+        return {
+            label: "WireGuard",
+            links: [
+                { href: "https://www.wireguard.com/install/", label: "WireGuard" },
+            ],
+        };
+    }
+    return null;
+}
+
+function updateWgConfigSummary(profile, kind, fallbackLabel) {
+    const summaryEl = document.getElementById("wgConfigSelectionSummary");
+    const appLinks = document.getElementById("wgConfigAppLinks");
+    const profileText = wgProfileTitle(profile);
+    const kindText = wgKindTitle(kind);
+    if (summaryEl) {
+        if (profileText && kindText) {
+            summaryEl.textContent = `${profileText} · ${kindText}`;
+        } else {
+            summaryEl.textContent = fallbackLabel || "";
+        }
+    }
+    if (!appLinks) return;
+    wgDisposeAppLinkDropdowns(appLinks);
+    const app = wgAppLinkMeta(kind);
+    if (app && app.links.length === 1) {
+        appLinks.innerHTML = ` ${wgAppDownloadLink(app.links[0].href, app.label)}`;
+        return;
+    }
+    if (app && app.links.length > 1) {
+        appLinks.innerHTML = ` ${wgAppPlatformMenu(app)}`;
+        const toggle = appLinks.querySelector('[data-bs-toggle="dropdown"]');
+        if (toggle && typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
+            bootstrap.Dropdown.getOrCreateInstance(toggle, {
+                popperConfig(defaultBsPopperConfig) {
+                    return { ...defaultBsPopperConfig, strategy: "fixed" };
+                },
+            });
+        }
+        return;
+    }
+    appLinks.innerHTML = "";
+}
+
+function setWgQrButtonLabel(open) {
+    const btn = document.getElementById("wgConfigQrBtn");
+    if (!btn) return;
+    btn.innerHTML = '<i class="bi bi-qr-code" aria-hidden="true"></i>';
+    btn.setAttribute("aria-label", open ? "Скрыть QR-код" : "Показать QR-код");
+}
+
+function hideWgQrPanel() {
+    const panel = document.getElementById("wgConfigQrPanel");
+    if (panel) panel.classList.add("d-none");
+    wgDownloadState.qrOpen = false;
+    setWgQrButtonLabel(false);
+}
+
+function showWgQrPanel() {
+    const panel = document.getElementById("wgConfigQrPanel");
+    if (!panel) return;
+    const { clientName, index } = wgDownloadState;
+    if (!clientName) return;
+    panel.classList.remove("d-none");
+    wgDownloadState.qrOpen = true;
+    setWgQrButtonLabel(true);
+    loadWgConfigQr(clientName, index).catch((e) => {
+        console.error(e);
+        setWgQrUiState("unavailable", e.message || "Не удалось сгенерировать QR-код.");
+    });
+}
 
 function buildWgDownloadHref(clientName, index) {
     const api = window.wgApi;
@@ -777,14 +876,46 @@ function buildWgQrHref(clientName, index) {
     return u.toString();
 }
 
+function buildWgStatsHref(clientName) {
+    const api = window.wgApi || {};
+    const base = absoluteApiUrl(api.statsPage);
+    if (!base || !clientName) return "";
+    const u = new URL(base, window.location.origin);
+    u.searchParams.set("client", clientName);
+    return u.pathname + u.search;
+}
+
+function setWgQrUiState(state, message) {
+    const img = document.getElementById("wgConfigQrImage");
+    const loadingEl = document.getElementById("wgConfigQrLoading");
+    const unavailableEl = document.getElementById("wgConfigQrUnavailable");
+    const errorEl = document.getElementById("wgConfigQrError");
+
+    if (loadingEl) loadingEl.classList.toggle("d-none", state !== "loading");
+    if (unavailableEl) unavailableEl.classList.toggle("d-none", state !== "unavailable");
+    if (img) img.classList.toggle("d-none", state !== "ready");
+
+    if (errorEl) {
+        if (state === "unavailable" && message) {
+            errorEl.textContent = message;
+            errorEl.classList.remove("d-none");
+        } else {
+            errorEl.classList.add("d-none");
+            errorEl.textContent = "";
+        }
+    }
+}
+
 function resetWgConfigModal() {
-    wgDownloadState = { clientName: "", items: [], index: 0 };
+    wgDownloadState = { clientName: "", items: [], index: 0, qrOpen: false };
     const img = document.getElementById("wgConfigQrImage");
     const loadingEl = document.getElementById("wgConfigDownloadLoading");
     const bodyEl = document.getElementById("wgConfigDownloadBody");
-    const errorEl = document.getElementById("wgConfigQrError");
+    const errorEl = document.getElementById("wgConfigDownloadError");
     const selectEl = document.getElementById("wgConfigProfileSelect");
     const profileSelectLabel = document.querySelector('label[for="wgConfigProfileSelect"]');
+    const profileWrap = document.getElementById("wgProfileTypeWrap");
+    const kindWrap = document.getElementById("wgClientTypeWrap");
 
     if (img) {
         if (img._prevUrl) {
@@ -800,17 +931,25 @@ function resetWgConfigModal() {
         errorEl.textContent = "";
     }
     if (selectEl) {
-        selectEl.classList.add("d-none");
+        selectEl.className = "d-none";
+        selectEl.setAttribute("tabindex", "-1");
+        selectEl.setAttribute("aria-hidden", "true");
         selectEl.innerHTML = "";
         selectEl.onchange = null;
     }
     if (profileSelectLabel) profileSelectLabel.classList.add("d-none");
+    if (profileWrap) profileWrap.classList.remove("d-none");
+    if (kindWrap) kindWrap.classList.remove("d-none");
+    updateWgConfigSummary("", "", "");
+    hideWgQrPanel();
+    setWgQrUiState("loading");
 }
 
 async function loadWgConfigQr(clientName, index) {
     const img = document.getElementById("wgConfigQrImage");
-    const errorEl = document.getElementById("wgConfigQrError");
-    if (!img || !errorEl) return;
+    if (!img) return;
+
+    setWgQrUiState("loading");
 
     const url = buildWgQrHref(clientName, index);
     if (!url) {
@@ -828,27 +967,111 @@ async function loadWgConfigQr(clientName, index) {
     if (img._prevUrl) URL.revokeObjectURL(img._prevUrl);
     img._prevUrl = URL.createObjectURL(blob);
     img.src = img._prevUrl;
-    errorEl.classList.add("d-none");
+    setWgQrUiState("ready");
 }
 
-function openWgConfigModal(clientName) {
+function openWgConfigModal(clientName, options) {
     const api = window.wgApi;
     if (!api || !api.clientConfig || !api.clientConfigDownload || !api.clientConfigQr) return;
+    const openQrOnReady = Boolean(options && options.openQr);
 
     const modalElCfg = document.getElementById("wgConfigDownloadModal");
     const loadingEl = document.getElementById("wgConfigDownloadLoading");
     const bodyEl = document.getElementById("wgConfigDownloadBody");
+    const errorEl = document.getElementById("wgConfigDownloadError");
+    const clientLabelEl = document.getElementById("wgConfigDownloadClient");
     const selectEl = document.getElementById("wgConfigProfileSelect");
     const profileSelectLabel = document.querySelector('label[for="wgConfigProfileSelect"]');
-    const errorEl = document.getElementById("wgConfigQrError");
+    const profileWrap = document.getElementById("wgProfileTypeWrap");
+    const kindWrap = document.getElementById("wgClientTypeWrap");
+    const profileButtons = Array.from(
+        document.querySelectorAll("#wgProfileType [data-profile]")
+    );
+    const kindButtons = Array.from(
+        document.querySelectorAll("#wgClientType [data-kind]")
+    );
 
     if (!modalElCfg || !loadingEl || !bodyEl || !selectEl) return;
 
+    function showDownloadError(message) {
+        loadingEl.classList.add("d-none");
+        bodyEl.classList.add("d-none");
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.classList.remove("d-none");
+    }
+
+    if (clientLabelEl) clientLabelEl.textContent = clientName || "";
     resetWgConfigModal();
+    if (clientLabelEl) clientLabelEl.textContent = clientName || "";
+    bootstrap.Modal.getOrCreateInstance(modalElCfg).show();
+
+    let selectedProfile = null;
+    let selectedKind = null;
+
+    function setButtonState(buttons, activeValue, dataKey) {
+        buttons.forEach((btn) => {
+            const active = btn.dataset[dataKey] === activeValue;
+            btn.classList.toggle("active", active);
+            btn.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+    }
+
+    function getMatchingOption(profile, kind) {
+        return Array.from(selectEl.options).find(
+            (opt) => opt.dataset.profile === profile && opt.dataset.kind === kind
+        );
+    }
+
+    function getAvailableKinds(profile) {
+        return Array.from(selectEl.options)
+            .filter((opt) => opt.dataset.profile === profile)
+            .map((opt) => opt.dataset.kind);
+    }
+
+    function chooseKindForProfile(profile, preferredKind) {
+        const available = getAvailableKinds(profile);
+        if (available.includes(preferredKind)) return preferredKind;
+        if (available.includes("wireguard")) return "wireguard";
+        if (available.includes("amnezia")) return "amnezia";
+        return available[0] || null;
+    }
+
+    function syncChoiceUi() {
+        const availableProfiles = new Set(
+            Array.from(selectEl.options).map((opt) => opt.dataset.profile)
+        );
+        profileButtons.forEach((btn) => {
+            btn.disabled = !availableProfiles.has(btn.dataset.profile);
+        });
+
+        const availableKinds = new Set(getAvailableKinds(selectedProfile));
+        kindButtons.forEach((btn) => {
+            btn.disabled = !availableKinds.has(btn.dataset.kind);
+        });
+
+        setButtonState(profileButtons, selectedProfile, "profile");
+        setButtonState(kindButtons, selectedKind, "kind");
+    }
+
+    function applySelection() {
+        syncChoiceUi();
+        const option = getMatchingOption(selectedProfile, selectedKind);
+        if (!option) return;
+        selectEl.value = option.value;
+        wgDownloadState.index = parseInt(option.value, 10);
+        updateWgConfigSummary(selectedProfile, selectedKind);
+        if (wgDownloadState.qrOpen) {
+            loadWgConfigQr(clientName, wgDownloadState.index).catch((e) => {
+                console.error(e);
+                setWgQrUiState("unavailable", e.message || "Не удалось сгенерировать QR-код.");
+            });
+        }
+    }
 
     const listBase = absoluteApiUrl(api.clientConfig);
     if (!listBase) {
-        alert("Не задан URL API конфигурации.");
+        showDownloadError("Не задан URL API конфигурации.");
         return;
     }
     const listUrl = new URL(listBase);
@@ -863,7 +1086,7 @@ function openWgConfigModal(clientName) {
             }
             return r.json();
         })
-        .then(async (data) => {
+        .then((data) => {
             if (!data.success) {
                 throw new Error(data.message || "Не удалось получить список профилей.");
             }
@@ -872,51 +1095,109 @@ function openWgConfigModal(clientName) {
                 throw new Error("Не найдено файлов .conf для этого клиента.");
             }
 
-            wgDownloadState = { clientName, items, index: items[0].index };
+            const parsedItems = items.map((it) => ({
+                ...it,
+                ...parseWgProfile(it.label),
+            }));
 
-            if (items.length > 1) {
+            wgDownloadState = {
+                clientName,
+                items: parsedItems,
+                index: parsedItems[0].index,
+                qrOpen: false,
+            };
+
+            const knownItems = parsedItems.filter(
+                (it) =>
+                    (it.group === "antizapret" || it.group === "vpn") &&
+                    (it.kind === "wireguard" || it.kind === "amnezia")
+            );
+
+            if (knownItems.length !== parsedItems.length) {
                 selectEl.classList.remove("d-none");
+                selectEl.removeAttribute("aria-hidden");
+                selectEl.removeAttribute("tabindex");
+                selectEl.classList.add("form-select", "mb-3");
                 if (profileSelectLabel) profileSelectLabel.classList.remove("d-none");
-                items.forEach((it) => {
+                if (profileWrap) profileWrap.classList.add("d-none");
+                if (kindWrap) kindWrap.classList.add("d-none");
+
+                parsedItems.forEach((it) => {
                     const opt = document.createElement("option");
                     opt.value = String(it.index);
                     opt.textContent = it.label || `Профиль ${it.index}`;
                     selectEl.appendChild(opt);
                 });
-                selectEl.value = String(items[0].index);
-                selectEl.onchange = async () => {
-                    const idx = parseInt(selectEl.value, 10);
-                    wgDownloadState.index = idx;
-                    if (errorEl) errorEl.classList.add("d-none");
-                    try {
-                        await loadWgConfigQr(clientName, idx);
-                    } catch (e) {
-                        console.error(e);
-                        if (errorEl) {
-                            errorEl.textContent = e.message || "Не удалось сгенерировать QR-код.";
-                            errorEl.classList.remove("d-none");
-                        }
+
+                function syncFallbackSummary() {
+                    const item = parsedItems.find(
+                        (it) => String(it.index) === String(selectEl.value)
+                    );
+                    const opt = selectEl.options[selectEl.selectedIndex];
+                    updateWgConfigSummary(
+                        item && item.group,
+                        item && item.kind,
+                        opt ? opt.textContent : ""
+                    );
+                }
+
+                selectEl.onchange = () => {
+                    wgDownloadState.index = parseInt(selectEl.value, 10);
+                    syncFallbackSummary();
+                    if (wgDownloadState.qrOpen) {
+                        loadWgConfigQr(clientName, wgDownloadState.index).catch((e) => {
+                            console.error(e);
+                            setWgQrUiState(
+                                "unavailable",
+                                e.message || "Не удалось сгенерировать QR-код."
+                            );
+                        });
                     }
                 };
+                selectEl.value = String(items[0].index);
+                syncFallbackSummary();
+                loadingEl.classList.add("d-none");
+                bodyEl.classList.remove("d-none");
+                if (openQrOnReady) showWgQrPanel();
+                return;
             }
+
+            parsedItems.forEach((it) => {
+                const opt = document.createElement("option");
+                opt.value = String(it.index);
+                opt.textContent = it.label || `Профиль ${it.index}`;
+                opt.dataset.profile = it.group;
+                opt.dataset.kind = it.kind;
+                selectEl.appendChild(opt);
+            });
+
+            selectedProfile = parsedItems[0].group;
+            selectedKind = parsedItems[0].kind;
+
+            profileButtons.forEach((btn) => {
+                btn.onclick = () => {
+                    if (btn.disabled) return;
+                    selectedProfile = btn.dataset.profile;
+                    selectedKind = chooseKindForProfile(selectedProfile, selectedKind);
+                    applySelection();
+                };
+            });
+
+            kindButtons.forEach((btn) => {
+                btn.onclick = () => {
+                    if (btn.disabled) return;
+                    selectedKind = btn.dataset.kind;
+                    applySelection();
+                };
+            });
 
             loadingEl.classList.add("d-none");
             bodyEl.classList.remove("d-none");
-            bootstrap.Modal.getOrCreateInstance(modalElCfg).show();
-
-            try {
-                await loadWgConfigQr(clientName, items[0].index);
-            } catch (e) {
-                console.error(e);
-                if (errorEl) {
-                    errorEl.textContent = e.message || "Не удалось сгенерировать QR-код.";
-                    errorEl.classList.remove("d-none");
-                }
-            }
+            applySelection();
+            if (openQrOnReady) showWgQrPanel();
         })
         .catch((e) => {
             console.error(e);
-            loadingEl.classList.add("d-none");
-            alert(e.message || "Ошибка при запросе списка профилей.");
+            showDownloadError(e.message || "Ошибка при запросе списка профилей.");
         });
 }

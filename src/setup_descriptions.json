@@ -2,7 +2,8 @@
   "web_setup": {
     "BOT_ENABLED": "Включение Telegram-бота.",
     "HTTPS_ENABLED": "Включение HTTPS.",
-    "DOMAIN": "Домен для HTTPS и доступа к приложению."
+    "DOMAIN": "Домен для HTTPS и доступа к приложению.",
+    "SERVER_URL": "Публичный URL приложения."
   },
   "antizapret_setup": {
     "SETUP_DATE": "Дата и время установки.",
@@ -15,7 +16,17 @@
     "VPN_WARP": "Исходящий трафик полного VPN через Cloudflare WARP.",
     "ANTIZAPRET_DNS": "DNS-резолверы для AntiZapret VPN.",
     "VPN_DNS": "DNS-резолверы для полного VPN.",
+    "ANTIZAPRET_ADBLOCK": "Блокировка рекламы, трекеров, вредоносных и фишинговых сайтов в AntiZapret VPN по правилам AdGuard и OISD.",
+    "VPN_ADBLOCK": "Блокировка рекламы, трекеров, вредоносных и фишинговых сайтов в полном VPN по правилам AdGuard и OISD.",
     "BLOCK_ADS": "Блокировка рекламы и трекеров в AntiZapret VPN.",
+    "ANTIZAPRET_WARP_PRIVATE_KEY": "Приватный ключ Cloudflare WARP для AntiZapret VPN.",
+    "ANTIZAPRET_WARP_PUBLIC_KEY": "Публичный ключ Cloudflare WARP для AntiZapret VPN.",
+    "ANTIZAPRET_WARP_ENDPOINT": "Endpoint Cloudflare WARP для AntiZapret VPN.",
+    "ANTIZAPRET_WARP_ADDRESS": "Адрес интерфейса Cloudflare WARP для AntiZapret VPN.",
+    "VPN_WARP_PRIVATE_KEY": "Приватный ключ Cloudflare WARP для полного VPN.",
+    "VPN_WARP_PUBLIC_KEY": "Публичный ключ Cloudflare WARP для полного VPN.",
+    "VPN_WARP_ENDPOINT": "Endpoint Cloudflare WARP для полного VPN.",
+    "VPN_WARP_ADDRESS": "Адрес интерфейса Cloudflare WARP для полного VPN.",
     "ALTERNATIVE_CLIENT_IP": "Альтернативный диапазон клиентских адресов 172.28.0.0/15.",
     "ALTERNATIVE_FAKE_IP": "Альтернативный диапазон подменных адресов 198.18.0.0/15.",
     "OPENVPN_BACKUP_TCP": "Резервные TCP-порты для OpenVPN.",

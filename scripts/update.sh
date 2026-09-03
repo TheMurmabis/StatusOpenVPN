@@ -3,6 +3,7 @@
 set -e
 
 export STATUSOPENVPN_SILENT=1
+export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 UPDATE_LOCK="/tmp/statusopenvpn-update.lock"
 

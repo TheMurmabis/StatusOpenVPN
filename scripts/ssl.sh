@@ -1,10 +1,16 @@
 #!/bin/bash
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RESET='\e[0m'
+
+is_silent_mode() {
+    [[ "${STATUSOPENVPN_SILENT:-}" == "1" ]]
+}
 
 usage() {
   echo "Usage: $0 [OPTIONS] [DOMAIN]"
@@ -35,7 +41,7 @@ case "$ACTION" in
 esac
 
 # Для -i домен опционален (без домена — самоподписанный сертификат по IP)
-if [[ -z "$DOMAIN" ]]; then
+if [[ -z "$DOMAIN" ]] && ! is_silent_mode; then
     read -rp "Enter your domain (or leave blank for IP-only with self-signed certificate): " DOMAIN
 fi
 
@@ -70,6 +76,8 @@ DEFAULT_PORT=1234
 if [[ -f "$SERVICE_FILE" ]]; then
     FLASK_PORT=$(grep -oP '(?<=-b\s)(0\.0\.0\.0|127\.0\.0\.1)?:?\K[0-9]+' "$SERVICE_FILE" | head -n1)
     FLASK_PORT=${FLASK_PORT:-$DEFAULT_PORT}
+elif is_silent_mode; then
+    FLASK_PORT=$DEFAULT_PORT
 else
     read -rp "Enter Flask app port (default: $DEFAULT_PORT): " FLASK_PORT
     FLASK_PORT=${FLASK_PORT:-$DEFAULT_PORT}
@@ -361,12 +369,17 @@ EOFIP
         fi
     else
         echo -e "${YELLOW}Obtaining new certificate...${RESET}"
-        read -rp "Enter email for Let's Encrypt (leave blank to skip): " EMAIL_INPUT
-        EMAIL=${EMAIL_INPUT:-$EMAIL}
-        if [[ -z "$EMAIL_INPUT" ]]; then
-            certbot --nginx -d "$DOMAIN" --register-unsafely-without-email --agree-tos || { save_setup_var "HTTPS_ENABLED" "0"; exit 1; }
+        if is_silent_mode; then
+            certbot --nginx -d "$DOMAIN" --register-unsafely-without-email --agree-tos --non-interactive \
+                || { save_setup_var "HTTPS_ENABLED" "0"; exit 1; }
         else
-            certbot --nginx -d "$DOMAIN" --email "$EMAIL" --agree-tos || { save_setup_var "HTTPS_ENABLED" "0"; exit 1; }
+            read -rp "Enter email for Let's Encrypt (leave blank to skip): " EMAIL_INPUT
+            EMAIL=${EMAIL_INPUT:-$EMAIL}
+            if [[ -z "$EMAIL_INPUT" ]]; then
+                certbot --nginx -d "$DOMAIN" --register-unsafely-without-email --agree-tos || { save_setup_var "HTTPS_ENABLED" "0"; exit 1; }
+            else
+                certbot --nginx -d "$DOMAIN" --email "$EMAIL" --agree-tos || { save_setup_var "HTTPS_ENABLED" "0"; exit 1; }
+            fi
         fi
     fi
 
@@ -384,10 +397,26 @@ EOFIP
             echo "  [$idx] $candidate"
             idx=$((idx + 1))
         done
-        read -rp "Use one of these external configs without modifications? (y/N): " use_foreign
+
+        local use_foreign=""
+        if is_silent_mode; then
+            if [[ ${#FOREIGN_STATUSOPENVPN_CONFIGS[@]} -gt 0 ]]; then
+                use_foreign="y"
+                echo -e "${YELLOW}Silent mode: using external config without modifications.${RESET}"
+            else
+                echo -e "${RED}Silent mode: external config found but no proxy_pass to http://127.0.0.1:$FLASK_PORT;${RESET}"
+                echo -e "${RED}Configuration was not changed.${RESET}"
+                exit 1
+            fi
+        else
+            read -rp "Use one of these external configs without modifications? (y/N): " use_foreign
+        fi
+
         if [[ "$use_foreign" =~ ^[Yy]$ ]]; then
             local selected_foreign=""
-            if [[ ${#FOREIGN_CANDIDATE_CONFIGS[@]} -eq 1 ]]; then
+            if is_silent_mode; then
+                selected_foreign="${FOREIGN_STATUSOPENVPN_CONFIGS[0]}"
+            elif [[ ${#FOREIGN_CANDIDATE_CONFIGS[@]} -eq 1 ]]; then
                 selected_foreign="${FOREIGN_CANDIDATE_CONFIGS[0]}"
             else
                 read -rp "Enter config number (1-${#FOREIGN_CANDIDATE_CONFIGS[@]}): " selected_idx

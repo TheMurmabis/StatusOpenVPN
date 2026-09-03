@@ -177,7 +177,15 @@
                         data-client-name="{{ client.name }}" data-online="true"
                         data-blocked="{{ 'true' if client.blocked else 'false' }}"
                         data-protocol="{{ client.protocol }}">
-                        <td class="text-center vpn-table-client">{{ client.display_name or client.name }}</td>
+                        <td class="text-center vpn-table-client">
+                            <span class="vpn-client-name-cell">
+                                <span class="vpn-client-name-text">{{ client.display_name or client.name }}</span>
+                                <a href="{{ url_for('ovpn_client_status', client=client.name) }}"
+                                    class="vpn-client-action-link" title="Профиль клиента" aria-label="Профиль клиента">
+                                    <i class="bi bi-gear" aria-hidden="true"></i>
+                                </a>
+                            </span>
+                        </td>
                         {% if client.real_ip != '-' %}
                         {% set ip_segments = client.real_ip.split(':')[0].split('.') %}
                         <td class="text-center real-ip-cell" data-real-ip="{{ client.real_ip }}"
@@ -248,6 +256,12 @@
 
     {% endif %}
 
+    <script>
+        window.ovpnPageApi = {
+            statsPage: "{{ url_for('ovpn_stats') }}",
+            profilesPage: "{{ url_for('ovpn_client_status') }}"
+        };
+    </script>
     <script src="{{ url_for('static', filename='js/ovpn_page.js') }}"></script>
 
 </div>

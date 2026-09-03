@@ -46,7 +46,10 @@
         <tbody>
           {% for log in logs %}
           <tr class="log-row">
-            <td class="text-center client-name vpn-table-client">{{ log['client_name'] }}</td>
+            <td class="text-center client-name vpn-table-client">
+              <a href="{{ url_for('ovpn_stats', client=log['client_name']) }}"
+                class="vpn-client-link" title="Статистика клиента">{{ log['client_name'] }}</a>
+            </td>
             <td class="text-center real-ip">{{ log['real_ip'] }}</td>
             <td class="text-center local-ip">{{ log['local_ip'] }}</td>
             <td class="text-center connection-time" data-utc="{{ log['connection_since'] }}">{{

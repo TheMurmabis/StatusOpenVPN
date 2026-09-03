@@ -17,6 +17,7 @@ from src.ui.constants import (
 from src.openvpn_status import count_openvpn_online_from_status
 from src.ui.services.openvpn_service import (
     count_openvpn_expiring_certs,
+    kick_online_expired_openvpn_clients,
     read_banned_clients,
 )
 from src.ui.services.settings_service import read_settings
@@ -106,6 +107,10 @@ def update_system_info():
 
             interface = get_default_interface()
             network_stats = get_network_stats(interface) if interface else None
+            try:
+                kick_online_expired_openvpn_clients()
+            except Exception:
+                pass
             vpn_clients = count_online_clients()
             vpn_blocked = count_blocked_clients()
             openvpn_expiring_certs = count_openvpn_expiring_certs()

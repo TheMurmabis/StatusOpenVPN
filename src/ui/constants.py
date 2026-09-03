@@ -71,6 +71,22 @@ CLIENT_CONNECT_BAN_CHECK_BLOCK = (
     "fi\n"
 )
 
+CLIENT_CONNECT_CERT_EXPIRE_BLOCK = (
+    "# StatusOpenVPN cert-expire-check\n"
+    'if [[ "$common_name" =~ ^[a-zA-Z0-9_-]{1,32}$ ]]; then\n'
+    '    CRT="/etc/openvpn/easyrsa3/pki/issued/${common_name}.crt"\n'
+    '    if [ ! -f "$CRT" ]; then\n'
+    '        CRT="/etc/openvpn/client/keys/${common_name}.crt"\n'
+    "    fi\n"
+    '    if [ -f "$CRT" ]; then\n'
+    '        if ! /usr/bin/openssl x509 -in "$CRT" -checkend 0 -noout 2>/dev/null; then\n'
+    '            echo "Client $common_name certificate expired" >&2\n'
+    "            exit 1\n"
+    "        fi\n"
+    "    fi\n"
+    "fi\n"
+)
+
 OPENVPN_SOCKETS = {
     "antizapret-udp": "/run/openvpn-server/antizapret-udp.sock",
     "antizapret-tcp": "/run/openvpn-server/antizapret-tcp.sock",

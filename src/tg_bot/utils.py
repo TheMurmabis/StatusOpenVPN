@@ -13,20 +13,13 @@ def get_external_ip():
     global _server_ip_cache
     if _server_ip_cache is not None:
         return _server_ip_cache
-    
-    import requests
-    try:
-        response = requests.get("https://api.ipify.org", timeout=10)
-        if response.status_code == 200:
-            _server_ip_cache = response.text
-            return _server_ip_cache
-        return "IP не найден"
-    except requests.Timeout:
-        return "Ошибка: запрос превысил время ожидания."
-    except requests.ConnectionError:
-        return "Ошибка: нет подключения к интернету."
-    except requests.RequestException as e:
-        return f"Ошибка при запросе: {e}"
+
+    from src.ui.utils.network_utils import get_external_ip as fetch_external_ip, is_public_ip
+
+    ip = fetch_external_ip()
+    if is_public_ip(ip):
+        _server_ip_cache = ip
+    return ip
 
 
 async def execute_script(option: str, client_name: str = None, days: str = None):

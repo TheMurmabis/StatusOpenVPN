@@ -9,6 +9,8 @@
 {% endblock %}
 
 {% block content %}
+{% set versions_match = latest_version and current_version == latest_version %}
+{% set changelog_version = latest_version or current_version %}
 
 <div class="dash-mon settings-shell">
   <section class="dash-panel mb-3">
@@ -19,11 +21,30 @@
 
     <dl class="row mb-0 small">
       <dt class="col-sm-4 col-md-3 text-muted">Текущая</dt>
-      <dd class="col-sm-8 col-md-9"><code>{{ current_version }}</code></dd>
+      <dd class="col-sm-8 col-md-9">
+        <code id="updateCurrentVersion" class="update-version{% if versions_match %} update-version--match{% else %} update-version--current{% endif %}">{{ current_version }}</code>
+      </dd>
       <dt class="col-sm-4 col-md-3 text-muted">Доступная</dt>
       <dd class="col-sm-8 col-md-9">
         {% if latest_version %}
-        <code>{{ latest_version }}</code>
+        <div>
+          <code id="updateLatestVersion" class="update-version{% if versions_match %} update-version--match{% else %} update-version--new{% endif %}">{{ latest_version }}</code>
+          <span id="updateAvailableBadge" class="badge text-bg-warning ms-2{% if versions_match %} d-none{% endif %}">Доступно обновление</span>
+        </div>
+        {% else %}
+        <span class="text-muted">—</span>
+        {% endif %}
+      </dd>
+      {% if published_at %}
+      <dt class="col-sm-4 col-md-3 text-muted">Выпущена</dt>
+      <dd class="col-sm-8 col-md-9">
+        <span>{{ published_at }}</span>
+      </dd>
+      {% endif %}
+      <dt class="col-sm-4 col-md-3 text-muted">Проверка</dt>
+      <dd class="col-sm-8 col-md-9">
+        {% if last_check %}
+        <span>{{ last_check }}</span>
         {% else %}
         <span class="text-muted">—</span>
         {% endif %}
@@ -32,7 +53,10 @@
 
     {% if github_error %}
     <div class="alert alert-warning py-2 mt-3 mb-0 small" role="alert">
-      Не удалось проверить теги на GitHub: {{ github_error }}
+      Не удалось проверить обновления на GitHub: {{ github_error }}
+      {% if latest_version %}
+      <span class="d-block mt-1">Показаны данные из последнего успешного ответа.</span>
+      {% endif %}
     </div>
     {% endif %}
   </section>
@@ -43,6 +67,7 @@
   {% if update_error %}
   <div class="alert alert-danger py-2 mb-3" role="alert">{{ update_error }}</div>
   {% endif %}
+  <div class="alert alert-danger py-2 mb-3 d-none" role="alert" id="updateRuntimeError"></div>
 
   <section class="dash-panel mb-3">
     <div class="dash-panel__hd mb-3">
@@ -50,31 +75,124 @@
       <span class="dash-panel__hd-t">Установка обновления</span>
     </div>
 
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <div class="small text-muted">
+        Статус:
+        <span class="fw-semibold update-status-text" id="updateStatusText">
+          {% if update_running %}
+          🔄 Выполняется обновление
+          {% elif update_available %}
+          🟡 Доступно обновление
+          {% elif versions_match %}
+          🟢 Установлена последняя версия
+          {% else %}
+          Нет обновлений
+          {% endif %}
+        </span>
+      </div>
+      <label class="form-check form-switch small mb-0">
+        <input class="form-check-input" type="checkbox" id="updateStayOnPage">
+        <span class="form-check-label">Остаться на странице</span>
+      </label>
+    </div>
+
     {% if update_available and not update_running %}
-    <p class="small text-muted mb-3">
-      Обновление выполняется автоматически без дополнительных вопросов: загрузка тега с GitHub,
-      зависимости Python и перезапуск служб. Панель может быть недоступна несколько минут.
-    </p>
-    <form method="post" id="updateForm">
-      <button type="submit" class="btn btn-primary">
-        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
-        Обновить до {{ latest_version }}
-      </button>
-    </form>
+    <div id="updateInstallBody">
+      <p class="small text-muted mb-3">
+        Обновление выполняется автоматически без дополнительных вопросов: загрузка тега с GitHub,
+        зависимости Python и перезапуск служб. Панель может быть недоступна несколько минут.
+      </p>
+      <form method="post" id="updateForm">
+        <button type="submit" class="btn btn-sm btn-primary settings-action-btn">
+          <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+          Обновить до {{ latest_version }}
+        </button>
+      </form>
+    </div>
     {% elif update_running %}
-    <p class="small text-muted mb-2">Обновление выполняется…</p>
-    <div class="spinner-border spinner-border-sm text-primary mb-3" role="status" aria-hidden="true"></div>
-    {% elif latest_version and current_version == latest_version %}
-    <p class="small text-success mb-0">Установлена последняя версия.</p>
+    <div id="updateInstallBody">
+      <p class="small text-muted mb-2" id="updateRunningText">Обновление выполняется…</p>
+      <div class="spinner-border spinner-border-sm text-secondary mb-3" id="updateRunningSpinner" role="status" aria-hidden="true"></div>
+    </div>
+    {% elif versions_match %}
+    <div id="updateInstallBody">
+      <p class="small text-success mb-0">Установлена последняя версия.</p>
+    </div>
     {% else %}
-    <p class="small text-muted mb-0">Новых версий не найдено.</p>
+    <div id="updateInstallBody">
+      <p class="small text-muted mb-0">Новых версий не найдено.</p>
+    </div>
     {% endif %}
   </section>
+
+  {% if changelog_html or changelog_overview_html %}
+  <section class="dash-panel mb-3">
+    <div class="dash-panel__hd mb-2 d-flex justify-content-between align-items-center gap-2 install-panel-header">
+      <div class="install-panel-header__toggle d-flex align-items-center gap-2 flex-grow-1 min-w-0"
+        role="button" tabindex="0" data-bs-toggle="collapse" data-bs-target="#updateChangelogCollapse"
+        aria-expanded="{% if update_available %}true{% else %}false{% endif %}"
+        aria-controls="updateChangelogCollapse">
+        <i class="bi bi-journal-text dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">
+          {% if versions_match %}
+            Что нового в текущей версии
+          {% elif latest_version %}
+            Что нового в доступной версии
+          {% else %}
+            Что нового
+          {% endif %}
+          {% if changelog_version %}
+            <span class="text-muted">({{ changelog_version }})</span>
+          {% endif %}
+        </span>
+      </div>
+      {% if changelog_url %}
+      <a href="{{ changelog_url }}"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="small text-decoration-none flex-shrink-0"
+         onclick="event.stopPropagation();">
+        GitHub
+        <i class="bi bi-box-arrow-up-right ms-1" aria-hidden="true"></i>
+      </a>
+      {% endif %}
+      <span class="install-panel-chevron bi bi-chevron-down{% if not update_available %} collapsed{% endif %}"
+        role="button" tabindex="0"
+        data-bs-toggle="collapse" data-bs-target="#updateChangelogCollapse"
+        aria-expanded="{% if update_available %}true{% else %}false{% endif %}"
+        aria-controls="updateChangelogCollapse" aria-label="Развернуть или свернуть"></span>
+    </div>
+    <div id="updateChangelogCollapse" class="collapse{% if update_available %} show{% endif %}">
+      {% if update_available %}
+      <p class="small text-muted mb-3">
+        Изменения, которые будут установлены при обновлении до версии <code class="update-version update-version--new">{{ latest_version }}</code>.
+      </p>
+      {% endif %}
+      {% if changelog_html %}
+      <div class="changelog-html small mb-0" id="updateChangelog">{{ changelog_html | safe }}</div>
+      {% endif %}
+      {% if changelog_overview_html %}
+      <details class="update-release-overview mt-3">
+        <summary class="small text-muted">Показать полное описание релиза</summary>
+        <div class="changelog-html small mt-2 mb-0">{{ changelog_overview_html | safe }}</div>
+      </details>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
 
   <section class="dash-panel mb-0" id="updateLogPanel" {% if not update_log and not update_running %}style="display:none"{% endif %}>
     <div class="dash-panel__hd mb-2">
       <i class="bi bi-terminal dash-panel__hd-ic text-secondary" aria-hidden="true"></i>
       <span class="dash-panel__hd-t">Журнал</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="updateLogCopyBtn">
+        <i class="bi bi-clipboard me-1" aria-hidden="true"></i>Скопировать
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="updateLogDownloadBtn">
+        <i class="bi bi-download me-1" aria-hidden="true"></i>Скачать
+      </button>
     </div>
     <pre class="update-log small mb-0 p-3 rounded" id="updateLog">{{ update_log }}</pre>
   </section>

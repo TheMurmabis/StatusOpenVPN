@@ -1,9 +1,13 @@
 import os
+import re
 import subprocess
 import time
 from threading import Lock
 
+import bleach
+import markdown
 import requests
+from bleach import callbacks
 from packaging.version import InvalidVersion, Version
 
 from src.ui.constants import BASE_DIR, GITHUB_REPO, UPDATE_LOG_PATH, UPDATE_SCRIPT
@@ -11,8 +15,18 @@ from src.ui.services.system_info_service import get_git_version
 
 UPDATE_CHECK_TTL = 900
 UPDATE_LOCK_PATH = "/tmp/statusopenvpn-update.lock"
+GITHUB_RELEASES_LATEST_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
-_update_cache = {"at": 0.0, "latest": None, "error": None}
+_update_cache = {
+    "at": 0.0,
+    "latest": None,
+    "changelog_md": None,
+    "changelog_html": None,
+    "changelog_url": None,
+    "published_at": None,
+    "etag": None,
+    "error": None,
+}
 _update_cache_lock = Lock()
 _update_process_lock = Lock()
 
@@ -33,48 +47,244 @@ def get_current_version():
     return get_git_version()
 
 
-def _fetch_github_tags():
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
-    response = requests.get(url, params={"per_page": 100}, timeout=15)
-    response.raise_for_status()
-    return response.json()
+def render_changelog_html(markdown_text):
+    if not markdown_text:
+        return ""
+    lines = markdown_text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    normalized = []
+    for line in lines:
+        if line.startswith("  - ") or line.startswith("  * "):
+            line = "    " + line[2:]
+        elif re.match(r"^  \d+\.\s+", line):
+            line = "    " + line[2:]
+        is_top_list = bool(line) and (
+            line.startswith("- ")
+            or line.startswith("* ")
+            or re.match(r"^\d+\.\s+", line)
+        )
+        if is_top_list:
+            prev = normalized[-1] if normalized else ""
+            if prev.strip():
+                normalized.append("")
+        normalized.append(line)
+    html = markdown.markdown(
+        "\n".join(normalized), extensions=["extra", "sane_lists", "tables"]
+    )
+    allowed_tags = [
+        "p",
+        "ul",
+        "ol",
+        "li",
+        "strong",
+        "em",
+        "code",
+        "pre",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "a",
+        "br",
+        "hr",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+    ]
+    allowed_attrs = {
+        "a": ["href", "title", "rel", "target"],
+    }
+    cleaned = bleach.clean(
+        html,
+        tags=allowed_tags,
+        attributes=allowed_attrs,
+        protocols=["http", "https"],
+        strip=True,
+    )
+    return bleach.linkify(
+        cleaned,
+        callbacks=[callbacks.nofollow, callbacks.target_blank],
+    )
 
 
-def get_latest_github_version():
+_CHANGE_SECTION_PATTERNS = [
+    re.compile(r"(?i)добавлен|added|новое"),
+    re.compile(r"(?i)исправлен|fixed|bug"),
+    re.compile(r"(?i)изменен|changed|улучшен|improved"),
+    re.compile(r"(?i)удален|removed|deprecated"),
+]
+
+_CHANGELOG_HEADING_RE = re.compile(
+    r"^\s{0,3}(?:#{1,6}\s+|\*\*|__)(.+?)(?:\*\*|__)?\s*$"
+)
+
+
+def _is_change_section_title(title):
+    value = (title or "").strip().rstrip(":")
+    if not value:
+        return False
+    return any(pattern.search(value) for pattern in _CHANGE_SECTION_PATTERNS)
+
+
+def split_changelog_markdown(markdown_text):
+    """Split release notes into change sections and overview (e.g. Основные функции)."""
+    if not markdown_text:
+        return "", ""
+
+    lines = markdown_text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    change_start = None
+    for index, raw_line in enumerate(lines):
+        heading = _CHANGELOG_HEADING_RE.match(raw_line.rstrip())
+        if not heading:
+            continue
+        if _is_change_section_title(heading.group(1)):
+            change_start = index
+            break
+
+    if change_start is None:
+        return markdown_text.strip(), ""
+
+    changes = "\n".join(lines[change_start:]).strip()
+    overview = "\n".join(lines[:change_start]).strip()
+    return changes, overview
+
+
+def summarize_changelog_changes(markdown_text):
+    if not markdown_text:
+        return []
+
+    section_patterns = [
+        (re.compile(r"(?i)добавлен|added|новое"), "добавления"),
+        (re.compile(r"(?i)исправлен|fixed|bug"), "исправления"),
+        (re.compile(r"(?i)изменен|changed|улучшен|improved"), "изменения"),
+        (re.compile(r"(?i)удален|removed|deprecated"), "удаления"),
+    ]
+    item_re = re.compile(r"^[-*+]\s+\S")
+
+    counts = {}
+    current_label = None
+    for raw_line in markdown_text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = raw_line.rstrip()
+        heading = _CHANGELOG_HEADING_RE.match(line)
+        if heading:
+            title = heading.group(1).strip().rstrip(":")
+            current_label = None
+            for pattern, label in section_patterns:
+                if pattern.search(title):
+                    current_label = label
+                    counts.setdefault(label, 0)
+                    break
+            continue
+        if current_label and item_re.match(line):
+            counts[current_label] += 1
+
+    summary = []
+    for label in ("добавления", "исправления", "изменения", "удаления"):
+        count = counts.get(label, 0)
+        if count:
+            summary.append({"label": label, "count": count})
+    return summary
+
+
+def _cache_snapshot():
     with _update_cache_lock:
-        if time.time() - _update_cache["at"] < UPDATE_CHECK_TTL:
-            if _update_cache["error"]:
-                return None, _update_cache["error"]
-            return _update_cache["latest"], None
+        return {
+            "latest": _update_cache["latest"],
+            "changelog_md": _update_cache["changelog_md"],
+            "changelog_html": _update_cache["changelog_html"] or "",
+            "changelog_url": _update_cache["changelog_url"],
+            "published_at": _update_cache["published_at"],
+            "at": _update_cache["at"],
+            "etag": _update_cache["etag"],
+            "error": _update_cache["error"],
+        }
+
+
+def get_release_info(force=False):
+    with _update_cache_lock:
+        cached_at = _update_cache["at"]
+        etag = _update_cache["etag"]
+        if (
+            not force
+            and cached_at
+            and time.time() - cached_at < UPDATE_CHECK_TTL
+        ):
+            return {
+                "latest": _update_cache["latest"],
+                "changelog_md": _update_cache["changelog_md"],
+                "changelog_html": _update_cache["changelog_html"] or "",
+                "changelog_url": _update_cache["changelog_url"],
+                "published_at": _update_cache["published_at"],
+                "at": _update_cache["at"],
+                "etag": _update_cache["etag"],
+                "error": _update_cache["error"],
+            }
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "StatusOpenVPN",
+    }
+    if etag:
+        headers["If-None-Match"] = etag
 
     try:
-        tags = _fetch_github_tags()
-        best_tag = None
-        best_version = None
-        for item in tags:
-            name = item.get("name", "")
-            parsed = normalize_version_tag(name)
-            if parsed is None:
-                continue
-            if best_version is None or parsed > best_version:
-                best_version = parsed
-                best_tag = name
+        response = requests.get(
+            GITHUB_RELEASES_LATEST_URL,
+            headers=headers,
+            timeout=15,
+        )
+        if response.status_code == 304:
+            with _update_cache_lock:
+                _update_cache["at"] = time.time()
+                _update_cache["error"] = None
+                if response.headers.get("ETag"):
+                    _update_cache["etag"] = response.headers.get("ETag")
+            return _cache_snapshot()
+
+        response.raise_for_status()
+        data = response.json()
+        tag_name = data.get("tag_name")
+        body = (data.get("body") or "").strip()
+        html_url = data.get("html_url")
+        published_at = data.get("published_at")
+        changelog_html = render_changelog_html(body)
+
         with _update_cache_lock:
             _update_cache["at"] = time.time()
-            _update_cache["latest"] = best_tag
+            _update_cache["latest"] = tag_name
+            _update_cache["changelog_md"] = body
+            _update_cache["changelog_html"] = changelog_html
+            _update_cache["changelog_url"] = html_url
+            _update_cache["published_at"] = published_at
+            _update_cache["etag"] = response.headers.get("ETag")
             _update_cache["error"] = None
-        return best_tag, None
+        return _cache_snapshot()
     except Exception as exc:
         with _update_cache_lock:
             _update_cache["at"] = time.time()
-            _update_cache["latest"] = None
             _update_cache["error"] = str(exc)
-        return None, str(exc)
+        return _cache_snapshot()
+
+
+def get_latest_github_version(force=False):
+    info = get_release_info(force=force)
+    return info["latest"], info["error"]
+
+
+def get_update_check_time():
+    with _update_cache_lock:
+        return _update_cache["at"]
 
 
 def is_update_available():
     current = get_current_version()
-    latest, _error = get_latest_github_version()
+    info = get_release_info()
+    latest = info["latest"]
     if not latest or current == "unknown":
         return False, current, latest
     current_v = normalize_version_tag(current)
@@ -152,4 +362,9 @@ def clear_update_cache():
     with _update_cache_lock:
         _update_cache["at"] = 0.0
         _update_cache["latest"] = None
+        _update_cache["changelog_md"] = None
+        _update_cache["changelog_html"] = None
+        _update_cache["changelog_url"] = None
+        _update_cache["published_at"] = None
+        _update_cache["etag"] = None
         _update_cache["error"] = None
