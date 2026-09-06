@@ -2,6 +2,18 @@
 
 Этот файл содержит изменения, сделанные в проекте **StatusOpenVPN** и **TelegramBot**.
 
+## [v1.5.3.1](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.3.1) — 03.09.2026
+
+### StatusOpenVPN
+
+**Исправлено/улучшено:**
+- Исправлена ошибка с просроченным сертификатом.
+
+## Предыдущие версии
+
+<details>
+<summary>v1.5.3 - 03.08.2026</summary>
+  
 ## [v1.5.3](https://github.com/TheMurmabis/StatusOpenVPN/releases/tag/v1.5.3) — 03.09.2026
 
 ### StatusOpenVPN
@@ -17,8 +29,7 @@
 - Обновлена страница обновления (`/settings/update`).
 - Обновлены описания параметров AntiZapret (`/settings/install`).
 
-
-## Предыдущие версии
+</details>
 
 <details>
 <summary>v1.5.2 - 03.08.2026</summary>
