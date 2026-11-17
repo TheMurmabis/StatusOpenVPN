@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки · Публичные ссылки{% endblock %}
+
+{% block page_title %}Настройки{% endblock %}
+
+{% block page_subtitle %}
+<p class="app-topbar__subtitle text-truncate">Публичные ссылки</p>
+{% endblock %}
+
+{% block content %}
+
+<div class="dash-mon settings-shell">
+  <header class="dash-mon__hero">
+    <nav class="settings-tabs" aria-label="Разделы настроек">
+      <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
+      <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
+      <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
+      <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
+      <a href="{{ url_for('settings_install') }}" class="settings-tab {% if active_page == 'settings_install' %}active{% endif %}">Установка</a>
+    </nav>
+  </header>
+
+  <form method="post" autocomplete="off" class="settings-general-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="form_type" value="public_links" />
+    {% if links_message %}
+    <div class="alert alert-success py-2 mb-3" role="alert">{{ links_message }}</div>
+    {% endif %}
+    {% if links_error %}
+    <div class="alert alert-danger py-2 mb-3" role="alert">{{ links_error }}</div>
+    {% endif %}
+
+    <section class="dash-panel mb-3">
+      <div class="dash-panel__hd mb-2">
+        <i class="bi bi-link-45deg dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+        <span class="dash-panel__hd-t">Публичные ссылки</span>
+      </div>
+      <p class="settings-field-hint small mb-3">
+        Ссылки на конфиги клиентов OpenVPN и WireGuard. Одинаковое имя клиента использует одну ссылку.
+      </p>
+      {% if not subscription_https_ready %}
+      <div class="form-text settings-field-hint mb-3">
+        {% if subscriptions_enabled %}
+        Ссылки временно недоступны: нужен домен и действующий HTTPS-сертификат. После восстановления они включатся снова.
+        {% else %}
+        Ссылки можно включить только при домене и действующем HTTPS-сертификате.
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="d-flex align-items-end gap-3 flex-wrap public-links-controls">
+        <div class="public-links-toggle-control">
+          <div class="form-check form-switch settings-toggle mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="subscriptions_enabled" name="subscriptions_enabled"
+              {% if subscriptions_enabled and subscription_https_ready %}checked{% endif %}
+              {% if not subscription_https_ready %}disabled{% endif %}>
+            <label class="form-check-label settings-check-label" for="subscriptions_enabled">
+              Выдавать ссылки
+              <small class="settings-field-hint d-block">Показывать кнопку копирования в карточках клиентов</small>
+            </label>
+          </div>
+        </div>
+        <div id="publicLinksLifetime">
+          <label for="subscription_link_lifetime_minutes" class="form-label settings-check-label mb-1">Срок действия</label>
+          <div class="input-group public-links-lifetime-input">
+            <input type="number" min="1" max="1440" step="1" class="form-control"
+              id="subscription_link_lifetime_minutes" name="subscription_link_lifetime_minutes"
+              value="{{ subscription_link_lifetime_minutes }}" inputmode="numeric" required
+              aria-describedby="subscriptionLinkLifetimeHint subscriptionLinkLifetimeError"
+              {% if not (subscriptions_enabled and subscription_https_ready) %}disabled{% endif %}>
+            <span class="input-group-text">мин.</span>
+          </div>
+          <div class="invalid-feedback" id="subscriptionLinkLifetimeError">
+            Укажите целое значение от 1 до 1440 минут.
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="publicLinksSaveBtn"
+          {% if not links_error %}disabled{% endif %}>Сохранить</button>
+      </div>
+      <div class="form-text settings-field-hint mt-2" id="subscriptionLinkLifetimeHint">
+        Временная ссылка действует после первого открытия, от 1 минуты до 24 часов.
+      </div>
+    </section>
+  </form>
+
+  {% if subscriptions_enabled %}
+  <section class="dash-panel mb-3" id="publicLinksClients">
+    <div class="dash-panel__hd mb-2">
+      <i class="bi bi-people dash-panel__hd-ic text-primary" aria-hidden="true"></i>
+      <span class="dash-panel__hd-t">Клиенты</span>
+    </div>
+    {% if clients %}
+    <div class="table-responsive ovpn_table small">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Клиент</th>
+            <th>Конфиги</th>
+            <th>Telegram</th>
+            <th>Ссылка</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+          <tr class="{% if client.disabled %}public-link-client--disabled{% endif %}">
+            <td>{{ client.name }}</td>
+            <td>
+              {% if client.openvpn %}<span class="badge audit-badge public-link-badge--openvpn">OpenVPN</span>{% endif %}
+              {% if client.wireguard %}<span class="badge audit-badge public-link-badge--wireguard">WireGuard</span>{% endif %}
+            </td>
+            <td>
+              {% if client.telegram %}
+              {{ client.telegram | join(', ') }}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td data-public-link-status="{{ client.name }}">
+              {% if client.disabled %}
+              Отключено
+              {% elif client.public %}
+              {% if client.temporary %}Временная{% else %}Постоянная{% endif %}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <button type="button"
+                class="btn btn-sm btn-outline-primary public-link-configure-btn"
+                data-public-link="{{ client.name }}"
+                title="Настроить публичную ссылку"
+                aria-label="Настроить публичную ссылку клиента {{ client.name }}"
+                {% if not (subscriptions_enabled and subscription_https_ready) %}disabled{% endif %}>
+                <i class="bi bi-gear" aria-hidden="true"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="settings-field-hint small mb-0">Клиентов пока нет.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% include "shared/subscription_manager_modal.html" %}
+</div>
+
+<script>
+  window.subscriptionManagerApi = {
+    settings: "{{ url_for('api_openvpn_client_subscription_settings') }}",
+    create: "{{ url_for('api_openvpn_client_subscription') }}",
+    revoke: "{{ url_for('api_openvpn_client_subscription_revoke') }}"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/subscription_manager.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const toggle = document.getElementById("subscriptions_enabled");
+    const lifetime = document.getElementById("subscription_link_lifetime_minutes");
+    const lifetimeError = document.getElementById("subscriptionLinkLifetimeError");
+    const lifetimeBlock = document.getElementById("publicLinksLifetime");
+    const clientsBlock = document.getElementById("publicLinksClients");
+    const saveButton = document.getElementById("publicLinksSaveBtn");
+    const form = saveButton?.closest("form");
+    const initialState = {
+      enabled: Boolean(toggle?.checked),
+      lifetime: lifetime?.value || ""
+    };
+    const hasSaveError = {{ (links_error is not none) | tojson }};
+    const configureButtons = () => Array.from(document.querySelectorAll("[data-public-link]"));
+
+    function validateLifetime(showError = false) {
+      if (!lifetime || lifetime.disabled) return true;
+      const raw = lifetime.value.trim();
+      const value = Number(raw);
+      const valid = /^\d+$/.test(raw)
+        && Number.isInteger(value)
+        && value >= 1
+        && value <= 1440;
+      lifetime.setCustomValidity(valid ? "" : "Укажите целое значение от 1 до 1440 минут.");
+      lifetime.classList.toggle("is-invalid", showError && !valid);
+      lifetimeError?.classList.toggle("d-block", showError && !valid);
+      return valid;
+    }
+
+    function syncSaveButton() {
+      if (!saveButton) return;
+      const changed = Boolean(toggle?.checked) !== initialState.enabled
+        || (lifetime?.value || "") !== initialState.lifetime;
+      const valid = validateLifetime(Boolean(lifetime?.dataset.touched));
+      saveButton.disabled = !valid || (!hasSaveError && !changed);
+    }
+
+    function setLinksFieldsEnabled(enabled) {
+      if (lifetime) lifetime.disabled = !enabled;
+      if (lifetimeBlock) lifetimeBlock.classList.toggle("public-links-locked", !enabled);
+      if (clientsBlock) clientsBlock.classList.toggle("public-links-locked", !enabled);
+      configureButtons().forEach((button) => { button.disabled = !enabled; });
+    }
+
+    configureButtons().forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.disabled) return;
+        window.SubscriptionManager?.open(button.dataset.publicLink, "all");
+      });
+    });
+    if (toggle) {
+      setLinksFieldsEnabled(toggle.checked && !toggle.disabled);
+      toggle.addEventListener("change", () => {
+        setLinksFieldsEnabled(toggle.checked && !toggle.disabled);
+        syncSaveButton();
+      });
+    }
+    lifetime?.addEventListener("input", () => {
+      lifetime.dataset.touched = "true";
+      syncSaveButton();
+    });
+    lifetime?.addEventListener("blur", () => {
+      lifetime.dataset.touched = "true";
+      validateLifetime(true);
+    });
+    form?.addEventListener("submit", (event) => {
+      if (!lifetime || lifetime.disabled) return;
+      lifetime.dataset.touched = "true";
+      if (!validateLifetime(true)) {
+        event.preventDefault();
+        lifetime.reportValidity();
+        lifetime.focus();
+      }
+    });
+    form?.addEventListener("reset", () => window.setTimeout(syncSaveButton, 0));
+    syncSaveButton();
+
+    const query = new URLSearchParams(window.location.search);
+    const requestedClient = (query.get("client") || "").trim();
+    const requestedFamily = query.get("family");
+    if (requestedClient) {
+      const requestedButton = configureButtons().find(
+        (button) => button.dataset.publicLink === requestedClient
+      );
+      if (requestedButton && !requestedButton.disabled && window.SubscriptionManager) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("client");
+        cleanUrl.searchParams.delete("family");
+        window.history.replaceState({}, "", cleanUrl.toString());
+        window.SubscriptionManager.open(
+          requestedClient,
+          requestedFamily === "openvpn" || requestedFamily === "wireguard"
+            ? requestedFamily
+            : "all"
+        );
+      }
+    }
+  });
+</script>
+
+{% endblock %}

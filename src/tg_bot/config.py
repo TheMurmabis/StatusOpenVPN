@@ -2,6 +2,9 @@
 
 import os
 import json
+import copy
+import fcntl
+import tempfile
 
 _settings_cache = None
 _settings_mtime = 0
@@ -11,6 +14,10 @@ SETTINGS_PATH = os.path.join(
 )
 ENV_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
+)
+LEGACY_ADMIN_INFO_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "telegram_admins.json",
 )
 CLIENT_MAPPING_KEY = "CLIENT_MAPPING"
 TG_BOT_PROFILE_SEEDED_KEY = "tg_bot_profile_seeded"
@@ -44,17 +51,149 @@ def get_admin_ids():
     return [int(x) for x in raw.split(",") if x.strip().isdigit()]
 
 
+def merge_telegram_profiles(legacy, current):
+    """Объединить профили без потери старых пользователей и неизвестных полей."""
+    merged = {}
+    if isinstance(legacy, dict):
+        for user_id, profile in legacy.items():
+            merged[str(user_id)] = copy.deepcopy(profile)
+    if isinstance(current, dict):
+        for user_id, profile in current.items():
+            user_id = str(user_id)
+            previous = merged.get(user_id)
+            if isinstance(previous, dict) and isinstance(profile, dict):
+                combined = copy.deepcopy(previous)
+                combined.update(copy.deepcopy(profile))
+                merged[user_id] = combined
+            elif isinstance(previous, dict) and not isinstance(profile, dict):
+                # Некорректная новая запись не должна уничтожать полноценный
+                # профиль из старого хранилища.
+                continue
+            else:
+                merged[user_id] = copy.deepcopy(profile)
+    return merged
+
+
+def migrate_telegram_profiles(data):
+    """Объединить telegram_admins с telegram_profiles и удалить старый ключ."""
+    if not isinstance(data, dict) or "telegram_admins" not in data:
+        return False
+
+    legacy = data.get("telegram_admins")
+    profiles = data.get("telegram_profiles")
+    replacement = merge_telegram_profiles(legacy, profiles)
+
+    rebuilt = {}
+    for key, value in data.items():
+        if key == "telegram_profiles":
+            continue
+        if key == "telegram_admins":
+            rebuilt["telegram_profiles"] = replacement
+            continue
+        rebuilt[key] = value
+    data.clear()
+    data.update(rebuilt)
+    return True
+
+
+def _atomic_write_settings(data):
+    directory = os.path.dirname(SETTINGS_PATH)
+    os.makedirs(directory, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix=".settings-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as settings_file:
+            json.dump(data, settings_file, ensure_ascii=False, indent=4)
+            settings_file.write("\n")
+            settings_file.flush()
+            os.fsync(settings_file.fileno())
+        os.replace(temp_path, SETTINGS_PATH)
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _read_settings_document():
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
+            data = json.load(settings_file)
+    except FileNotFoundError:
+        return {}, False
+    except (OSError, json.JSONDecodeError):
+        return {}, True
+    return (data if isinstance(data, dict) else {}), not isinstance(data, dict)
+
+
+def _read_legacy_profiles():
+    try:
+        with open(LEGACY_ADMIN_INFO_PATH, "r", encoding="utf-8") as legacy_file:
+            data = json.load(legacy_file)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _archive_legacy_profiles():
+    if not os.path.isfile(LEGACY_ADMIN_INFO_PATH):
+        return
+    archive_base = LEGACY_ADMIN_INFO_PATH + ".migrated"
+    archive_path = archive_base
+    suffix = 1
+    while os.path.exists(archive_path):
+        archive_path = f"{archive_base}.{suffix}"
+        suffix += 1
+    try:
+        os.chmod(LEGACY_ADMIN_INFO_PATH, 0o600)
+        os.replace(LEGACY_ADMIN_INFO_PATH, archive_path)
+        os.chmod(archive_path, 0o600)
+    except OSError:
+        pass
+
+
+def _load_and_migrate_settings():
+    """Выполнить миграцию под межпроцессной блокировкой и вернуть снимок данных."""
+    lock_path = SETTINGS_PATH + ".lock"
+    os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            data, unreadable = _read_settings_document()
+            if unreadable:
+                # Не заменяем повреждённый/неподдерживаемый файл пустым документом.
+                return data
+
+            legacy_file_profiles = _read_legacy_profiles()
+            if legacy_file_profiles is not None:
+                embedded_legacy = data.get("telegram_admins")
+                data["telegram_admins"] = merge_telegram_profiles(
+                    legacy_file_profiles,
+                    embedded_legacy,
+                )
+
+            migrated = migrate_telegram_profiles(data)
+            if migrated:
+                _atomic_write_settings(data)
+                if legacy_file_profiles is not None:
+                    _archive_legacy_profiles()
+            return data
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def normalize_settings_data(data):
     """Привести словарь настроек к ожидаемой структуре."""
     if not isinstance(data, dict):
         data = {}
 
-    data.setdefault("telegram_admins", {})
+    migrate_telegram_profiles(data)
+    data.setdefault("telegram_profiles", {})
     data.setdefault("telegram_clients", {})
     data.setdefault("tg_bot_banned_user_ids", [])
 
-    if not isinstance(data.get("telegram_admins"), dict):
-        data["telegram_admins"] = {}
+    if not isinstance(data.get("telegram_profiles"), dict):
+        data["telegram_profiles"] = {}
     if not isinstance(data.get("telegram_clients"), dict):
         data["telegram_clients"] = {}
     bans = data.get("tg_bot_banned_user_ids")
@@ -71,28 +210,28 @@ def load_settings():
     """Загрузить настройки из JSON-файла (с кэшированием)."""
     global _settings_cache, _settings_mtime
 
+    legacy_exists = os.path.isfile(LEGACY_ADMIN_INFO_PATH)
     try:
         current_mtime = os.path.getmtime(SETTINGS_PATH)
-        if _settings_cache is not None and current_mtime == _settings_mtime:
-            return _settings_cache.copy()
+        if (
+            not legacy_exists
+            and _settings_cache is not None
+            and current_mtime == _settings_mtime
+        ):
+            return copy.deepcopy(_settings_cache)
     except OSError:
         pass
 
-    try:
-        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-
+    data = _load_and_migrate_settings()
     data = normalize_settings_data(data)
 
-    _settings_cache = data
+    _settings_cache = copy.deepcopy(data)
     try:
         _settings_mtime = os.path.getmtime(SETTINGS_PATH)
     except OSError:
         _settings_mtime = 0
 
-    return data.copy()
+    return copy.deepcopy(data)
 
 
 def is_tg_bot_profile_seeded() -> bool:
@@ -111,11 +250,17 @@ def save_settings(data):
     """Сохранить настройки в JSON-файл."""
     global _settings_cache, _settings_mtime
 
-    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-        f.write("\n")
+    data = normalize_settings_data(copy.deepcopy(data))
+    lock_path = SETTINGS_PATH + ".lock"
+    os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            _atomic_write_settings(data)
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
-    _settings_cache = data.copy()
+    _settings_cache = copy.deepcopy(data)
     try:
         _settings_mtime = os.path.getmtime(SETTINGS_PATH)
     except OSError:
@@ -600,6 +745,18 @@ def get_client_allowed_protocols(telegram_id: str) -> dict:
         "wireguard_wg": protocols.get("wireguard_wg", True),
         "wireguard_am": protocols.get("wireguard_am", True),
     }
+
+
+def get_effective_client_protocols(client_name: str, telegram_id=None) -> dict:
+    """Совместить настройки VPN-клиента и ограничения Telegram-пользователя."""
+    from src.ui.services.settings_service import get_vpn_client_protocols
+
+    protocols = dict(get_vpn_client_protocols(client_name))
+    if telegram_id is not None:
+        telegram_protocols = get_client_allowed_protocols(str(telegram_id))
+        for key in protocols:
+            protocols[key] = bool(protocols[key]) and bool(telegram_protocols.get(key, True))
+    return protocols
 
 
 def set_client_allowed_protocols(

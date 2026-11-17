@@ -5,10 +5,11 @@ from aiogram.fsm.state import State, StatesGroup
 
 class VPNSetup(StatesGroup):
     """Состояния процессов управления VPN."""
-    
+
     choosing_option = State()
     entering_client_name = State()
     entering_days = State()
+    entering_renew_days = State()
     deleting_client = State()
     list_for_delete = State()
     choosing_config_type = State()
@@ -22,3 +23,9 @@ class VPNSetup(StatesGroup):
     entering_request_client_name = State()
     entering_ban_user_id = State()
     confirming_settings_import = State()
+
+
+class Broadcast(StatesGroup):
+    """Создание администратором рассылки клиентам бота."""
+
+    entering_message = State()

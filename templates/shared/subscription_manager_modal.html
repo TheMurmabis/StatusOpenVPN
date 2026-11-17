@@ -1,0 +1,102 @@
+<div class="modal fade ovpn-client-modal" id="subscriptionManagerModal" tabindex="-1"
+  aria-labelledby="subscriptionManagerTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered subscription-manager-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="me-auto min-w-0">
+          <h5 class="modal-title" id="subscriptionManagerTitle">Публичная ссылка</h5>
+          <div class="text-muted small text-truncate" id="subscriptionManagerClient"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <div id="subscriptionManagerLoading" class="text-center py-4">
+          <div class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
+          <div class="small text-muted mt-2">Загрузка настроек…</div>
+        </div>
+        <div id="subscriptionManagerAlert" class="alert py-2 px-3 small d-none" role="status"></div>
+        <div id="subscriptionManagerServicesWarning" class="alert alert-warning py-2 px-3 small d-none" role="alert"></div>
+        <form id="subscriptionManagerForm" class="d-none">
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="subscriptionManagerMode">Тип ссылки</label>
+            <select class="form-select" id="subscriptionManagerMode" style="max-width: 22rem">
+              <option value="true">Временная</option>
+              <option value="false">Постоянная</option>
+              <option value="disabled">Отключено</option>
+            </select>
+            <div class="form-text" id="subscriptionManagerModeHint"></div>
+          </div>
+
+          <div class="subscription-family-tabs d-none" id="subscriptionFamilyTabs" role="tablist" aria-label="Тип клиента">
+            <button type="button" class="subscription-family-tab active" data-family="openvpn" role="tab" aria-selected="true">OpenVPN</button>
+            <button type="button" class="subscription-family-tab" data-family="wireguard" role="tab" aria-selected="false">WireGuard</button>
+          </div>
+          <div class="subscription-profile-grid" id="subscriptionProfileGrid">
+            <fieldset class="subscription-profile-column" id="subscriptionManagerOpenvpn">
+              <legend>OpenVPN</legend>
+              <div class="subscription-profile-group subscription-profile-group--profiles">
+                <div class="subscription-profile-group__title">Профиль</div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="openvpn_vpn" id="subscriptionManagerOvpnVpn"><label for="subscriptionManagerOvpnVpn"><span class="subscription-profile-choice__title">VPN</span><span class="subscription-profile-choice__hint">Весь интернет-трафик</span></label></div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="openvpn_antizapret" id="subscriptionManagerOvpnAz"><label for="subscriptionManagerOvpnAz"><span class="subscription-profile-choice__title">AntiZapret</span><span class="subscription-profile-choice__hint">Только заблокированные ресурсы</span></label></div>
+              </div>
+              <div class="subscription-profile-group subscription-profile-group--compact">
+                <div class="subscription-profile-group__title">Варианты файла</div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="openvpn_default" id="subscriptionManagerOvpnDefault"><label for="subscriptionManagerOvpnDefault">Auto</label></div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="openvpn_tcp" id="subscriptionManagerOvpnTcp"><label for="subscriptionManagerOvpnTcp">TCP</label></div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="openvpn_udp" id="subscriptionManagerOvpnUdp"><label for="subscriptionManagerOvpnUdp">UDP</label></div>
+              </div>
+            </fieldset>
+
+            <fieldset class="subscription-profile-column" id="subscriptionManagerWireguard">
+              <legend>WireGuard</legend>
+              <div class="subscription-profile-group subscription-profile-group--profiles">
+                <div class="subscription-profile-group__title">Профиль</div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="wireguard_vpn" id="subscriptionManagerWgVpn"><label for="subscriptionManagerWgVpn"><span class="subscription-profile-choice__title">VPN</span><span class="subscription-profile-choice__hint">Весь интернет-трафик</span></label></div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="wireguard_antizapret" id="subscriptionManagerWgAz"><label for="subscriptionManagerWgAz"><span class="subscription-profile-choice__title">AntiZapret</span><span class="subscription-profile-choice__hint">Только заблокированные ресурсы</span></label></div>
+              </div>
+              <div class="subscription-profile-group subscription-profile-group--compact">
+                <div class="subscription-profile-group__title">Приложения</div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="wireguard_wg" id="subscriptionManagerWgStandard"><label for="subscriptionManagerWgStandard">WireGuard</label></div>
+                <div class="subscription-profile-choice"><input class="subscription-manager-protocol" type="checkbox" data-key="wireguard_am" id="subscriptionManagerWgAmnezia"><label for="subscriptionManagerWgAmnezia">AmneziaWG</label></div>
+              </div>
+            </fieldset>
+          </div>
+          <div class="alert alert-warning py-2 px-3 small mt-3 mb-0 d-none"
+            id="subscriptionManagerProtocolsWarning" role="alert">
+            Ни один конфиг не выбран. Если других выбранных конфигураций нет, выдача ссылки будет отключена.
+          </div>
+
+          <div class="border-top mt-4 pt-3">
+            <div class="fw-semibold mb-2">Управление ссылкой</div>
+            <label class="form-label" for="subscriptionManagerUrl">Ссылка</label>
+            <div class="input-group subscription-manager-url-group">
+              <div class="subscription-manager-url-field">
+                <input type="text" class="form-control" id="subscriptionManagerUrl" readonly
+                  placeholder="Нет действующей ссылки" aria-describedby="subscriptionManagerUrlHint"
+                  aria-label="Публичная ссылка">
+                <button type="button" class="subscription-manager-copy-btn d-none"
+                  id="subscriptionManagerCopy" title="Копировать" aria-label="Копировать">
+                  <i class="bi bi-copy" aria-hidden="true"></i>
+                </button>
+              </div>
+              <button type="button" class="btn btn-outline-primary subscription-manager-icon-btn d-none"
+                id="subscriptionManagerRotate" title="Создать новую ссылку" aria-label="Создать новую ссылку">
+                <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger subscription-manager-icon-btn d-none"
+                id="subscriptionManagerRevoke" title="Отозвать ссылку" aria-label="Отозвать ссылку">
+                <i class="bi bi-link-45deg" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div class="form-text mb-3" id="subscriptionManagerUrlHint">Ссылка будет создана после сохранения.</div>
+            <div class="form-text d-none" id="subscriptionManagerRotateHint">При создании новой ссылки прежняя перестанет работать.</div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        <button type="button" class="btn btn-primary d-none" id="subscriptionManagerSave">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>

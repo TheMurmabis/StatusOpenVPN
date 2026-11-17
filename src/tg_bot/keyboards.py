@@ -205,7 +205,115 @@ def create_openvpn_menu():
             ],
             [
                 InlineKeyboardButton(text="📝 Список клиентов", callback_data="3"),
+                InlineKeyboardButton(
+                    text="🔄 Продлить", callback_data="ovpn_renew"
+                ),
+            ],
+            [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"),
+            ],
+        ]
+    )
+
+
+def create_openvpn_renew_clients_keyboard(
+    clients: list[str],
+    page: int,
+    total_pages: int,
+    expiry_labels: dict[str, str],
+):
+    """Создать список OpenVPN-клиентов для продления сертификата."""
+    buttons = []
+    start_idx = (page - 1) * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+
+    for client_name in clients[start_idx:end_idx]:
+        expiry = expiry_labels.get(client_name, "срок неизвестен")
+        text = f"{client_name} · {expiry}"
+        if len(text) > 64:
+            text = text[:61] + "…"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"ovpn_renew_client_{client_name}",
+                )
+            ]
+        )
+
+    pagination = []
+    if page > 1:
+        pagination.append(
+            InlineKeyboardButton(
+                text="⬅️ Предыдущая",
+                callback_data=f"ovpn_renew_page_{page - 1}",
+            )
+        )
+    if page < total_pages:
+        pagination.append(
+            InlineKeyboardButton(
+                text="Следующая ➡️",
+                callback_data=f"ovpn_renew_page_{page + 1}",
+            )
+        )
+    if pagination:
+        buttons.append(pagination)
+
+    buttons.append(
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="openvpn_menu")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_openvpn_renew_days_keyboard():
+    """Готовые сроки продления по аналогии с веб-интерфейсом."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="30 дн.", callback_data="ovpn_renew_days_30"),
+                InlineKeyboardButton(text="90 дн.", callback_data="ovpn_renew_days_90"),
+                InlineKeyboardButton(text="180 дн.", callback_data="ovpn_renew_days_180"),
+            ],
+            [
+                InlineKeyboardButton(text="1 год", callback_data="ovpn_renew_days_365"),
+                InlineKeyboardButton(text="10 лет", callback_data="ovpn_renew_days_3650"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Другой срок",
+                    callback_data="ovpn_renew_days_custom",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ К списку клиентов",
+                    callback_data="ovpn_renew",
+                )
+            ],
+        ]
+    )
+
+
+def create_openvpn_create_days_keyboard():
+    """Готовые сроки для создания OpenVPN-клиента."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="30 дн.", callback_data="ovpn_create_days_30"),
+                InlineKeyboardButton(text="90 дн.", callback_data="ovpn_create_days_90"),
+                InlineKeyboardButton(text="180 дн.", callback_data="ovpn_create_days_180"),
+            ],
+            [
+                InlineKeyboardButton(text="1 год", callback_data="ovpn_create_days_365"),
+                InlineKeyboardButton(text="10 лет", callback_data="ovpn_create_days_3650"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Другой срок", callback_data="ovpn_create_days_custom"
+                )
+            ],
+            [
+                InlineKeyboardButton(text="❌ Отмена", callback_data="ovpn_create_cancel")
             ],
         ]
     )
@@ -227,59 +335,90 @@ def create_wireguard_menu():
     )
 
 
+def _subscription_row(
+    client_name: str,
+    available: bool = True,
+    telegram_id: int = None,
+):
+    if not available or not client_name:
+        return None
+    try:
+        from src.ui.services.ovpn_subscription_service import (
+            are_subscriptions_active,
+            create_subscription_url,
+            get_client_subscription_enabled,
+        )
+    except Exception:
+        return None
+    try:
+        if (
+            not are_subscriptions_active()
+            or not get_client_subscription_enabled(client_name)
+        ):
+            return None
+        url = create_subscription_url(client_name, telegram_id=telegram_id)
+    except Exception:
+        return None
+    if not url:
+        return None
+    return [
+        InlineKeyboardButton(
+            text="🔗 Публичная ссылка",
+            url=url,
+        )
+    ]
+
+
 def create_openvpn_config_menu(
     client_name: str,
     back_callback: str = "back_to_client_list",
     telegram_id: int = None,
 ):
     """Создать меню выбора типа конфигурации OpenVPN."""
-    from .config import get_client_allowed_protocols
+    from .config import get_effective_client_protocols
 
     buttons = []
+    openvpn_available = True
 
-    # Если telegram_id передан, проверяем доступные протоколы
-    if telegram_id is not None:
-        protocols = get_client_allowed_protocols(str(telegram_id))
+    protocols = get_effective_client_protocols(client_name, telegram_id)
+    openvpn_available = protocols.get("openvpn_vpn", True) or protocols.get(
+        "openvpn_antizapret", True
+    )
+    openvpn_available = openvpn_available and any(
+        protocols.get(key, True)
+        for key in ("openvpn_default", "openvpn_tcp", "openvpn_udp")
+    )
 
-        if protocols.get("openvpn_vpn", True):
-            buttons.append(
-                InlineKeyboardButton(
-                    text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
-                )
-            )
-        if protocols.get("openvpn_antizapret", True):
-            buttons.append(
-                InlineKeyboardButton(
-                    text="Antizapret",
-                    callback_data=f"openvpn_config_antizapret_{client_name}",
-                )
-            )
-    else:
-        # По умолчанию показываем оба варианта
-        buttons = [
+    if openvpn_available and protocols.get("openvpn_vpn", True):
+        buttons.append(
             InlineKeyboardButton(
                 text="VPN", callback_data=f"openvpn_config_vpn_{client_name}"
-            ),
+            )
+        )
+    if openvpn_available and protocols.get("openvpn_antizapret", True):
+        buttons.append(
             InlineKeyboardButton(
                 text="Antizapret",
                 callback_data=f"openvpn_config_antizapret_{client_name}",
-            ),
-        ]
-
-    # Если нет доступных вариантов
-    if not buttons:
-        buttons = [
-            InlineKeyboardButton(
-                text="❌ Нет доступных конфигураций", callback_data="no_protocols"
             )
-        ]
-
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            buttons,
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
-        ]
-    )
+        )
+    rows = []
+    if buttons:
+        rows.append(buttons)
+    else:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="❌ Нет доступных конфигураций", callback_data="no_protocols"
+                )
+            ]
+        )
+        openvpn_available = False
+    sub_row = _subscription_row(client_name, openvpn_available, telegram_id)
+    if sub_row:
+        rows.append(sub_row)
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def create_openvpn_protocol_menu(interface: str, client_name: str):
@@ -356,53 +495,49 @@ def create_wireguard_config_menu(
     telegram_id: int = None,
 ):
     """Создать меню выбора типа конфигурации WireGuard."""
-    from .config import get_client_allowed_protocols
+    from .config import get_effective_client_protocols
 
     buttons = []
+    wireguard_available = True
 
-    # Если telegram_id передан, проверяем доступные протоколы
-    if telegram_id is not None:
-        protocols = get_client_allowed_protocols(str(telegram_id))
+    protocols = get_effective_client_protocols(client_name, telegram_id)
+    wireguard_available = protocols.get("wireguard_vpn", True) or protocols.get(
+        "wireguard_antizapret", True
+    )
+    wireguard_available = wireguard_available and any(
+        protocols.get(key, True) for key in ("wireguard_wg", "wireguard_am")
+    )
 
-        if protocols.get("wireguard_vpn", True):
-            buttons.append(
-                InlineKeyboardButton(
-                    text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
-                )
-            )
-        if protocols.get("wireguard_antizapret", True):
-            buttons.append(
-                InlineKeyboardButton(
-                    text="Antizapret",
-                    callback_data=f"wireguard_config_antizapret_{client_name}",
-                )
-            )
-    else:
-        # По умолчанию показываем оба варианта
-        buttons = [
+    if wireguard_available and protocols.get("wireguard_vpn", True):
+        buttons.append(
             InlineKeyboardButton(
                 text="VPN", callback_data=f"wireguard_config_vpn_{client_name}"
-            ),
+            )
+        )
+    if wireguard_available and protocols.get("wireguard_antizapret", True):
+        buttons.append(
             InlineKeyboardButton(
                 text="Antizapret",
                 callback_data=f"wireguard_config_antizapret_{client_name}",
-            ),
-        ]
-
-    # Если нет доступных вариантов
-    if not buttons:
-        buttons = [
-            InlineKeyboardButton(
-                text="❌ Нет доступных конфигураций", callback_data="no_protocols"
             )
-        ]
-
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            buttons,
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)],
-        ]
-    )
+        )
+    rows = []
+    if buttons:
+        rows.append(buttons)
+    else:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="❌ Нет доступных конфигураций", callback_data="no_protocols"
+                )
+            ]
+        )
+        wireguard_available = False
+    sub_row = _subscription_row(client_name, wireguard_available, telegram_id)
+    if sub_row:
+        rows.append(sub_row)
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def create_wireguard_type_menu(interface: str, client_name: str):
@@ -467,55 +602,46 @@ def create_wireguard_type_menu_filtered(
 
 def create_client_menu(client_name: str, telegram_id: int = None):
     """Создать меню выбора протокола для клиента."""
-    from .config import get_client_allowed_protocols
+    from src.ui.services.ovpn_subscription_service import public_profile_items
 
     buttons = []
+    items = public_profile_items(client_name, telegram_id)
+    available_families = {item.get("family") for item in items}
+    openvpn_available = "openvpn" in available_families
+    wireguard_available = "wireguard" in available_families
 
-    # Если telegram_id передан, проверяем доступные протоколы
-    if telegram_id is not None:
-        protocols = get_client_allowed_protocols(str(telegram_id))
-
-        # Проверяем, доступен ли хотя бы один вариант OpenVPN
-        openvpn_available = protocols.get("openvpn_vpn", True) or protocols.get(
-            "openvpn_antizapret", True
-        )
-        # Проверяем, доступен ли хотя бы один вариант WireGuard
-        wireguard_available = protocols.get("wireguard_vpn", True) or protocols.get(
-            "wireguard_antizapret", True
-        )
-
-        if openvpn_available:
-            buttons.append(
-                InlineKeyboardButton(
-                    text="OpenVPN", callback_data=f"client_openvpn_{client_name}"
-                )
-            )
-        if wireguard_available:
-            buttons.append(
-                InlineKeyboardButton(
-                    text="WireGuard", callback_data=f"client_wireguard_{client_name}"
-                )
-            )
-    else:
-        # По умолчанию показываем оба протокола (для обратной совместимости)
-        buttons = [
+    if openvpn_available:
+        buttons.append(
             InlineKeyboardButton(
                 text="OpenVPN", callback_data=f"client_openvpn_{client_name}"
-            ),
+            )
+        )
+    if wireguard_available:
+        buttons.append(
             InlineKeyboardButton(
                 text="WireGuard", callback_data=f"client_wireguard_{client_name}"
-            ),
-        ]
-
-    # Если нет доступных протоколов, показываем сообщение
-    if not buttons:
-        buttons = [
-            InlineKeyboardButton(
-                text="❌ Нет доступных протоколов", callback_data="no_protocols"
             )
+        )
+    rows = []
+    if buttons:
+        rows.append(buttons)
+    sub_row = _subscription_row(
+        client_name,
+        openvpn_available or wireguard_available,
+        telegram_id,
+    )
+    if sub_row:
+        rows.append(sub_row)
+    if not rows:
+        rows = [
+            [
+                InlineKeyboardButton(
+                    text="❌ Нет доступных протоколов", callback_data="no_protocols"
+                )
+            ]
         ]
 
-    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def create_client_select_menu(client_names: list[str]):
@@ -771,13 +897,43 @@ def create_clients_menu(admin_ids: list, page: int = 1):
                 text=requests_label, callback_data="pending_requests_menu"
             ),
             InlineKeyboardButton(
-                text="🚫 Заблокированные", callback_data="banned_menu"
+                text="📣 Рассылка", callback_data="broadcast_start"
             ),
         ]
     )
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def create_broadcast_input_keyboard():
+    """Клавиатура ввода сообщения для рассылки."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена", callback_data="broadcast_cancel"
+                )
+            ]
+        ]
+    )
+
+
+def create_broadcast_confirmation_keyboard(config_warning: bool = False):
+    """Клавиатура подтверждения рассылки."""
+    confirm_text = "⚠️ Всё равно отправить" if config_warning else "✅ Отправить"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=confirm_text, callback_data="broadcast_confirm"
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отмена", callback_data="broadcast_cancel"
+                ),
+            ]
+        ]
+    )
 
 
 def create_client_user_menu(telegram_id: str, client_names: list[str], page: int = 1):
@@ -1066,6 +1222,13 @@ def create_pending_requests_menu(page: int = 1):
         buttons.append(nav)
 
     buttons.append(
+        [
+            InlineKeyboardButton(
+                text="🚫 Заблокированные", callback_data="banned_menu"
+            )
+        ]
+    )
+    buttons.append(
         [InlineKeyboardButton(text="⬅️ К клиентам бота", callback_data="clients_menu")]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1116,7 +1279,7 @@ def create_banned_list_keyboard(sorted_ids: list, page: int):
         buttons.append(nav)
 
     buttons.append(
-        [InlineKeyboardButton(text="⬅️ К клиентам бота", callback_data="clients_menu")]
+        [InlineKeyboardButton(text="⬅️ К запросам", callback_data="pending_requests_menu")]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -1411,67 +1574,53 @@ def create_client_protocols_menu(
     back_callback: str = "clients_menu",
 ):
     """Создать меню настройки доступных протоколов для клиента."""
+    from src.ui.services.settings_service import (
+        get_available_vpn_client_protocol_keys,
+        get_vpn_client_protocols,
+    )
     from .config import get_client_allowed_protocols
 
-    protocols = get_client_allowed_protocols(telegram_id)
-    ovpn_vpn_status = "✅" if protocols.get("openvpn_vpn", True) else "❌"
-    ovpn_az_status = "✅" if protocols.get("openvpn_antizapret", True) else "❌"
-    wg_vpn_status = "✅" if protocols.get("wireguard_vpn", True) else "❌"
-    wg_az_status = "✅" if protocols.get("wireguard_antizapret", True) else "❌"
-    ovpn_def_status = "✅" if protocols.get("openvpn_default", True) else "❌"
-    ovpn_tcp_status = "✅" if protocols.get("openvpn_tcp", True) else "❌"
-    ovpn_udp_status = "✅" if protocols.get("openvpn_udp", True) else "❌"
-    wg_wg_status = "✅" if protocols.get("wireguard_wg", True) else "❌"
-    wg_am_status = "✅" if protocols.get("wireguard_am", True) else "❌"
+    protocols = get_vpn_client_protocols(client_name)
+    available_keys = get_available_vpn_client_protocol_keys(client_name)
+    telegram_protocols = get_client_allowed_protocols(telegram_id)
 
-    rows = [
-        [
+    def status(key):
+        return "✅" if protocols.get(key, True) else "❌"
+
+    button_specs = (
+        (("openvpn_vpn", "OVPN VPN", "toggle_proto_ovpn_vpn_"),
+         ("openvpn_antizapret", "OVPN Antizapret", "toggle_proto_ovpn_az_")),
+        (("wireguard_vpn", "WG VPN", "toggle_proto_wg_vpn_"),
+         ("wireguard_antizapret", "WG Antizapret", "toggle_proto_wg_az_")),
+        (("openvpn_default", "OVPN Стандартный", "toggle_proto_ovpn_default_"),),
+        (("openvpn_tcp", "OVPN TCP", "toggle_proto_ovpn_tcp_"),
+         ("openvpn_udp", "OVPN UDP", "toggle_proto_ovpn_udp_")),
+        (("wireguard_wg", "WireGuard", "toggle_proto_wg_type_wg_"),
+         ("wireguard_am", "AmneziaWG", "toggle_proto_wg_type_am_")),
+    )
+    rows = []
+    for specs in button_specs:
+        row = [
             InlineKeyboardButton(
-                text=f"OVPN VPN: {ovpn_vpn_status}",
-                callback_data=f"toggle_proto_ovpn_vpn_{telegram_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"OVPN Antizapret: {ovpn_az_status}",
-                callback_data=f"toggle_proto_ovpn_az_{telegram_id}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=f"WG VPN: {wg_vpn_status}",
-                callback_data=f"toggle_proto_wg_vpn_{telegram_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"WG Antizapret: {wg_az_status}",
-                callback_data=f"toggle_proto_wg_az_{telegram_id}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=f"OVPN Стандартный: {ovpn_def_status}",
-                callback_data=f"toggle_proto_ovpn_default_{telegram_id}",
+                text=f"{label}: {status(key)}",
+                callback_data=f"{prefix}{telegram_id}",
             )
-        ],
-        [
+            for key, label, prefix in specs
+            if key in available_keys
+        ]
+        if row:
+            rows.append(row)
+    if not rows:
+        rows.append(
+            [InlineKeyboardButton(text="❌ Конфиги не найдены", callback_data="no_action")]
+        )
+    if any(not telegram_protocols.get(key, True) for key in available_keys):
+        rows.append([
             InlineKeyboardButton(
-                text=f"OVPN TCP: {ovpn_tcp_status}",
-                callback_data=f"toggle_proto_ovpn_tcp_{telegram_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"OVPN UDP: {ovpn_udp_status}",
-                callback_data=f"toggle_proto_ovpn_udp_{telegram_id}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=f"WireGuard: {wg_wg_status}",
-                callback_data=f"toggle_proto_wg_type_wg_{telegram_id}",
-            ),
-            InlineKeyboardButton(
-                text=f"AmneziaWG: {wg_am_status}",
-                callback_data=f"toggle_proto_wg_type_am_{telegram_id}",
-            ),
-        ],
-    ]
+                text="⚠️ Есть дополнительные ограничения Telegram ID",
+                callback_data="telegram_access_info",
+            )
+        ])
     rows.extend(
         [
             [

@@ -10,6 +10,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    const toggleGroup = (row) => {
+        const key = row.dataset.historyKey;
+        if (!key) {
+            return;
+        }
+
+        const open = row.classList.toggle('is-open');
+        row.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.querySelectorAll(`.ovpn-history-session[data-history-parent="${key}"]`).forEach((sessionRow) => {
+            sessionRow.classList.toggle('d-none', !open);
+        });
+    };
+
+    document.querySelectorAll('.ovpn-history-group--expandable').forEach((row) => {
+        row.addEventListener('click', (event) => {
+            if (event.target.closest('a')) {
+                return;
+            }
+            toggleGroup(row);
+        });
+
+        row.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+            event.preventDefault();
+            toggleGroup(row);
+        });
+    });
+
     const logFilter = document.getElementById('logFilter');
     if (!logFilter) {
         return;

@@ -4,6 +4,45 @@ let refreshInterval = null;
 let pendingMenuDisable = null;
 let pendingWgDelete = null;
 let wgRenameState = { oldName: "", iface: "", btn: null };
+let wgDisableMode = "now";
+
+function localWgDateTimeValue(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+}
+
+function formatWgScheduledAt(value) {
+    const date = new Date(value || "");
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
+function updateWgDisableConfirmLabel() {
+    const confirmBtn = document.getElementById("confirmDisableBtn");
+    if (!confirmBtn) return;
+    if (wgDisableMode === "scheduled") {
+        confirmBtn.textContent = pendingMenuDisable?.scheduledAt
+            ? "Изменить время"
+            : "Запланировать";
+    } else {
+        confirmBtn.textContent = "Отключить сейчас";
+    }
+}
+
+function setWgDisableMode(mode) {
+    wgDisableMode = mode === "scheduled" ? "scheduled" : "now";
+    document.querySelectorAll("[data-wg-schedule-mode]").forEach((button) => {
+        const active = button.dataset.wgScheduleMode === wgDisableMode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+    document.getElementById("confirmWgScheduleDate")?.classList.toggle(
+        "d-none",
+        wgDisableMode !== "scheduled"
+    );
+    updateWgDisableConfirmLabel();
+}
 
 function wgIfaceDisplay(iface) {
     if (!iface) return "";
@@ -47,6 +86,13 @@ function wgAutoRefreshPaused() {
     return document.body.classList.contains("modal-open");
 }
 
+function copyWgPublicLink(url, button) {
+    if (!url) return;
+    if (typeof window.copyTextWithFeedback === "function") {
+        window.copyTextWithFeedback(url, button);
+    }
+}
+
 function buildWgActionIconBtn({ action, title, iconClass, extraClass = "", attrs = "" }) {
     return `<button type="button" class="vpn-action-icon-btn wg-client-action-btn ${extraClass}" data-action="${action}" ${attrs} title="${title}" aria-label="${title}"><i class="${iconClass}" aria-hidden="true"></i></button>`;
 }
@@ -57,13 +103,16 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
     const peerAttr = escapeAttr(peer.peer);
     const ifaceAttr = escapeAttr(ifaceName);
     const clientAttr = escapeAttr(client);
+    const scheduledAt = peer.scheduled_disable_at || "";
     const clientAttrs = `data-client="${clientAttr}"`;
-    const toggleAttrs = `data-peer="${peerAttr}" data-interface="${ifaceAttr}" data-client="${clientAttr}"`;
+    const toggleAttrs = `data-peer="${peerAttr}" data-interface="${ifaceAttr}" data-client="${clientAttr}" data-scheduled-at="${escapeAttr(scheduledAt)}"`;
 
     const toggleBtn = isEnabled
         ? buildWgActionIconBtn({
             action: "disable",
-            title: `Отключить (${escapeAttr(ifaceDisp)})`,
+            title: scheduledAt
+                ? `Изменить отложенное отключение (${escapeAttr(ifaceDisp)})`
+                : `Отключить (${escapeAttr(ifaceDisp)})`,
             iconClass: "fa fa-ban",
             extraClass: "is-danger",
             attrs: toggleAttrs,
@@ -74,6 +123,18 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
             iconClass: "fa fa-unlock",
             attrs: toggleAttrs,
         });
+
+    const publicLink = (window.wgApi?.subscriptionUrls || {})[client] || "";
+    const subscriptionButtons = window.wgApi?.subscriptionEnabled && client !== "Unknown"
+        ? buildWgActionIconBtn({
+            action: "copy-subscription",
+            title: publicLink
+                ? "Скопировать ссылку"
+                : "Открыть настройки публичных ссылок",
+            iconClass: publicLink ? "fa fa-link" : "fa fa-link-slash",
+            attrs: `${clientAttrs} data-url="${escapeAttr(publicLink)}"`,
+        })
+        : "";
 
     return `
         <td class="text-center actions-cell">
@@ -90,6 +151,7 @@ function buildWgActionsCell(peer, ifaceName, isEnabled) {
                     iconClass: "fa fa-download",
                     attrs: clientAttrs,
                 })}
+                ${subscriptionButtons}
                 ${buildWgActionIconBtn({
                     action: "rename",
                     title: "Переименовать",
@@ -147,17 +209,117 @@ document.addEventListener("DOMContentLoaded", () => {
         applyFilters();
     });
 
-    document.getElementById("confirmDisableBtn").addEventListener("click", () => {
-        const modal = bootstrap.Modal.getInstance(document.getElementById("confirmDisableModal"));
-        modal?.hide();
-        if (pendingMenuDisable) {
-            const { btn, peer, iface, clientName } = pendingMenuDisable;
+    const confirmDisableBtn = document.getElementById("confirmDisableBtn");
+    const confirmDisableModal = document.getElementById("confirmDisableModal");
+    const wgScheduledInput = document.getElementById("confirmWgScheduledAt");
+    const wgScheduledError = document.getElementById("confirmWgScheduledAtError");
+    const cancelWgScheduleBtn = document.getElementById("cancelWgScheduledDisableBtn");
+
+    document.querySelectorAll("[data-wg-schedule-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+            setWgDisableMode(button.dataset.wgScheduleMode);
+            if (button.dataset.wgScheduleMode === "scheduled") {
+                wgScheduledInput?.focus();
+            }
+        });
+    });
+
+    wgScheduledInput?.addEventListener("input", () => {
+        wgScheduledInput.classList.remove("is-invalid");
+        if (wgScheduledError) wgScheduledError.textContent = "";
+    });
+
+    confirmDisableBtn?.addEventListener("click", async () => {
+        if (!pendingMenuDisable) return;
+        const pending = pendingMenuDisable;
+
+        if (wgDisableMode === "scheduled") {
+            const rawValue = wgScheduledInput?.value.trim() || "";
+            const scheduledDate = new Date(rawValue);
+            if (
+                !rawValue ||
+                Number.isNaN(scheduledDate.getTime()) ||
+                scheduledDate.getTime() <= Date.now() + 30000
+            ) {
+                wgScheduledInput?.classList.add("is-invalid");
+                if (wgScheduledError) {
+                    wgScheduledError.textContent = !rawValue
+                        ? "Выберите дату и время."
+                        : "Выберите дату и время в будущем.";
+                }
+                return;
+            }
+
+            confirmDisableBtn.disabled = true;
+            try {
+                const response = await fetch(absoluteApiUrl(window.wgApi?.peerDisableSchedule), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({
+                        peer: pending.peer,
+                        interface: pending.iface,
+                        client_name: pending.clientName,
+                        scheduled_at: scheduledDate.toISOString(),
+                    }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || "Не удалось запланировать отключение");
+                }
+                pendingMenuDisable = null;
+                bootstrap.Modal.getInstance(confirmDisableModal)?.hide();
+                await updateStats();
+                applyFilters();
+            } catch (error) {
+                console.error(error);
+                alert(error.message || "Ошибка при создании расписания");
+            } finally {
+                confirmDisableBtn.disabled = false;
+            }
+            return;
+        }
+
+        pendingMenuDisable = null;
+        bootstrap.Modal.getInstance(confirmDisableModal)?.hide();
+        wgExecuteToggle(pending.peer, pending.iface, pending.clientName, false, pending.btn);
+    });
+
+    cancelWgScheduleBtn?.addEventListener("click", async () => {
+        if (!pendingMenuDisable) return;
+        const pending = pendingMenuDisable;
+        cancelWgScheduleBtn.disabled = true;
+        try {
+            const response = await fetch(
+                absoluteApiUrl(window.wgApi?.peerDisableScheduleCancel),
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({
+                        peer: pending.peer,
+                        interface: pending.iface,
+                        client_name: pending.clientName,
+                    }),
+                }
+            );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Не удалось отменить расписание");
+            }
             pendingMenuDisable = null;
-            wgExecuteToggle(peer, iface, clientName, false, btn);
+            bootstrap.Modal.getInstance(confirmDisableModal)?.hide();
+            await updateStats();
+            applyFilters();
+        } catch (error) {
+            console.error(error);
+            alert(error.message || "Ошибка при отмене расписания");
+        } finally {
+            cancelWgScheduleBtn.disabled = false;
         }
     });
 
-    document.getElementById("confirmDisableModal").addEventListener("hidden.bs.modal", () => {
+    confirmDisableModal?.addEventListener("hidden.bs.modal", () => {
         pendingMenuDisable = null;
     });
 
@@ -203,6 +365,20 @@ document.addEventListener("DOMContentLoaded", () => {
         const iface = btn.dataset.interface;
         const clientName = btn.dataset.client || "";
 
+        if (action === "copy-subscription") {
+            if (btn.dataset.url) {
+                copyWgPublicLink(btn.dataset.url, btn);
+            } else if (window.wgApi?.settingsLinks) {
+                const target = new URL(
+                    window.wgApi.settingsLinks,
+                    window.location.origin
+                );
+                target.searchParams.set("client", clientName);
+                target.searchParams.set("family", "wireguard");
+                window.location.href = target.toString();
+            }
+            return;
+        }
         if (action === "download-config") {
             openWgConfigModal(clientName, { openQr: btn.dataset.openQr === "true" });
             return;
@@ -220,9 +396,21 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         if (action === "disable") {
-            pendingMenuDisable = { btn, peer, iface, clientName };
+            const scheduledAt = btn.dataset.scheduledAt || "";
+            pendingMenuDisable = { btn, peer, iface, clientName, scheduledAt };
             document.getElementById("confirmClientName").textContent = clientName;
-            bootstrap.Modal.getOrCreateInstance(document.getElementById("confirmDisableModal")).show();
+            if (wgScheduledInput) {
+                wgScheduledInput.classList.remove("is-invalid");
+                wgScheduledInput.min = localWgDateTimeValue(new Date(Date.now() + 120000));
+                wgScheduledInput.value = scheduledAt
+                    ? localWgDateTimeValue(new Date(scheduledAt))
+                    : "";
+            }
+            if (wgScheduledError) wgScheduledError.textContent = "";
+            cancelWgScheduleBtn?.classList.toggle("d-none", !scheduledAt);
+            if (cancelWgScheduleBtn) cancelWgScheduleBtn.disabled = false;
+            setWgDisableMode(scheduledAt ? "scheduled" : "now");
+            bootstrap.Modal.getOrCreateInstance(confirmDisableModal).show();
         }
     });
 
@@ -566,6 +754,7 @@ async function updateStats() {
                       : "traffic-offline wg_table";
 
                 const clientName = peer.client || "Unknown";
+                const scheduledLabel = formatWgScheduledAt(peer.scheduled_disable_at);
 
                 tr.innerHTML = `
                     <td class="text-center vpn-table-client" title="Peer: ${peer.masked_peer}">${escapeAttr(clientName)}</td>
@@ -574,6 +763,12 @@ async function updateStats() {
                             <small class="${!isEnabled ? "text-muted" : peer.online ? "text-success" : "traffic-offline"}">
                                 ${!isEnabled ? "Отключён" : peer.online ? "Онлайн" : "Офлайн"}
                             </small>
+                            ${scheduledLabel ? `
+                                <small class="d-block mt-1 text-warning" title="Отложенное отключение">
+                                    <i class="fa fa-clock" aria-hidden="true"></i>
+                                    ${escapeAttr(scheduledLabel)}
+                                </small>
+                            ` : ""}
                         </div>
                     </td>
                     <td>${peer.endpoint || "N/A"}</td>

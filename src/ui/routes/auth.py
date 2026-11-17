@@ -62,7 +62,7 @@ def _send_failed_login_bot_alert(username: str, client_ip: str, failed_attempts:
             continue
 
 
-@app.route("/logout", methods=["GET", "POST"])
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
@@ -72,7 +72,7 @@ def logout():
 
 @app.before_request
 def track_last_activity():
-    if request.path.startswith("/api/"):
+    if request.path.startswith("/api/") or request.path.startswith("/s/"):
         return
 
     session.permanent = True

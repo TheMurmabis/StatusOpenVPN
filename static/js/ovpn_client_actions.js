@@ -2,6 +2,19 @@ window.pendingOvpnBlock = null;
 window.ovpnCertResultClient = null;
 
 document.addEventListener("DOMContentLoaded", () => {
+
+    document.querySelectorAll(".ovpn-client-modal").forEach((modalEl) => {
+        if (modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+    });
+
+    function localDateTimeValue(date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+        const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 16);
+    }
+
     function buildDownloadHref(api, clientName, index) {
         const u = new URL(api.clientConfigDownload, window.location.origin);
         u.searchParams.set("client_name", clientName);
@@ -350,9 +363,52 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     }
 
+    function updateOvpnConfirmButtonLabel() {
+        const modalEl = document.getElementById("confirmOvpnBlockModal");
+        const confirmBtn = document.getElementById("confirmOvpnBlockBtn");
+        if (!modalEl || !confirmBtn) return;
+
+        const action = modalEl.dataset.action;
+        const isScheduled = modalEl.dataset.scheduleMode === "scheduled";
+        if (isScheduled && (action === "kick" || action === "block")) {
+            confirmBtn.textContent = modalEl.dataset.hasSchedule === "true"
+                ? "Изменить время"
+                : "Запланировать";
+        } else if (action === "kick") {
+            confirmBtn.textContent = "Отключить сейчас";
+        } else if (action === "block") {
+            confirmBtn.textContent = "Заблокировать сейчас";
+        } else if (action === "unblock") {
+            confirmBtn.textContent = "Разблокировать";
+        } else if (action === "delete-client") {
+            confirmBtn.textContent = "Удалить";
+        }
+    }
+
+    function setOvpnScheduleMode(mode) {
+        const resolvedMode = mode === "scheduled" ? "scheduled" : "now";
+        const modalEl = document.getElementById("confirmOvpnBlockModal");
+        const dateFields = document.getElementById("confirmOvpnScheduleDate");
+        document.querySelectorAll("[data-schedule-mode]").forEach((button) => {
+            const isActive = button.dataset.scheduleMode === resolvedMode;
+            button.classList.toggle("active", isActive);
+            button.setAttribute("aria-pressed", String(isActive));
+        });
+        if (dateFields) dateFields.classList.toggle("d-none", resolvedMode !== "scheduled");
+        if (modalEl) modalEl.dataset.scheduleMode = resolvedMode;
+        updateOvpnConfirmButtonLabel();
+    }
+
     function setupOvpnActionButtons() {
         const api = window.ovpnApi;
-        if (!api || !api.kick || !api.block || !api.clientDelete) return;
+        if (
+            !api ||
+            !api.kick ||
+            !api.block ||
+            !api.blockSchedule ||
+            !api.blockScheduleCancel ||
+            !api.clientDelete
+        ) return;
 
         document.querySelectorAll(".vpn-action-icon-btn[data-action]").forEach((btn) => {
             btn.addEventListener("click", () => {
@@ -360,9 +416,25 @@ document.addEventListener("DOMContentLoaded", () => {
                 const clientName = btn.dataset.client;
                 const protocol = btn.dataset.protocol || "";
                 const isOnline = btn.dataset.clientOnline === "true";
+                const scheduledAt = btn.dataset.scheduledAt || "";
 
                 if (action === "download-config") {
                     openOvpnDownloadModal(clientName);
+                    return;
+                }
+
+                if (action === "copy-subscription") {
+                    if (btn.dataset.url) {
+                        copyPublicLink(btn.dataset.url, btn);
+                    } else if (window.ovpnApi?.settingsLinks) {
+                        const target = new URL(
+                            window.ovpnApi.settingsLinks,
+                            window.location.origin
+                        );
+                        target.searchParams.set("client", clientName);
+                        target.searchParams.set("family", "openvpn");
+                        window.location.href = target.toString();
+                    }
                     return;
                 }
 
@@ -373,7 +445,29 @@ document.addEventListener("DOMContentLoaded", () => {
                     formData.append("client_name", clientName);
 
                     let url;
-                    if (action === "kick") {
+                    const wantsScheduled = modalEl?.dataset.scheduleMode === "scheduled";
+                    const scheduledValue = wantsScheduled && scheduledInput
+                        ? scheduledInput.value.trim()
+                        : "";
+                    if ((action === "kick" || action === "block") && wantsScheduled) {
+                        const scheduledDate = new Date(scheduledValue);
+                        if (
+                            !scheduledValue ||
+                            Number.isNaN(scheduledDate.getTime()) ||
+                            scheduledDate.getTime() <= Date.now() + 30000
+                        ) {
+                            if (scheduledInput) scheduledInput.classList.add("is-invalid");
+                            if (scheduledError) {
+                                scheduledError.textContent = !scheduledValue
+                                    ? "Выберите дату и время."
+                                    : "Выберите дату и время в будущем.";
+                            }
+                            btn.disabled = false;
+                            return false;
+                        }
+                        url = api.blockSchedule;
+                        formData.append("scheduled_at", scheduledDate.toISOString());
+                    } else if (action === "kick") {
                         url = api.kick;
                         formData.append("protocol", protocol);
                     } else if (action === "delete-client") {
@@ -398,6 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             alert("Ошибка при выполнении запроса");
                             btn.disabled = false;
                         });
+                    return true;
                 };
 
                 const modalEl = document.getElementById("confirmOvpnBlockModal");
@@ -405,6 +500,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const leadEl = document.getElementById("confirmOvpnModalLead");
                 const hintEl = document.getElementById("confirmOvpnModalHint");
                 const confirmBtn = document.getElementById("confirmOvpnBlockBtn");
+                const scheduleFields = document.getElementById("confirmOvpnScheduleFields");
+                const scheduledInput = document.getElementById("confirmOvpnScheduledAt");
+                const scheduledError = document.getElementById("confirmOvpnScheduledAtError");
+                const cancelScheduleBtn = document.getElementById("cancelOvpnScheduledBlockBtn");
+                const iconEl = document.getElementById("confirmOvpnModalIcon");
 
                 if (!modalEl || !titleEl || !leadEl || !hintEl || !confirmBtn) {
                     doRequest();
@@ -418,41 +518,63 @@ document.addEventListener("DOMContentLoaded", () => {
                         .replace(/>/g, "&gt;")
                         .replace(/"/g, "&quot;");
                 const nameHtml = `<strong>${esc(clientName)}</strong>`;
+                const canSchedule = action === "kick" || action === "block";
+
+                if (scheduleFields) {
+                    scheduleFields.classList.toggle("d-none", !canSchedule);
+                }
+                if (scheduledInput) {
+                    scheduledInput.classList.remove("is-invalid");
+                    scheduledInput.min = localDateTimeValue(
+                        new Date(Date.now() + 120000)
+                    );
+                    scheduledInput.value = scheduledAt
+                        ? localDateTimeValue(new Date(scheduledAt))
+                        : "";
+                }
+                if (scheduledError) scheduledError.textContent = "";
+                if (cancelScheduleBtn) {
+                    cancelScheduleBtn.classList.toggle(
+                        "d-none",
+                        !canSchedule || !scheduledAt
+                    );
+                    cancelScheduleBtn.disabled = false;
+                }
+                modalEl.dataset.client = clientName;
+                modalEl.dataset.action = action;
+                modalEl.dataset.hasSchedule = scheduledAt ? "true" : "false";
+                setOvpnScheduleMode(scheduledAt ? "scheduled" : "now");
 
                 if (action === "kick") {
-                    titleEl.textContent = "Отключение от сети";
-                    leadEl.innerHTML = `Клиент ${nameHtml} будет отключён от сети и заблокирован в конфигурации.`;
-                    hintEl.textContent =
-                        "Сессия будет сброшена, имя клиента попадёт в список блокировок (banned_clients).";
-                    confirmBtn.textContent = "Отключить";
+                    titleEl.textContent = "Отключить и заблокировать?";
+                    leadEl.innerHTML = nameHtml;
+                    hintEl.textContent = "Активное подключение завершится, новые будут запрещены.";
+                    if (iconEl) iconEl.innerHTML = '<i class="bi bi-person-dash"></i>';
                     confirmBtn.className = "btn btn-danger";
                 } else if (action === "block") {
-                    titleEl.textContent = "Блокировка в конфигурации";
-                    leadEl.innerHTML = `Заблокировать клиента ${nameHtml} в конфигурации?`;
-                    hintEl.textContent =
-                        "Клиент не сможет подключаться к OpenVPN, пока блокировка не будет снята.";
-                    confirmBtn.textContent = "Заблокировать";
+                    titleEl.textContent = "Заблокировать клиента?";
+                    leadEl.innerHTML = nameHtml;
+                    hintEl.textContent = "Новые подключения будут запрещены.";
+                    if (iconEl) iconEl.innerHTML = '<i class="bi bi-person-lock"></i>';
                     confirmBtn.className = "btn btn-danger";
                 } else if (action === "unblock") {
-                    titleEl.textContent = "Разблокировка";
+                    titleEl.textContent = "Разблокировать клиента?";
+                    leadEl.innerHTML = nameHtml;
+                    if (iconEl) iconEl.innerHTML = '<i class="bi bi-person-check"></i>';
                     if (isOnline) {
-                        leadEl.innerHTML = `Клиент ${nameHtml} сейчас в сети. Он будет отключён от сети; в конфигурации будет снят запрет (разблокировка).`;
-                        hintEl.textContent =
-                            "Активная сессия завершится; после переподключения клиент сможет работать без блокировки в конфигурации.";
+                        hintEl.textContent = "Текущая сессия завершится, затем подключения будут разрешены.";
                     } else {
-                        leadEl.innerHTML = `Снять запрет на подключение для ${nameHtml}?`;
-                        hintEl.textContent = "";
+                        hintEl.textContent = "Подключения снова будут разрешены.";
                     }
-                    confirmBtn.textContent = "Разблокировать";
                     confirmBtn.className = "btn btn-primary";
                 } else if (action === "delete-client") {
-                    titleEl.textContent = "Удаление клиента";
-                    leadEl.innerHTML = `Удалить клиента ${nameHtml}?`;
-                    hintEl.textContent =
-                        "Клиент и файлы конфигурации OpenVPN будут удалены.";
-                    confirmBtn.textContent = "Удалить";
+                    titleEl.textContent = "Удалить клиента?";
+                    leadEl.innerHTML = nameHtml;
+                    hintEl.textContent = "Клиент и его файлы конфигурации будут удалены.";
+                    if (iconEl) iconEl.innerHTML = '<i class="bi bi-person-x"></i>';
                     confirmBtn.className = "btn btn-danger";
                 }
+                updateOvpnConfirmButtonLabel();
 
                 window.pendingOvpnBlock = doRequest;
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -462,23 +584,83 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setupOvpnActionButtons();
 
+    document.querySelectorAll(".ovpn-scheduled-block-time").forEach((el) => {
+        const date = new Date(el.dataset.scheduledAt || "");
+        if (!Number.isNaN(date.getTime())) {
+            el.textContent = date.toLocaleString([], {
+                dateStyle: "short",
+                timeStyle: "short",
+            });
+        }
+    });
+
     const confirmBlockBtn = document.getElementById("confirmOvpnBlockBtn");
     const confirmBlockModalEl = document.getElementById("confirmOvpnBlockModal");
+    const cancelScheduledBlockBtn = document.getElementById(
+        "cancelOvpnScheduledBlockBtn"
+    );
+    const scheduledBlockInput = document.getElementById("confirmOvpnScheduledAt");
+
+    document.querySelectorAll("[data-schedule-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+            setOvpnScheduleMode(button.dataset.scheduleMode);
+            if (button.dataset.scheduleMode === "scheduled") {
+                scheduledBlockInput?.focus();
+            }
+        });
+    });
+
+    if (scheduledBlockInput) {
+        scheduledBlockInput.addEventListener("input", () => {
+            scheduledBlockInput.classList.remove("is-invalid");
+            updateOvpnConfirmButtonLabel();
+        });
+    }
 
     if (confirmBlockBtn && confirmBlockModalEl) {
         confirmBlockBtn.addEventListener("click", () => {
+            const pendingAction = window.pendingOvpnBlock;
+            if (pendingAction) {
+                const shouldClose = pendingAction();
+                if (shouldClose === false) return;
+            }
+            window.pendingOvpnBlock = null;
+
             const modal = bootstrap.Modal.getInstance(confirmBlockModalEl);
             if (modal) {
                 modal.hide();
-            }
-            if (window.pendingOvpnBlock) {
-                window.pendingOvpnBlock();
-                window.pendingOvpnBlock = null;
             }
         });
 
         confirmBlockModalEl.addEventListener("hidden.bs.modal", () => {
             window.pendingOvpnBlock = null;
+        });
+    }
+
+    if (cancelScheduledBlockBtn && confirmBlockModalEl) {
+        cancelScheduledBlockBtn.addEventListener("click", () => {
+            const clientName = confirmBlockModalEl.dataset.client || "";
+            const api = window.ovpnApi;
+            if (!clientName || !api || !api.blockScheduleCancel) return;
+
+            cancelScheduledBlockBtn.disabled = true;
+            const formData = new FormData();
+            formData.append("client_name", clientName);
+            fetch(api.blockScheduleCancel, { method: "POST", body: formData })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        location.reload();
+                        return;
+                    }
+                    alert("Ошибка: " + (data.message || "Неизвестная ошибка"));
+                    cancelScheduledBlockBtn.disabled = false;
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Ошибка при отмене отложенной блокировки");
+                    cancelScheduledBlockBtn.disabled = false;
+                });
         });
     }
 
@@ -622,6 +804,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const messageEl = document.getElementById("ovpnCertResultMessage");
         const configHintEl = document.getElementById("ovpnCertResultConfigHint");
         const downloadBtn = document.getElementById("ovpnCertResultDownloadBtn");
+        const subscribeBtn = document.getElementById("ovpnCertResultSubscribeBtn");
         if (!modalEl || !titleEl || !messageEl) return;
 
         window.ovpnCertResultClient = data.client_name || null;
@@ -644,6 +827,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (downloadBtn) {
             downloadBtn.classList.toggle("d-none", !showDownload);
+        }
+        if (subscribeBtn) {
+            const canSubscribe = Boolean(
+                window.ovpnCertResultClient &&
+                    window.ovpnApi &&
+                    window.ovpnApi.subscriptionEnabled
+            );
+            subscribeBtn.classList.toggle("d-none", !canSubscribe);
         }
 
         [
@@ -769,6 +960,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 openOvpnDownloadModal(clientName);
             });
+        }
+
+    }
+
+    function copyPublicLink(url, button) {
+        if (!url) return;
+        if (typeof window.copyTextWithFeedback === "function") {
+            window.copyTextWithFeedback(url, button);
         }
     }
 

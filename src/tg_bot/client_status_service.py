@@ -135,6 +135,8 @@ def _get_wireguard_brief_stats(client_name: str) -> dict:
                 COALESCE(SUM(sent), 0)
             FROM wg_daily_stats
             WHERE client = ? AND date = ?
+              AND lower(interface) != 'warp'
+              AND lower(interface) NOT LIKE 'warp-%'
             """,
             (client_name, today),
         ).fetchone()
@@ -146,6 +148,8 @@ def _get_wireguard_brief_stats(client_name: str) -> dict:
             SELECT MAX(hour)
             FROM wg_hourly_stats
             WHERE client = ? AND substr(hour, 1, 10) = ?
+              AND lower(interface) != 'warp'
+              AND lower(interface) NOT LIKE 'warp-%'
             """,
             (client_name, today),
         ).fetchone()

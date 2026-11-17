@@ -1,4 +1,5 @@
 import json
+import logging
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -19,7 +20,6 @@ from src.ui.services.openvpn_service import (
     count_openvpn_expiring_certs,
     read_banned_clients,
 )
-from src.ui.services.settings_service import read_settings
 from src.ui.services.stats_service import ensure_db, save_minute_average_to_db
 from src.ui.services.vpn_service import get_vpn_systemd_states
 from src.ui.services.wireguard_service import get_disabled_wg_peers
@@ -31,12 +31,15 @@ from src.ui.utils.network_utils import (
     get_uptime,
 )
 from src.ui.utils.time_utils import is_peer_online, parse_relative_time
+from src.wireguard_filter import is_warp_interface
+
+
+logger = logging.getLogger(__name__)
 
 
 def count_online_clients(file_paths=None):
     results = {}
 
-    hide_warp = bool(read_settings().get("hide_wg_warp_interface", False))
     try:
         wg_output = subprocess.check_output(["/usr/bin/wg", "show"], text=True)
         current_interface = ""
@@ -48,7 +51,7 @@ def count_online_clients(file_paths=None):
                 continue
             if not line.startswith("latest handshake:"):
                 continue
-            if hide_warp and current_interface == "warp":
+            if is_warp_interface(current_interface):
                 continue
 
             handshake_str = line.split(":", 1)[1].strip()
@@ -88,59 +91,72 @@ def get_system_info():
     return state.cached_system_info
 
 
+def _update_system_info_once():
+    current_time = time.time()
+    if state.cached_system_info and (
+        current_time - state.last_fetch_time < CACHE_DURATION
+    ):
+        return
+
+    cpu_percent = psutil.cpu_percent(interval=1)
+    ram_percent = psutil.virtual_memory().percent
+    timestamp = datetime.now()
+
+    state.cpu_history.append(
+        {"timestamp": timestamp, "cpu": cpu_percent, "ram": ram_percent}
+    )
+    if len(state.cpu_history) > MAX_CPU_HISTORY:
+        state.cpu_history.pop(0)
+
+    interface = get_default_interface()
+    network_stats = get_network_stats(interface) if interface else None
+    vpn_clients = count_online_clients()
+    vpn_blocked = count_blocked_clients()
+    openvpn_expiring_certs = count_openvpn_expiring_certs()
+    vpn_services = get_vpn_systemd_states()
+
+    _mem = psutil.virtual_memory()
+    _disk = psutil.disk_usage("/")
+    rx_bytes = network_stats["rx"] if network_stats else 0
+    tx_bytes = network_stats["tx"] if network_stats else 0
+    memory_used_mb = round(_mem.used / (1024**2))
+    memory_total_mb = round(_mem.total / (1024**2))
+    memory_percent_mb = (
+        round((memory_used_mb / memory_total_mb) * 100, 1)
+        if memory_total_mb
+        else 0.0
+    )
+    state.cached_system_info = {
+        **HOST_STATIC_INFO,
+        "cpu_load": round(cpu_percent, 1),
+        "memory_used": memory_used_mb,
+        "memory_total": memory_total_mb,
+        "memory_percent": memory_percent_mb,
+        "disk_used": round(_disk.used / (1024**3), 1),
+        "disk_total": round(_disk.total / (1024**3), 1),
+        "network_load": get_network_load(),
+        "uptime": format_uptime(get_uptime()),
+        "network_interface": interface or "Не найдено",
+        "rx_bytes": format_bytes(rx_bytes) if network_stats else 0,
+        "tx_bytes": format_bytes(tx_bytes) if network_stats else 0,
+        "total_bytes": format_bytes(rx_bytes + tx_bytes) if network_stats else 0,
+        "rx_bytes_raw": rx_bytes,
+        "tx_bytes_raw": tx_bytes,
+        "vpn_clients": vpn_clients,
+        "vpn_blocked": vpn_blocked,
+        "openvpn_expiring_certs": openvpn_expiring_certs,
+        "vpn_services": vpn_services,
+    }
+
+    state.last_fetch_time = current_time
+
+
 def update_system_info():
     while True:
-        current_time = time.time()
-        if not state.cached_system_info or (
-            current_time - state.last_fetch_time >= CACHE_DURATION
-        ):
-            cpu_percent = psutil.cpu_percent(interval=1)
-            ram_percent = psutil.virtual_memory().percent
-            timestamp = datetime.now()
-
-            state.cpu_history.append(
-                {"timestamp": timestamp, "cpu": cpu_percent, "ram": ram_percent}
-            )
-            if len(state.cpu_history) > MAX_CPU_HISTORY:
-                state.cpu_history.pop(0)
-
-            interface = get_default_interface()
-            network_stats = get_network_stats(interface) if interface else None
-            vpn_clients = count_online_clients()
-            vpn_blocked = count_blocked_clients()
-            openvpn_expiring_certs = count_openvpn_expiring_certs()
-            vpn_services = get_vpn_systemd_states()
-
-            _mem = psutil.virtual_memory()
-            _disk = psutil.disk_usage("/")
-            memory_used_mb = round(_mem.used / (1024**2))
-            memory_total_mb = round(_mem.total / (1024**2))
-            memory_percent_mb = (
-                round((memory_used_mb / memory_total_mb) * 100, 1)
-                if memory_total_mb
-                else 0.0
-            )
-            state.cached_system_info = {
-                **HOST_STATIC_INFO,
-                "cpu_load": round(cpu_percent, 1),
-                "memory_used": memory_used_mb,
-                "memory_total": memory_total_mb,
-                "memory_percent": memory_percent_mb,
-                "disk_used": round(_disk.used / (1024**3), 1),
-                "disk_total": round(_disk.total / (1024**3), 1),
-                "network_load": get_network_load(),
-                "uptime": format_uptime(get_uptime()),
-                "network_interface": interface or "Не найдено",
-                "rx_bytes": format_bytes(network_stats["rx"]) if network_stats else 0,
-                "tx_bytes": format_bytes(network_stats["tx"]) if network_stats else 0,
-                "vpn_clients": vpn_clients,
-                "vpn_blocked": vpn_blocked,
-                "openvpn_expiring_certs": openvpn_expiring_certs,
-                "vpn_services": vpn_services,
-            }
-
-            state.last_fetch_time = current_time
-
+        try:
+            _update_system_info_once()
+        except Exception:
+            logger.exception("Не удалось обновить системную информацию")
         time.sleep(CACHE_DURATION)
 
 

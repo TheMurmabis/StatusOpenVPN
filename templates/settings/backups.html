@@ -14,6 +14,7 @@
   <header class="dash-mon__hero">
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
       <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
@@ -117,6 +118,7 @@
       <div class="modal-body">
         <p class="text-muted small mb-3">Будут заменены базы данных {{ app_display_name }}. Это действие нельзя отменить. Для подтверждения введите слово <code>{{ restore_phrase }}</code>.</p>
         <form method="post" enctype="multipart/form-data" id="restoreStatusOpenvpnForm" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="form_type" value="restore_statusopenvpn" />
           <div class="mb-3">
             <label for="restoreArchiveFile" class="form-label">Архив .tar.gz</label>
@@ -146,6 +148,7 @@
       <div class="modal-body">
         <p class="text-muted small mb-3">Будет полностью заменён текущий settings.json. Это действие нельзя отменить. Для подтверждения введите <code>{{ settings_restore_phrase }}</code>.</p>
         <form method="post" enctype="multipart/form-data" id="restoreSettingsForm" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="form_type" value="restore_settings" />
           <div class="mb-3">
             <label for="restoreSettingsFile" class="form-label">Файл settings.json</label>

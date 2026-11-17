@@ -97,26 +97,37 @@ def openvpn_filename_identity_variants(stem):
         g = m3.group(1).strip()
         out.add(g)
         out.add(g.lower())
+    m_transport = re.match(
+        r"^(?:antizapret|vpn)-(.+)-\([^)]+\)-(?:tcp|udp)$",
+        stem,
+        re.IGNORECASE,
+    )
+    if m_transport:
+        g = m_transport.group(1).strip()
+        out.add(g)
+        out.add(g.lower())
     return {x for x in out if x}
 
 
+def openvpn_client_lookup_names(client_name):
+    name = (client_name or "").strip()
+    if not name:
+        return set()
+    names = {name.lower()}
+    without_note = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip().lower()
+    if without_note:
+        names.add(without_note)
+    return names
+
+
 def openvpn_client_name_matches_ovpn_file(client_name, filename):
-    """Имя клиента из UI совпадает с .ovpn (полный CN, короткое имя)."""
+    """Имя клиента из UI совпадает с .ovpn целиком, без поиска подстроки."""
     if not filename.endswith(".ovpn"):
         return False
     stem = os.path.splitext(filename)[0]
-    ca = openvpn_client_identity_variants(client_name)
-    fb = openvpn_filename_identity_variants(stem)
-    if ca & fb:
-        return True
-    cal = {x.lower() for x in ca}
-    fbl = {x.lower() for x in fb}
-    if cal & fbl:
-        return True
-    clean = (client_name or "").replace("antizapret-", "").replace("vpn-", "")
-    if len(clean) >= 3 and clean in stem:
-        return True
-    return False
+    wanted = openvpn_client_lookup_names(client_name)
+    found = {item.lower() for item in openvpn_filename_identity_variants(stem)}
+    return bool(wanted & found)
 
 
 def list_openvpn_ovpn_paths_for_client(client_name):
@@ -145,6 +156,70 @@ def ovpn_profile_label(full_path):
     if parent:
         return f"{basename} ({parent})"
     return basename
+
+
+def ovpn_choice_from_path(full_path):
+    basename = os.path.basename(full_path)
+    parent = os.path.basename(os.path.dirname(full_path))
+    raw = f"{basename} ({parent})"
+    lower = raw.lower()
+    parent_lower = parent.lower()
+
+    if (
+        lower.startswith("antizapret-")
+        or "(antizapret" in lower
+        or "antizapret" in parent_lower
+    ):
+        profile = "antizapret"
+    elif (
+        lower.startswith("vpn-")
+        or "(vpn" in lower
+        or parent_lower.startswith("vpn")
+    ):
+        profile = "vpn"
+    else:
+        profile = "other"
+
+    if re.search(r"-tcp\.ovpn", basename, re.I) or re.search(
+        r"\((?:antizapret|vpn)-tcp\)", raw, re.I
+    ):
+        protocol = "tcp"
+    elif re.search(r"-udp\.ovpn", basename, re.I) or re.search(
+        r"\((?:antizapret|vpn)-udp\)", raw, re.I
+    ):
+        protocol = "udp"
+    else:
+        protocol = "auto"
+
+    return {
+        "profile": profile,
+        "protocol": protocol,
+        "slug": f"{profile}-{protocol}",
+        "filename": basename,
+        "label": ovpn_profile_label(full_path),
+        "path": full_path,
+    }
+
+
+def list_openvpn_profile_choices(client_name):
+    choices = []
+    seen_slugs = set()
+    for path in list_openvpn_ovpn_paths_for_client(client_name):
+        item = ovpn_choice_from_path(path)
+        if item["slug"] in seen_slugs:
+            continue
+        seen_slugs.add(item["slug"])
+        choices.append(item)
+    profile_order = {"antizapret": 0, "vpn": 1, "other": 2}
+    protocol_order = {"auto": 0, "tcp": 1, "udp": 2}
+    choices.sort(
+        key=lambda item: (
+            profile_order.get(item["profile"], 9),
+            protocol_order.get(item["protocol"], 9),
+            item["slug"],
+        )
+    )
+    return choices
 
 
 def clean_client_display_name(client_name, server_ip):

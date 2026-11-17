@@ -334,6 +334,21 @@ def run_openvpn_add_or_renew_client(client_name: str, days: int) -> dict:
     }
 
 
+def run_openvpn_renew_client(client_name: str, days: int) -> dict:
+    """Продлить только существующий OpenVPN-сертификат, не создавая новый."""
+    if not OPENVPN_CLIENT_NAME_RE.fullmatch(client_name):
+        return {
+            "success": False,
+            "message": "Некорректное имя клиента.",
+        }
+    if not openvpn_client_cert_exists(client_name):
+        return {
+            "success": False,
+            "message": "OpenVPN-клиент не найден. Обновите список и повторите попытку.",
+        }
+    return run_openvpn_add_or_renew_client(client_name, days)
+
+
 def send_openvpn_command(socket_name, command, timeout=5):
     socket_path = OPENVPN_SOCKETS.get(socket_name)
     if not socket_path:

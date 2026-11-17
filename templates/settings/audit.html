@@ -14,6 +14,7 @@
   <header class="dash-mon__hero">
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
       <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
@@ -69,67 +70,20 @@
             </td>
             <td>
               {% if log.source == 'bot' %}
-              <span class="badge bg-info">Бот</span>
+              <span class="badge audit-badge audit-badge--info">Бот</span>
+              {% elif log.source == 'system' %}
+              <span class="badge audit-badge audit-badge--secondary">Система</span>
               {% else %}
-              <span class="badge bg-secondary">Веб</span>
+              <span class="badge audit-badge audit-badge--secondary">Веб</span>
               {% endif %}
             </td>
             <td>{{ log.admin_name }}</td>
             <td>
-              {% if log.action == 'client_create' %}
-              <span class="badge bg-success">Создание</span>
-              {% elif log.action == 'client_delete' %}
-              <span class="badge bg-danger">Удаление</span>
-              {% elif log.action == 'files_recreate' %}
-              <span class="badge bg-warning">Пересоздание</span>
-              {% elif log.action == 'server_reboot' %}
-              <span class="badge bg-danger">Перезагрузка</span>
-              {% elif log.action == 'web_login' %}
-              <span class="badge bg-primary">Вход</span>
-              {% elif log.action == 'peer_toggle' %}
-              <span class="badge bg-secondary">Клиент WG</span>
-              {% elif log.action == 'bot_toggle' %}
-              <span class="badge bg-info">Телеграм</span>
-              {% elif log.action == 'request_approve' %}
-              <span class="badge bg-success">Одобрено</span>
-              {% elif log.action == 'request_reject' %}
-              <span class="badge bg-danger">Отклонено</span>
-              {% elif log.action == 'stats_db_clear_ovpn' %}
-              <span class="badge bg-warning text-dark">Очистка OpenVPN</span>
-              {% elif log.action == 'stats_db_clear_wg' %}
-              <span class="badge bg-warning text-dark">Очистка WireGuard</span>
-              {% elif log.action == 'bot_token_change' %}
-              <span class="badge bg-dark">Токен бота</span>
-              {% elif log.action == 'bot_admins_change' %}
-              <span class="badge bg-primary">Админ Telegram</span>
-              {% elif log.action == 'app_update' %}
-              <span class="badge bg-primary">Обновление</span>
-              {% elif log.action == 'settings_import' %}
-              <span class="badge bg-info text-dark">Импорт настроек</span>
-              {% elif log.action == 'wg_client_create' %}
-              <span class="badge bg-success">Создание WG</span>
-              {% elif log.action == 'wg_client_delete' %}
-              <span class="badge bg-danger">Удаление WG</span>
-              {% elif log.action == 'client_cert_renew' %}
-              <span class="badge bg-warning text-dark">Продление сертификата</span>
-              {% elif log.action == 'user_ban' %}
-              <span class="badge bg-danger">Блокировка</span>
-              {% elif log.action == 'user_unban' %}
-              <span class="badge bg-success">Разблокировка</span>
-              {% elif log.action == 'wg_client_rename' %}
-              <span class="badge bg-success">Переименование</span>
-              {% elif log.action == 'backup_download_vpn' %}
-              <span class="badge bg-primary">Бэкап VPN</span>
-              {% elif log.action == 'backup_download_statusopenvpn' %}
-              <span class="badge bg-primary">Бэкап StatusOpenVPN</span>
-              {% elif log.action == 'backup_download_settings' %}
-              <span class="badge bg-primary">Бэкап настроек</span>
-              {% elif log.action == 'backup_restore_statusopenvpn' %}
-              <span class="badge bg-warning text-dark">Восстановление БД</span>
-              {% elif log.action == 'backup_restore_settings' %}
-              <span class="badge bg-warning text-dark">Восстановление настроек</span>
+              {% set badge = action_badges.get(log.action) %}
+              {% if badge %}
+              <span class="badge audit-badge audit-badge--{{ badge[1] }}">{{ badge[0] }}</span>
               {% else %}
-              {{ log.action }}
+              <span class="badge audit-badge audit-badge--secondary">{{ log.action }}</span>
               {% endif %}
             </td>
             <td>

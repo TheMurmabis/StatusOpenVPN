@@ -207,7 +207,7 @@ extract_access_url_from_config() {
 update_service_ip() {
     local new_ip=$1
     if [[ -f "$SERVICE_FILE" ]]; then
-        sed -i "s|ExecStart=/root/web/venv/bin/gunicorn -w 4 main:app -b .*:$FLASK_PORT|ExecStart=/root/web/venv/bin/gunicorn -w 4 main:app -b $new_ip:$FLASK_PORT|" "$SERVICE_FILE"
+        sed -i -E "s|([[:space:]]-b[[:space:]])[^:[:space:]]+:$FLASK_PORT|\1$new_ip:$FLASK_PORT|" "$SERVICE_FILE"
         systemctl daemon-reload
         systemctl restart StatusOpenVPN
         echo -e "${GREEN}Service updated ${RESET}"
@@ -553,11 +553,14 @@ remove_nginx_site() {
             rm -f "$NGINX_CONF"
             save_setup_var "HTTPS_ENABLED" "0"
             echo -e "${GREEN}Nginx configuration removed.${RESET}"
+            return 0
         else
             echo -e "${RED}$NGINX_CONF was not created by StatusOpenVPN. Skipping.${RESET}"
+            return 1
         fi
     else
         echo -e "${YELLOW}$NGINX_CONF does not exist. Nothing to remove.${RESET}"
+        return 1
     fi
 }
 

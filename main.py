@@ -11,6 +11,7 @@ from src.ui.services.system_info_service import (
     update_system_info_loop,
 )
 from src.ui.services.openvpn_service import ensure_client_connect_ban_check_block
+from src.ui.services.scheduled_block_service import scheduled_block_loop
 
 import src.ui.routes  # регистрирует Flask-маршруты на app
 
@@ -32,6 +33,7 @@ except OSError:
 
 threading.Thread(target=update_system_info, daemon=True).start()
 threading.Thread(target=update_system_info_loop, daemon=True).start()
+threading.Thread(target=scheduled_block_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

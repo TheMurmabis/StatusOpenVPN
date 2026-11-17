@@ -24,7 +24,6 @@
         </nav>
     </header>
 
-
     {% if error_message %}
     <div class="alert alert-danger" role="alert">
         {{ error_message }}
@@ -104,6 +103,14 @@
                             <span class="vpn-status-badge offline">Оффлайн</span>
                             {% endif %}
                             {% endif %}
+                            {% if client.scheduled_block_at %}
+                            <small class="d-block mt-1 text-warning"
+                                title="Отложенная блокировка">
+                                <i class="fa fa-clock" aria-hidden="true"></i>
+                                <span class="ovpn-scheduled-block-time"
+                                    data-scheduled-at="{{ client.scheduled_block_at }}">{{ client.scheduled_block_label }}</span>
+                            </small>
+                            {% endif %}
                         </td>
                         <td class="text-center">{{ client.cert_expiry_label }}</td>
                         <td class="text-center">
@@ -116,6 +123,13 @@
                                     aria-label="Скачать конфигурацию">
                                     <i class="fa fa-download" aria-hidden="true"></i>
                                 </button>
+                                {% if ovpn_subscription_enabled %}
+                                {% set public_link = (subscription_urls or {}).get(client.name, '') %}
+                                <button type="button" class="vpn-action-icon-btn" data-action="copy-subscription"
+                                    data-client="{{ client.name }}" data-url="{{ public_link }}"
+                                    title="{% if public_link %}Скопировать ссылку{% else %}Открыть настройки публичных ссылок{% endif %}"
+                                    aria-label="{% if public_link %}Скопировать ссылку клиента {{ client.name }}{% else %}Открыть настройки публичных ссылок для {{ client.name }}{% endif %}"><i class="fa {% if public_link %}fa-link{% else %}fa-link-slash{% endif %}" aria-hidden="true"></i></button>
+                                {% endif %}
                                 <button type="button"
                                     class="vpn-action-icon-btn btn-renew-cert{% if client.cert_renew_state == 'expired' %} is-danger{% endif %}"
                                     data-client="{{ client.name }}"
@@ -135,13 +149,15 @@
                                 {% elif client.online %}
                                 <button type="button" class="vpn-action-icon-btn is-danger" data-action="kick"
                                     data-client="{{ client.name }}" data-protocol="{{ client.protocol }}"
+                                    data-scheduled-at="{{ client.scheduled_block_at }}"
                                     data-client-online="true" title="Отключить и заблокировать"
                                     aria-label="Отключить и заблокировать">
                                     <i class="fa fa-ban" aria-hidden="true"></i>
                                 </button>
                                 {% else %}
                                 <button type="button" class="vpn-action-icon-btn is-danger" data-action="block"
-                                    data-client="{{ client.name }}" data-client-online="false" title="Заблокировать"
+                                    data-client="{{ client.name }}" data-client-online="false"
+                                    data-scheduled-at="{{ client.scheduled_block_at }}" title="Заблокировать"
                                     aria-label="Заблокировать">
                                     <i class="fa fa-ban" aria-hidden="true"></i>
                                 </button>
@@ -370,8 +386,10 @@
                                 <span class="text-muted">Выбрано:</span>
                                 <strong id="ovpnConfigSelectionSummary"></strong>
                             </div>
-                            <a href="#" id="ovpnConfigDownloadBtn" class="btn btn-primary flex-shrink-0"
-                                download>Скачать</a>
+                            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                <a href="#" id="ovpnConfigDownloadBtn" class="btn btn-primary"
+                                    download>Скачать</a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -388,10 +406,44 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2" id="confirmOvpnModalLead"></p>
-                    <p class="text-muted mb-0 small" id="confirmOvpnModalHint"></p>
+                    <div class="ovpn-confirm-target">
+                        <span class="ovpn-confirm-target__icon" id="confirmOvpnModalIcon" aria-hidden="true">
+                            <i class="bi bi-person-lock"></i>
+                        </span>
+                        <div class="ovpn-confirm-target__body">
+                            <span class="ovpn-confirm-target__label">Клиент</span>
+                            <p class="ovpn-confirm-target__name" id="confirmOvpnModalLead"></p>
+                            <p class="ovpn-confirm-target__hint" id="confirmOvpnModalHint"></p>
+                        </div>
+                    </div>
+                    <div class="mt-3 d-none" id="confirmOvpnScheduleFields">
+                        <div class="form-label small mb-2">Когда выполнить</div>
+                        <div class="ovpn-schedule-mode" role="group" aria-label="Время выполнения">
+                            <button type="button" class="ovpn-schedule-mode__btn active"
+                                id="confirmOvpnScheduleNow" data-schedule-mode="now" aria-pressed="true">
+                                <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                                Сейчас
+                            </button>
+                            <button type="button" class="ovpn-schedule-mode__btn"
+                                id="confirmOvpnScheduleLater" data-schedule-mode="scheduled" aria-pressed="false">
+                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                По расписанию
+                            </button>
+                        </div>
+                        <div class="mt-3 d-none" id="confirmOvpnScheduleDate">
+                            <label for="confirmOvpnScheduledAt" class="form-label small mb-1">
+                                Дата и время
+                            </label>
+                            <input type="datetime-local" class="form-control"
+                                id="confirmOvpnScheduledAt" step="60">
+                            <div class="form-text">По часовому поясу браузера</div>
+                            <div class="invalid-feedback" id="confirmOvpnScheduledAtError"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto d-none"
+                        id="cancelOvpnScheduledBlockBtn">Отменить расписание</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="button" class="btn btn-danger" id="confirmOvpnBlockBtn">Подтвердить</button>
                 </div>
@@ -403,13 +455,17 @@
         window.ovpnApi = {
             kick: "{{ url_for('api_openvpn_client_kick') }}",
             block: "{{ url_for('api_openvpn_client_block') }}",
+            blockSchedule: "{{ url_for('api_openvpn_client_block_schedule') }}",
+            blockScheduleCancel: "{{ url_for('api_openvpn_client_block_schedule_cancel') }}",
             clientDelete: "{{ url_for('api_openvpn_client_delete') }}",
             clientCert: "{{ url_for('api_openvpn_client_cert') }}",
             clientConfig: "{{ url_for('api_openvpn_client_config') }}",
-            clientConfigDownload: "{{ url_for('api_openvpn_client_config_download') }}"
+            clientConfigDownload: "{{ url_for('api_openvpn_client_config_download') }}",
+            settingsLinks: "{{ url_for('settings_links') }}",
+            subscriptionEnabled: {{ ovpn_subscription_enabled | default(false) | tojson }}
         };
     </script>
-    <script src="{{ url_for('static', filename='js/ovpn_client_actions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ovpn_client_actions.js', v='20261023-scheduled-block') }}"></script>
 
 </div>
 

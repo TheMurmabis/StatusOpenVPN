@@ -3,7 +3,7 @@ from src.ui.services.settings_service import read_settings
 
 
 def read_admin_info():
-    data = read_settings().get("telegram_admins", {})
+    data = read_settings().get("telegram_profiles", {})
     if not isinstance(data, dict):
         return {}
     return data

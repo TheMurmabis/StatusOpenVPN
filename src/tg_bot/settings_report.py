@@ -6,15 +6,18 @@ from typing import Any
 SETTINGS_KEY_LABELS = {
     "app_name": "Название приложения",
     "bot_enabled": "Бот включён",
+    "subscriptions_enabled": "Публичные ссылки",
     "show_ovpn_menu": "OpenVPN в меню",
     "show_wg_menu": "WireGuard в меню",
+    "wg_stats_enabled": "Сбор статистики WireGuard",
     "hide_ovpn_ip": "Скрывать IP OpenVPN",
+    "group_ovpn_history": "Группировка истории OpenVPN",
     "hide_wg_ip": "Скрывать IP WireGuard",
     "hide_wg_warp_interface": "Скрывать WARP-интерфейс",
     "shorten_wg_filenames": "Короткие имена WG",
     "stats_retention_days": "Хранение статистики (дней)",
     "history_max_records": "Лимит истории OpenVPN",
-    "telegram_admins": "Администраторы",
+    "telegram_profiles": "Профили Telegram",
     "telegram_clients": "Клиенты бота",
     "tg_bot_banned_user_ids": "Заблокированные пользователи",
     "tg_bot_pending_requests": "Ожидающие запросы",
@@ -38,7 +41,7 @@ def _yes_no(value: Any) -> str:
     return "да" if value else "нет"
 
 
-def _count_admins(value: Any) -> int:
+def _count_profiles(value: Any) -> int:
     return len(value) if isinstance(value, dict) else 0
 
 
@@ -88,8 +91,8 @@ def _format_scalar(value: Any) -> str:
 
 
 def _format_value_for_key(key: str, value: Any) -> str:
-    if key == "telegram_admins":
-        return str(_count_admins(value))
+    if key == "telegram_profiles":
+        return str(_count_profiles(value))
     if key == "telegram_clients":
         users, bindings = _count_clients(value)
         return f"{users} польз., {bindings} прив."
@@ -116,13 +119,16 @@ def format_settings_report(data: dict, *, title: str = "📋 <b>Настройк
     priority_keys = [
         "app_name",
         "bot_enabled",
-        "telegram_admins",
+        "subscriptions_enabled",
+        "telegram_profiles",
         "telegram_clients",
         "tg_bot_banned_user_ids",
         "tg_bot_pending_requests",
         "show_ovpn_menu",
         "show_wg_menu",
+        "wg_stats_enabled",
         "hide_ovpn_ip",
+        "group_ovpn_history",
         "hide_wg_ip",
         "hide_wg_warp_interface",
         "shorten_wg_filenames",

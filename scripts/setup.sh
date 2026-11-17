@@ -45,6 +45,36 @@ run_as_root() {
     fi
 }
 
+is_wg_stats_enabled() {
+    python3 - "$SETTINGS_FILE" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+if not os.path.isfile(path):
+    raise SystemExit(0)
+try:
+    with open(path, encoding="utf-8") as settings_file:
+        settings = json.load(settings_file)
+        enabled = settings.get("show_wg_menu", True) and settings.get(
+            "wg_stats_enabled", True
+        )
+except (OSError, ValueError, AttributeError):
+    enabled = True
+raise SystemExit(0 if enabled else 1)
+PY
+}
+
+sync_wg_stats_service() {
+    if is_wg_stats_enabled; then
+        run_as_root systemctl enable wg_stats
+        run_as_root systemctl restart wg_stats
+    else
+        run_as_root systemctl disable --now wg_stats
+    fi
+}
+
 is_installed() {
     [[ -f "$SERVICE_FILE" && -d "$TARGET_DIR/venv" ]]
 }
@@ -255,7 +285,7 @@ Group=www-data
 WorkingDirectory=$TARGET_DIR
 Environment="PATH=$TARGET_DIR/venv/bin"
 Environment="SECRET_KEY=$secret_key"
-ExecStart=$TARGET_DIR/venv/bin/gunicorn -w 4 main:app -b 0.0.0.0:$PORT
+ExecStart=$TARGET_DIR/venv/bin/gunicorn --workers 1 --threads 4 main:app -b 0.0.0.0:$PORT
 
 [Install]
 WantedBy=multi-user.target
@@ -614,8 +644,9 @@ install_flow() {
 
     restart_vnstat_if_needed
 
-    run_as_root systemctl enable StatusOpenVPN wg_stats logs.timer
-    run_as_root systemctl start StatusOpenVPN wg_stats logs.timer
+    run_as_root systemctl enable StatusOpenVPN logs.timer
+    run_as_root systemctl start StatusOpenVPN logs.timer
+    sync_wg_stats_service
 
     if [[ "$BOT_ENABLED" -eq 1 ]]; then
         run_as_root systemctl enable telegram-bot
@@ -680,6 +711,9 @@ update_flow() {
     fi
 
     if [ -f "$SERVICE_FILE" ]; then
+        run_as_root sed -i -E \
+            's|^(ExecStart=.*/gunicorn) .*(main:app.*)$|\1 --workers 1 --threads 4 \2|' \
+            "$SERVICE_FILE"
         run_as_root sed -i "s/-b 0.0.0.0:[0-9]*/-b 0.0.0.0:$PORT/" "$SERVICE_FILE"
     else
         local SECRET_KEY
@@ -716,7 +750,10 @@ update_flow() {
         run_as_root systemctl stop wg_stats logs.timer StatusOpenVPN 2>/dev/null || true
         mkdir -p "$DST"
         mv "$SRC"/*.db "$DST"/ 2>/dev/null || true
-        run_as_root systemctl start wg_stats logs.timer StatusOpenVPN 2>/dev/null || true
+        run_as_root systemctl start logs.timer StatusOpenVPN 2>/dev/null || true
+        if is_wg_stats_enabled; then
+            run_as_root systemctl start wg_stats 2>/dev/null || true
+        fi
     fi
 
     echo "Reloading systemd daemon..."
@@ -729,8 +766,7 @@ update_flow() {
         echo "Restarting telegram-bot service..."
         run_as_root systemctl restart telegram-bot
     fi
-    run_as_root systemctl enable wg_stats
-    run_as_root systemctl restart wg_stats
+    sync_wg_stats_service
     run_as_root systemctl enable --now logs.timer
     run_as_root systemctl restart logs.timer logs.service
 

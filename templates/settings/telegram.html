@@ -14,6 +14,7 @@
   <header class="dash-mon__hero">
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
       <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
@@ -39,13 +40,14 @@
     {% endif %}
 
     <form method="post" autocomplete="off" id="botSettingsForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="form_type" value="bot" />
       <input type="hidden" id="admin_id" name="admin_id" value="{{ admin_id }}" />
-      <div class="d-flex justify-content-between align-items-center mb-4">
+      <div class="mb-4">
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <span class="small text-muted">Служба бота:</span>
-          <span class="dot {% if bot_service_active %}on{% else %}off{% endif %}"></span>
-          <span class="fw-medium">
+          <span class="dot {% if bot_service_active %}on{% else %}off{% endif %}" id="botServiceStatusDot"></span>
+          <span class="fw-medium" id="botServiceStatusText">
             {% if bot_service_active %}Активна{% else %}Не активна{% endif %}
           </span>
           <div class="form-check form-switch m-0" title="Включить/выключить бота">
@@ -55,13 +57,20 @@
             </label>
           </div>
         </div>
+        {% if bot_identity %}
+        <div class="mt-2">
+          <span class="small text-muted">Имя бота:</span>
+          <a href="{{ bot_identity.url }}" target="_blank" rel="noopener noreferrer"
+            class="text-decoration-none fw-medium ms-1">{{ bot_identity.name }}</a>
+        </div>
+        {% endif %}
       </div>
 
       <div class="form-floating mb-4 position-relative">
-        <input type="text" class="form-control masked" id="bot_token" name="bot_token" placeholder="API Token"
+        <input type="text" class="form-control masked" id="bot_token" name="bot_token" placeholder=" "
           value="{{ bot_token }}" />
         <label for="bot_token">API токен бота</label>
-        <small class="text-muted d-block">Введите API токен бота. Если токена нет, создайте бота через <a href="https://t.me/BotFather" class="text-decoration-none" target="_blank">BotFather</a>.</small>
+        <small class="text-muted d-block">Введите API токен бота. Если токена нет, создайте бота через <a href="https://t.me/BotFather" class="text-decoration-none" target="_blank">@BotFather</a>.</small>
         <span class="position-absolute top-50 end-0 translate-middle-y me-3"
           id="toggleToken" style="cursor: pointer; color: gray;"><i class="fas fa-eye" id="togglePasswordIcon"></i></span>
       </div>
@@ -118,9 +127,10 @@
           </div>
         </div>
 
+        {% if bot_enabled %}
         <div class="col-12 col-lg-6">
           <div class="settings-subcard h-100">
-            <label class="form-label">Пользователи</label>
+            <label class="form-label">Привязки к VPN-клиентам</label>
             <ul class="list-group mb-2">
               {% if client_mapping_list %}
               {% for item in client_mapping_list %}
@@ -136,10 +146,11 @@
               {% endif %}
             </ul>
             <div class="form-text">
-              Данные берутся из settings.json, задаются через Telegram-бот.
+              Привязки задаются через Telegram-бот.
             </div>
           </div>
         </div>
+        {% endif %}
       </div>
 
       <div class="d-flex justify-content-end pt-3">
@@ -151,6 +162,8 @@
 
     </form>
   </section>
+
+
 
 </div>
 

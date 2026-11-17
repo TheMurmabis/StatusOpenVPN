@@ -226,6 +226,109 @@ function formatCpuPercent(p) {
     return Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1);
 }
 
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+const NETWORK_PINNED_KEY = 'dashboardPinnedNetworkInterfaces';
+let latestNetworkLoad = {};
+let networkPinnedFallback = [];
+
+function getPinnedNetworkInterfaces() {
+    try {
+        const value = JSON.parse(localStorage.getItem(NETWORK_PINNED_KEY) || '[]');
+        const interfaces = Array.isArray(value) ? value.filter(iface => typeof iface === 'string') : [];
+        networkPinnedFallback = interfaces;
+        return interfaces;
+    } catch (_error) {
+        return networkPinnedFallback;
+    }
+}
+
+function setPinnedNetworkInterfaces(interfaces) {
+    networkPinnedFallback = interfaces;
+    try {
+        localStorage.setItem(NETWORK_PINNED_KEY, JSON.stringify(interfaces));
+    } catch (_error) {
+        // Интерфейс продолжит работать без сохранения, если хранилище недоступно.
+    }
+}
+
+function toggleNetworkInterfacePin(iface) {
+    if (!iface) return;
+    const pinned = getPinnedNetworkInterfaces();
+    const index = pinned.indexOf(iface);
+    if (index === -1) pinned.push(iface);
+    else pinned.splice(index, 1);
+    setPinnedNetworkInterfaces(pinned);
+
+    const networkElement = document.getElementById('network_load');
+    if (networkElement) networkElement.innerHTML = renderNetworkLoad(latestNetworkLoad);
+}
+
+function renderNetworkLoad(networkLoad) {
+    latestNetworkLoad = networkLoad || {};
+    const pinned = getPinnedNetworkInterfaces();
+    const pinnedPositions = new Map(pinned.map((iface, index) => [iface, index]));
+    const entries = Object.entries(latestNetworkLoad).sort(([ifaceA], [ifaceB]) => {
+        const positionA = pinnedPositions.get(ifaceA);
+        const positionB = pinnedPositions.get(ifaceB);
+        const isPinnedA = positionA !== undefined;
+        const isPinnedB = positionB !== undefined;
+        if (isPinnedA && isPinnedB) return positionA - positionB;
+        if (isPinnedA) return -1;
+        if (isPinnedB) return 1;
+        return 0;
+    });
+    if (!entries.length) {
+        return `
+            <div class="dash-net-empty">
+                <i class="bi bi-pause-circle" aria-hidden="true"></i>
+                <span>Сейчас нет активного трафика</span>
+            </div>`;
+    }
+
+    return entries.map(([iface, stats]) => {
+        const sent = escapeHtml(stats?.sent_speed ?? 0);
+        const received = escapeHtml(stats?.recv_speed ?? 0);
+        const safeIface = escapeHtml(iface);
+        const isPinned = pinnedPositions.has(iface);
+        const pinTitle = isPinned ? 'Открепить интерфейс' : 'Добавить в очередь закреплённых';
+        return `
+            <article class="dash-net-card${isPinned ? ' dash-net-card--pinned' : ''}">
+                <div class="dash-net-card__head">
+                    <span class="dash-net-card__icon" aria-hidden="true"><i class="bi bi-ethernet"></i></span>
+                    <code class="dash-net-card__name" title="${safeIface}">${safeIface}</code>
+                    <button type="button" class="dash-net-card__pin" data-interface="${safeIface}"
+                        aria-pressed="${isPinned}" aria-label="${pinTitle}" title="${pinTitle}">
+                        <i class="bi ${isPinned ? 'bi-pin-angle-fill' : 'bi-pin-angle'}" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="dash-net-card__metrics">
+                    <div class="dash-net-stat dash-net-stat--tx">
+                        <span class="dash-net-stat__icon" aria-hidden="true"><i class="bi bi-arrow-up-right"></i></span>
+                        <span class="dash-net-stat__body">
+                            <span class="dash-net-stat__label">Передача</span>
+                            <span class="dash-net-stat__value">${sent}<small> Мбит/с</small></span>
+                        </span>
+                    </div>
+                    <div class="dash-net-stat dash-net-stat--rx">
+                        <span class="dash-net-stat__icon" aria-hidden="true"><i class="bi bi-arrow-down-left"></i></span>
+                        <span class="dash-net-stat__body">
+                            <span class="dash-net-stat__label">Приём</span>
+                            <span class="dash-net-stat__value">${received}<small> Мбит/с</small></span>
+                        </span>
+                    </div>
+                </div>
+            </article>`;
+    }).join('');
+}
+
 function setUtilMeter(fillEl, pct) {
     if (!fillEl) return;
     const raw = Number(pct);
@@ -395,6 +498,12 @@ async function updateSystemInfo() {
         const interfaceElement = document.getElementById('network_interface');
         const rxElement = document.getElementById('rx_bytes');
         const txElement = document.getElementById('tx_bytes');
+        const trafficTotalElement = document.getElementById('traffic_total');
+        const trafficRxShareElement = document.getElementById('traffic_rx_share');
+        const trafficTxShareElement = document.getElementById('traffic_tx_share');
+        const trafficRxBar = document.getElementById('traffic_rx_bar');
+        const trafficTxBar = document.getElementById('traffic_tx_bar');
+        const trafficShareBar = trafficRxBar?.parentElement;
         const openvpn = data.vpn_clients?.OpenVPN ?? 0;
         const wireguard = data.vpn_clients?.WireGuard ?? 0;
         const openvpnBlocked = data.vpn_blocked?.OpenVPN ?? 0;
@@ -423,11 +532,27 @@ async function updateSystemInfo() {
                 : String(data.tx_bytes ?? '');
         if (rxElement && rxElement.textContent !== rxStr) rxElement.textContent = rxStr;
         if (txElement && txElement.textContent !== txStr) txElement.textContent = txStr;
-
-        let networkHtml = '';
-        for (const [iface, stats] of Object.entries(data.network_load)) {
-            networkHtml += `<p><b>${iface}</b>: Передача: ${stats.sent_speed} Мбит/с, Прием: ${stats.recv_speed} Мбит/с</p>`;
+        const totalStr = String(data.total_bytes ?? '0');
+        if (trafficTotalElement && trafficTotalElement.textContent !== totalStr) {
+            trafficTotalElement.textContent = totalStr;
         }
+
+        const rawRx = Number(data.rx_bytes_raw) || 0;
+        const rawTx = Number(data.tx_bytes_raw) || 0;
+        const rawTotal = rawRx + rawTx;
+        const rxShare = rawTotal > 0 ? (rawRx / rawTotal) * 100 : 0;
+        const txShare = rawTotal > 0 ? 100 - rxShare : 0;
+        const rxShareLabel = `${rxShare.toFixed(1)}%`;
+        const txShareLabel = `${txShare.toFixed(1)}%`;
+        if (trafficRxShareElement) trafficRxShareElement.textContent = rxShareLabel;
+        if (trafficTxShareElement) trafficTxShareElement.textContent = txShareLabel;
+        if (trafficRxBar) trafficRxBar.style.width = `${rxShare}%`;
+        if (trafficTxBar) trafficTxBar.style.width = `${txShare}%`;
+        if (trafficShareBar) {
+            trafficShareBar.setAttribute('aria-label', `Получено ${rxShareLabel}, отправлено ${txShareLabel}`);
+        }
+
+        const networkHtml = renderNetworkLoad(data.network_load);
         if (networkElement && networkElement.innerHTML !== networkHtml) networkElement.innerHTML = networkHtml;
 
         const elOvpn = document.getElementById('admin-stat-ovpn');
@@ -720,6 +845,15 @@ function toggleChartVisibility() {
 
 // Инициализация после загрузки страницы
 document.addEventListener('DOMContentLoaded', () => {
+    const networkLoad = document.getElementById('network_load');
+    if (networkLoad) {
+        networkLoad.addEventListener('click', event => {
+            const pinButton = event.target.closest('.dash-net-card__pin');
+            if (!pinButton || !networkLoad.contains(pinButton)) return;
+            toggleNetworkInterfacePin(pinButton.dataset.interface || '');
+        });
+    }
+
     const vpnCollapse = document.getElementById('dashVpnServicesCollapse');
     const vpnToggle = document.getElementById('dashVpnServicesToggle');
     if (vpnCollapse && vpnToggle) {

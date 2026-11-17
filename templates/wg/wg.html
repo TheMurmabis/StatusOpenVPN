@@ -35,7 +35,6 @@
         </nav>
     </header>
 
-
     <div id="no-active-clients" class="vpn-empty-panel text-center mb-3">
         <p class="text-muted mb-0">Нет активных подключений по выбранным фильтрам.</p>
     </div>
@@ -143,20 +142,50 @@
         </div>
     </div>
 
-    <div class="modal fade ovpn-client-modal" id="confirmDisableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade ovpn-client-modal" id="confirmDisableModal" tabindex="-1"
+        aria-labelledby="confirmDisableModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Отключение клиента</h5>
+                    <h5 class="modal-title" id="confirmDisableModalTitle">Отключить клиента?</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-0">Вы уверены, что хотите отключить клиента <strong id="confirmClientName"></strong>?
-                    </p>
-                    <p class="text-muted small mt-2 mb-0">Пир будет закомментирован в конфигурации WireGuard; при
-                        необходимости его можно снова включить кнопкой в столбце действий.</p>
+                    <div class="ovpn-confirm-target">
+                        <span class="ovpn-confirm-target__icon" aria-hidden="true">
+                            <i class="bi bi-person-dash"></i>
+                        </span>
+                        <div class="ovpn-confirm-target__body">
+                            <span class="ovpn-confirm-target__label">Клиент</span>
+                            <p class="ovpn-confirm-target__name"><strong id="confirmClientName"></strong></p>
+                            <p class="ovpn-confirm-target__hint">Подключения будут запрещены. Клиента можно включить снова.</p>
+                        </div>
+                    </div>
+                    <div class="mt-3" id="confirmWgScheduleFields">
+                        <div class="form-label small mb-2">Когда выполнить</div>
+                        <div class="ovpn-schedule-mode" role="group" aria-label="Время отключения">
+                            <button type="button" class="ovpn-schedule-mode__btn active"
+                                data-wg-schedule-mode="now" aria-pressed="true">
+                                <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                                Сейчас
+                            </button>
+                            <button type="button" class="ovpn-schedule-mode__btn"
+                                data-wg-schedule-mode="scheduled" aria-pressed="false">
+                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                По расписанию
+                            </button>
+                        </div>
+                        <div class="mt-3 d-none" id="confirmWgScheduleDate">
+                            <label for="confirmWgScheduledAt" class="form-label small mb-1">Дата и время</label>
+                            <input type="datetime-local" class="form-control" id="confirmWgScheduledAt" step="60">
+                            <div class="form-text">По часовому поясу браузера</div>
+                            <div class="invalid-feedback" id="confirmWgScheduledAtError"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto d-none"
+                        id="cancelWgScheduledDisableBtn">Отменить расписание</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="button" class="btn btn-danger" id="confirmDisableBtn">Отключить</button>
                 </div>
@@ -410,12 +439,17 @@
     <script>
         window.wgApi = {
             peerToggle: "{{ url_for('toggle_wg_peer') }}",
+            peerDisableSchedule: "{{ url_for('schedule_wg_peer_disable') }}",
+            peerDisableScheduleCancel: "{{ url_for('cancel_wg_peer_disable_schedule') }}",
             clientCreate: "{{ url_for('api_wg_client_create') }}",
             clientDelete: "{{ url_for('api_wg_client_delete') }}",
             clientRename: "{{ url_for('api_wg_client_rename') }}",
             clientConfig: "{{ url_for('api_wireguard_client_config') }}",
             clientConfigDownload: "{{ url_for('api_wireguard_client_config_download') }}",
             clientConfigQr: "{{ url_for('api_wireguard_client_config_qr') }}",
+            subscriptionEnabled: {{ wg_subscription_enabled | tojson }},
+            subscriptionUrls: {{ subscription_urls | tojson }},
+            settingsLinks: "{{ url_for('settings_links') }}",
             statsPage: "{{ url_for('wg_stats') }}"
         };
     </script>

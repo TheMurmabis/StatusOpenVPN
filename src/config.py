@@ -1,10 +1,11 @@
 from datetime import timedelta
 import os
+import secrets
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "supersecretkey"
+    SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     DATABASE_PATH = os.path.join(BASE_DIR, "databases", "db.db")
     LOGS_DATABASE_PATH = os.path.join(BASE_DIR, "databases", "openvpn_logs.db")
     WG_STATS_PATH = os.path.join(BASE_DIR, "databases", "wireguard_stats.db")
@@ -12,8 +13,12 @@ class Config:
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=5)
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
     REMEMBER_COOKIE_NAME = 'status_rid'
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = 'Lax'
     SESSION_REFRESH_EACH_REQUEST = False
     SESSION_COOKIE_NAME = 'status_sid'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
 
 class DevelopmentConfig(Config):
     DEBUG = True

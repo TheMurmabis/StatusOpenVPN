@@ -1,6 +1,6 @@
 *venv
 /logs
-/test
+/test*
 /.pylintrc
 __pycache__
 *.db
@@ -8,4 +8,6 @@ test.py
 .env
 setup
 settings.json
+src/settings.json.lock
+src/.settings-*.tmp
 ovpn-status/

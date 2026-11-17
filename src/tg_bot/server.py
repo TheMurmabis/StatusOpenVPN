@@ -14,6 +14,7 @@ from .utils import (
     is_peer_online,
     read_wg_config,
 )
+from src.wireguard_filter import is_warp_interface
 
 VPN_MONITORED_SERVICES = [
     ("OpenVPN Antizapret UDP", "openvpn-server@antizapret-udp"),
@@ -28,6 +29,7 @@ VPN_MONITORED_SERVICES = [
 def _lazy_psutil():
     """Ленивый импорт psutil."""
     import psutil
+
     return psutil
 
 
@@ -82,27 +84,27 @@ async def get_server_stats():
     """Получить статистику сервера."""
     try:
         psutil = _lazy_psutil()
-        
+
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         disk = psutil.disk_usage("/")
         disk_total = disk.total / (1024**3)
         disk_used = disk.used / (1024**3)
-        
+
         uptime = _get_uptime()
         formatted_uptime = _format_uptime(uptime)
         main_interface = _get_main_interface()
-        
+
         traffic_text = ""
         if main_interface:
             stats = psutil.net_io_counters(pernic=True).get(main_interface)
             if stats:
                 traffic_text = f"\n<b>🌐 Трафик</b> {main_interface}: ⬇ {stats.bytes_recv / (1024**3):.2f} GB / ⬆ {stats.bytes_sent / (1024**3):.2f} GB"
-        
+
         vpn_clients = _count_online_clients()
         clients_section = format_vpn_clients(vpn_clients)
-        
+
         stats_text = f"""
 <b>📊 Статистика сервера: </b>
 
@@ -152,7 +154,7 @@ async def get_service_state(service_name: str) -> str:
         )
         stdout, _ = await process.communicate()
         state = stdout.decode().strip()
-        
+
         if state not in ("active", "inactive", "failed"):
             return "unknown"
         return state
@@ -165,10 +167,7 @@ def get_vpn_monitor_menu_text() -> str:
     from .config import is_vpn_monitoring_enabled
 
     if is_vpn_monitoring_enabled():
-        return (
-            "<b>⚙️ Мониторинг VPN-служб</b>\n\n"
-            "Выберите службы для отслеживания."
-        )
+        return "<b>⚙️ Мониторинг VPN-служб</b>\n\n" "Выберите службы для отслеживания."
     return (
         "<b>⚙️ Мониторинг VPN-служб</b>\n\n"
         "🔌 <b>Мониторинг отключён</b> — алерты и автоперезапуск не выполняются.\n"
@@ -187,7 +186,7 @@ async def get_services_status_text():
         "<b>⚙️ VPN-службы:</b>",
         "",
     ]
-    
+
     for label, service in VPN_MONITORED_SERVICES:
         state = await get_service_state(service)
         icon = "🟢" if state == "active" else "🔴" if state == "inactive" else "🟡"
@@ -334,6 +333,9 @@ def _parse_wireguard_online_entries(output: str):
             current_peer = line.split(":", 1)[1].strip()
             continue
         if line.startswith("latest handshake:") and current_peer:
+            if is_warp_interface(current_interface):
+                current_peer = None
+                continue
             handshake_raw = line.split(":", 1)[1].strip()
             handshake_time = parse_handshake_time(handshake_raw)
             if handshake_time and is_peer_online(handshake_time):
@@ -409,23 +411,25 @@ def _get_main_interface():
     """Получить основной сетевой интерфейс."""
     psutil = _lazy_psutil()
     interfaces = psutil.net_io_counters(pernic=True)
-    
+
     if not interfaces:
         return None
-    
+
     main_iface = max(
-        interfaces.items(),
-        key=lambda x: x[1].bytes_recv + x[1].bytes_sent
+        interfaces.items(), key=lambda x: x[1].bytes_recv + x[1].bytes_sent
     )[0]
-    
+
     return main_iface
 
 
 def _get_uptime():
     """Получить строку времени работы системы."""
     import subprocess
+
     try:
-        uptime = subprocess.check_output("/usr/bin/uptime -p", shell=True).decode().strip()
+        uptime = (
+            subprocess.check_output("/usr/bin/uptime -p", shell=True).decode().strip()
+        )
     except subprocess.CalledProcessError:
         uptime = "Не удалось получить время работы"
     return uptime
@@ -434,12 +438,13 @@ def _get_uptime():
 def _format_uptime(uptime_string):
     """Форматировать строку uptime на русский."""
     import re
+
     pattern = r"(?:(\d+)\s*years?|(\d+)\s*months?|(\d+)\s*weeks?|(\d+)\s*days?|(\d+)\s*hours?|(\d+)\s*minutes?)"
-    
+
     years = months = weeks = days = hours = minutes = 0
-    
+
     matches = re.findall(pattern, uptime_string)
-    
+
     for match in matches:
         if match[0]:
             years = int(match[0])
@@ -453,7 +458,7 @@ def _format_uptime(uptime_string):
             hours = int(match[4])
         elif match[5]:
             minutes = int(match[5])
-    
+
     result = []
     if years > 0:
         result.append(f"{years} г.")
@@ -467,13 +472,12 @@ def _format_uptime(uptime_string):
         result.append(f"{hours} ч.")
     if minutes > 0:
         result.append(f"{minutes} мин.")
-    
+
     return " ".join(result)
 
 
 def _count_online_clients():
     """Подсчитать онлайн-клиентов VPN."""
-    import re
     import subprocess
 
     from src.openvpn_status import count_openvpn_online_from_status
@@ -482,11 +486,18 @@ def _count_online_clients():
 
     try:
         wg_output = subprocess.check_output(["/usr/bin/wg", "show"], text=True)
-        wg_latest_handshakes = re.findall(r"latest handshake: (.+)", wg_output)
-
+        current_interface = ""
         online_wg = 0
-        for handshake in wg_latest_handshakes:
-            handshake_str = handshake.strip()
+        for raw_line in wg_output.splitlines():
+            line = raw_line.strip()
+            if line.startswith("interface:"):
+                current_interface = line.split(":", 1)[1].strip()
+                continue
+            if not line.startswith("latest handshake:"):
+                continue
+            if is_warp_interface(current_interface):
+                continue
+            handshake_str = line.split(":", 1)[1].strip()
             if handshake_str == "0 seconds ago":
                 online_wg += 1
             else:

@@ -1,12 +1,12 @@
-{% macro install_value_badge(key, value) -%}
+{% macro install_value_badge(key, value, schema='legacy') -%}
   {% if key == 'OPENVPN_PATCH' %}
-    {% if value == '0' %}
+    {% if (schema == 'current' and value == '1') or (schema != 'current' and value == '0') %}
       <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" title="Не устанавливать патч против цензуры или удалить, если уже установлен">None</span>
-    {% elif value == '1' %}
+    {% elif (schema == 'current' and value == '2') or (schema != 'current' and value == '1') %}
       <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Рекомендуется по умолчанию, случайно выбирает Strong или Error-Free">Random</span>
-    {% elif value == '2' %}
+    {% elif (schema == 'current' and value == '3') or (schema != 'current' and value == '2') %}
       <span class="badge bg-info-subtle text-info border border-info-subtle" title="Лучшая маскировка протокола">Strong</span>
-    {% elif value == '3' %}
+    {% elif (schema == 'current' and value == '4') or (schema != 'current' and value == '3') %}
       <span class="badge bg-success-subtle text-success border border-success-subtle" title="Если патч Strong вызывает ошибку подключения, рекомендуется для роутеров">Error-Free</span>
     {% elif value %}
       <span class="badge bg-light text-dark border">{{ value }}</span>
@@ -14,7 +14,21 @@
       <span class="text-muted small">—</span>
     {% endif %}
   {% elif key == 'ANTIZAPRET_DNS' %}
-    {% if value == '1' %}
+    {% if schema == 'current' and value == '1' %}
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="MSK-IX, NSDI, BI.ZONE, ТТК, Cloudflare, Quad9, ControlD и UltraDNS">MSK-IX+NSDI</span>
+    {% elif schema == 'current' and value == '2' %}
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Cloudflare, Quad9, ControlD и UltraDNS">CF+Quad9</span>
+    {% elif schema == 'current' and value == '3' %}
+      <span class="badge bg-light text-dark border">Yandex</span>
+    {% elif schema == 'current' and value == '4' %}
+      <span class="badge bg-light text-dark border">Google</span>
+    {% elif schema == 'current' and value == '5' %}
+      <span class="badge bg-success-subtle text-success border border-success-subtle">AdGuard</span>
+    {% elif schema == 'current' and value == '6' %}
+      <span class="badge bg-light text-dark border">Comss</span>
+    {% elif schema == 'current' and value == '7' %}
+      <span class="badge bg-light text-dark border">GeoHide</span>
+    {% elif value == '1' %}
       <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Cloudflare+Quad9+MSK-IX+NSDI">CF+Quad9+MSK</span>
     {% elif value == '2' %}
       <span class="badge bg-info-subtle text-info border border-info-subtle" title="Cloudflare+Quad9+SkyDNS">SkyDNS</span>
@@ -34,6 +48,8 @@
   {% elif key == 'VPN_DNS' %}
     {% if value == '1' %}
       <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Как у AntiZapret VPN">Self-hosted</span>
+    {% elif schema == 'current' and value == '2' %}
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Cloudflare или DNS, заданный на клиенте">Cloudflare/Custom</span>
     {% elif value == '2' %}
       <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Cloudflare</span>
     {% elif value == '3' %}
@@ -48,6 +64,32 @@
       <span class="badge bg-light text-dark border">XBox</span>
     {% elif value == '8' %}
       <span class="badge bg-light text-dark border">Malw</span>
+    {% elif value %}
+      <span class="badge bg-light text-dark border">{{ value }}</span>
+    {% else %}
+      <span class="text-muted small">—</span>
+    {% endif %}
+  {% elif key == 'ANTIZAPRET_WARP' and schema == 'current' %}
+    {% if value == '1' %}
+      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">None</span>
+    {% elif value == '2' %}
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Весь исходящий трафик AntiZapret VPN через WARP">All</span>
+    {% elif value == '3' %}
+      <span class="badge bg-info-subtle text-info border border-info-subtle" title="Домены AntiZapret и пользовательский список через WARP">Domain</span>
+    {% elif value == '4' %}
+      <span class="badge bg-light text-dark border" title="Только домены из пользовательского списка через WARP">Custom</span>
+    {% elif value %}
+      <span class="badge bg-light text-dark border">{{ value }}</span>
+    {% else %}
+      <span class="text-muted small">—</span>
+    {% endif %}
+  {% elif key == 'VPN_WARP' and schema == 'current' %}
+    {% if value == '1' %}
+      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">None</span>
+    {% elif value == '2' %}
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Весь исходящий трафик полного VPN через WARP">All</span>
+    {% elif value == '3' %}
+      <span class="badge bg-light text-dark border" title="Только домены из пользовательского списка через WARP">Custom</span>
     {% elif value %}
       <span class="badge bg-light text-dark border">{{ value }}</span>
     {% else %}

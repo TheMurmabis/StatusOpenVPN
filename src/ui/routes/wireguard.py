@@ -3,7 +3,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -13,12 +13,23 @@ from src.tg_bot.audit import log_action
 from src.ui.constants import CLIENT_SH_PATH, MONTH_OPTIONS_RU
 from src.ui.extensions import app
 from src.ui.services.settings_service import read_settings
+from src.ui.services.scheduled_block_service import (
+    cancel_scheduled_wireguard_disable,
+    cancel_scheduled_wireguard_disables_for_client,
+    get_scheduled_wireguard_disables,
+    rename_scheduled_wireguard_client,
+    schedule_wireguard_disable,
+)
+from src.ui.services.ovpn_subscription_service import (
+    are_subscriptions_active,
+    subscription_urls_by_client,
+)
 from src.ui.services.wireguard_service import (
     get_disabled_wg_peers,
     get_wireguard_stats,
     parse_wireguard_output,
     rename_client_in_wg_configs,
-    toggle_peer_config,
+    set_wireguard_peer_enabled,
 )
 from src.ui.utils.wireguard_naming import wg_client_name_param_ok
 from src.ui.utils.format_utils import format_bytes
@@ -29,13 +40,42 @@ from src.ui.utils.time_utils import (
 )
 
 
+def _attach_scheduled_wireguard_disables(stats):
+    scheduled = get_scheduled_wireguard_disables()
+    for interface_data in stats:
+        interface = interface_data.get("interface", "")
+        for peer in interface_data.get("peers", []):
+            item = scheduled.get((interface, peer.get("peer", "")))
+            peer["scheduled_disable_at"] = item["scheduled_at"] if item else ""
+    return stats
+
+
+def _parse_scheduled_wireguard_time(raw_value):
+    raw = (raw_value or "").strip()
+    if not raw:
+        return None, "Укажите дату и время отключения."
+    try:
+        scheduled_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None, "Некорректная дата отключения."
+    if scheduled_at.tzinfo is None:
+        return None, "Не указан часовой пояс даты отключения."
+    scheduled_at = scheduled_at.astimezone(timezone.utc)
+    now = datetime.now(timezone.utc)
+    if scheduled_at <= now + timedelta(seconds=30):
+        return None, "Дата отключения должна быть в будущем."
+    if scheduled_at > now + timedelta(days=3650):
+        return None, "Дата отключения не может быть позже чем через 10 лет."
+    return scheduled_at, ""
+
+
 @app.route("/wg")
 @login_required
 def wg():
     """Маршрут клиентов WireGuard."""
     settings_data = read_settings()
     hide_wg_ip = settings_data.get("hide_wg_ip", True)
-    hide_warp = bool(settings_data.get("hide_wg_warp_interface", False))
+    hide_warp = bool(settings_data.get("hide_wg_warp_interface", True))
     shorten_wg_filenames = bool(settings_data.get("shorten_wg_filenames", False))
     stats = parse_wireguard_output(
         get_wireguard_stats(), hide_ip=hide_wg_ip, hide_warp=hide_warp
@@ -47,10 +87,13 @@ def wg():
         iface = interface_data.get("interface")
         if iface in disabled_peers:
             interface_data.setdefault("peers", []).extend(disabled_peers[iface])
+    _attach_scheduled_wireguard_disables(stats)
 
     return render_template(
         "wg/wg.html",
         stats=stats,
+        wg_subscription_enabled=are_subscriptions_active(),
+        subscription_urls=subscription_urls_by_client(),
         shorten_wg_filenames=shorten_wg_filenames,
         active_section="wg",
         active_page="wg_clients",
@@ -70,7 +113,7 @@ def api_wg_stats():
     try:
         settings_data = read_settings()
         hide_wg_ip = settings_data.get("hide_wg_ip", True)
-        hide_warp = bool(settings_data.get("hide_wg_warp_interface", False))
+        hide_warp = bool(settings_data.get("hide_wg_warp_interface", True))
         stats = parse_wireguard_output(
             get_wireguard_stats(), hide_ip=hide_wg_ip, hide_warp=hide_warp
         )
@@ -81,6 +124,7 @@ def api_wg_stats():
             iface = interface_data.get("interface")
             if iface in disabled_peers:
                 interface_data.setdefault("peers", []).extend(disabled_peers[iface])
+        _attach_scheduled_wireguard_disables(stats)
         return jsonify(stats)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -97,38 +141,9 @@ def toggle_wg_peer():
     if not peer or not interface or enable is None:
         return jsonify({"error": "Отсутствуют обязательные параметры"}), 400
 
-    config_path = f"/etc/wireguard/{interface}.conf"
-
-    if not os.path.exists(config_path):
-        return jsonify({"error": "Конфигурация не найдена"}), 404
-
     try:
-        success = toggle_peer_config(config_path, peer, enable)
-        if not success:
-            return jsonify({"error": "Пир не найден в конфигурации"}), 404
-
-        wg_quick = shutil.which("wg-quick") or "/usr/bin/wg-quick"
-        wg_bin = shutil.which("wg") or "/usr/bin/wg"
-        if not os.path.isfile(wg_quick):
-            return (
-                jsonify({"error": "wg-quick не найден. Установите wireguard-tools."}),
-                500,
-            )
-        if not os.path.isfile(wg_bin):
-            return (
-                jsonify({"error": "wg не найден. Установите wireguard-tools."}),
-                500,
-            )
-
-        subprocess.run(
-            [
-                "/bin/bash",
-                "-c",
-                f"{wg_bin} syncconf {interface} <({wg_quick} strip {interface})",
-            ],
-            check=True,
-            env={**os.environ, "PATH": "/usr/bin:/bin"},
-        )
+        set_wireguard_peer_enabled(interface, peer, enable)
+        cancel_scheduled_wireguard_disable(interface, peer)
 
         client_name = data.get("client_name", peer[:8] + "...")
         action_str = "включён" if enable else "отключён"
@@ -141,8 +156,86 @@ def toggle_wg_peer():
         )
 
         return jsonify({"success": True, "enabled": enable})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except (FileNotFoundError, LookupError) as e:
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wg/peer/disable/schedule", methods=["POST"])
+@login_required
+def schedule_wg_peer_disable():
+    data = request.get_json(silent=True) or {}
+    peer = str(data.get("peer") or "").strip()
+    interface = str(data.get("interface") or "").strip()
+    client_name = str(data.get("client_name") or "").strip()
+    valid_peer = bool(re.fullmatch(r"[A-Za-z0-9+/=_-]{20,256}", peer))
+    valid_interface = bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", interface))
+    if not valid_peer or not valid_interface:
+        return (
+            jsonify(
+                {"success": False, "message": "Некорректный пир или интерфейс."}
+            ),
+            400,
+        )
+    if client_name and not wg_client_name_param_ok(client_name):
+        return jsonify({"success": False, "message": "Некорректное имя клиента."}), 400
+
+    scheduled_at, error = _parse_scheduled_wireguard_time(data.get("scheduled_at"))
+    if error:
+        return jsonify({"success": False, "message": error}), 400
+
+    try:
+        item = schedule_wireguard_disable(
+            interface,
+            peer,
+            client_name,
+            scheduled_at,
+            current_user.username,
+        )
+        log_action(
+            "web",
+            current_user.username,
+            current_user.username,
+            "peer_disable_scheduled",
+            f"{client_name or peer[:8]} ({interface}): {item['scheduled_at']}",
+        )
+        return jsonify({"success": True, "scheduled_at": item["scheduled_at"]})
+    except (OSError, sqlite3.Error) as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/wg/peer/disable/schedule/cancel", methods=["POST"])
+@login_required
+def cancel_wg_peer_disable_schedule():
+    data = request.get_json(silent=True) or {}
+    peer = str(data.get("peer") or "").strip()
+    interface = str(data.get("interface") or "").strip()
+    client_name = str(data.get("client_name") or "").strip()
+    valid_peer = bool(re.fullmatch(r"[A-Za-z0-9+/=_-]{20,256}", peer))
+    valid_interface = bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", interface))
+    if not valid_peer or not valid_interface:
+        return (
+            jsonify(
+                {"success": False, "message": "Некорректный пир или интерфейс."}
+            ),
+            400,
+        )
+    try:
+        cancelled = cancel_scheduled_wireguard_disable(interface, peer)
+        if cancelled:
+            log_action(
+                "web",
+                current_user.username,
+                current_user.username,
+                "peer_disable_schedule_cancelled",
+                f"{client_name or peer[:8]} ({interface})",
+            )
+        return jsonify({"success": True, "cancelled": cancelled})
+    except (OSError, sqlite3.Error) as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/wg/client/create", methods=["POST"])
@@ -281,6 +374,7 @@ def api_wg_client_delete():
             500,
         )
 
+    cancel_scheduled_wireguard_disables_for_client(client_name)
     log_action(
         "web",
         current_user.username,
@@ -353,6 +447,7 @@ def api_wg_client_rename():
                 env={**os.environ, "PATH": "/usr/bin:/bin"},
             )
 
+        rename_scheduled_wireguard_client(old_name, new_name)
         log_action(
             "web",
             current_user.username,
@@ -489,7 +584,8 @@ def wg_stats():
                            SUM(sent) as total_sent
                     FROM wg_hourly_stats
                     WHERE hour >= ? AND hour < ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY client
                     HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
@@ -503,7 +599,8 @@ def wg_stats():
                            SUM(sent) as total_sent
                     FROM wg_monthly_stats
                     WHERE month >= ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY client
                     HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
@@ -516,7 +613,8 @@ def wg_stats():
                            SUM(sent) as total_sent
                     FROM wg_daily_stats
                     WHERE date >= ? AND date < ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY client
                     HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
@@ -529,7 +627,8 @@ def wg_stats():
                            SUM(sent) as total_sent
                     FROM wg_daily_stats
                     WHERE date >= ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY client
                     HAVING SUM(received) > 0 OR SUM(sent) > 0
                     ORDER BY {sort_column} {order_sql}
@@ -650,7 +749,8 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_hourly_stats
                     WHERE client = ? AND hour >= ? AND hour < ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY hour
                     ORDER BY hour ASC
                     """,
@@ -686,7 +786,8 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_monthly_stats
                     WHERE client = ? AND month >= ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY month
                     ORDER BY month ASC
                     """,
@@ -703,7 +804,8 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_daily_stats
                     WHERE client = ? AND date >= ? AND date < ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY date
                     ORDER BY date ASC
                     """,
@@ -720,7 +822,8 @@ def api_wg_client_chart():
                            SUM(sent) as tx
                     FROM wg_daily_stats
                     WHERE client = ? AND date >= ?
-                      AND interface != 'warp'
+                      AND lower(interface) != 'warp'
+                      AND lower(interface) NOT LIKE 'warp-%'
                     GROUP BY date
                     ORDER BY date ASC
                     """,

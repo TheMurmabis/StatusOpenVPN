@@ -180,6 +180,10 @@
                         <td class="text-center vpn-table-client">
                             <span class="vpn-client-name-cell">
                                 <span class="vpn-client-name-text">{{ client.display_name or client.name }}</span>
+                                <a href="{{ url_for('ovpn_stats', client=client.name) }}"
+                                    class="vpn-client-action-link" title="Статистика клиента" aria-label="Статистика клиента">
+                                    <i class="bi bi-graph-up" aria-hidden="true"></i>
+                                </a>
                                 <a href="{{ url_for('ovpn_client_status', client=client.name) }}"
                                     class="vpn-client-action-link" title="Профиль клиента" aria-label="Профиль клиента">
                                     <i class="bi bi-gear" aria-hidden="true"></i>

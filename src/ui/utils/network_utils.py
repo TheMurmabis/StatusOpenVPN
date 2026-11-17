@@ -58,7 +58,8 @@ def get_network_load():
     net_io_end = psutil.net_io_counters(pernic=True)
 
     network_data = {}
-    for interface in net_io_start:
+
+    for interface in net_io_start.keys() & net_io_end.keys():
         if interface == "lo":
             continue
 
@@ -71,8 +72,8 @@ def get_network_load():
             net_io_end[interface].bytes_recv,
         )
 
-        sent_speed = (sent_end - sent_start) * 8 / 1e6
-        recv_speed = (recv_end - recv_start) * 8 / 1e6
+        sent_speed = max(0, sent_end - sent_start) * 8 / 1e6
+        recv_speed = max(0, recv_end - recv_start) * 8 / 1e6
 
         if sent_speed > 0 or recv_speed > 0:
             network_data[interface] = {

@@ -1,9 +1,11 @@
 """Обработчики колбэков администратора для управления VPN."""
 
+import asyncio
 import os
 import re
 import tarfile
 import tempfile
+from datetime import datetime
 
 from aiogram import Router, types
 from aiogram.types import FSInputFile
@@ -24,7 +26,12 @@ from ..keyboards import (
     create_client_list_keyboard,
     create_client_actions_keyboard,
     create_confirmation_keyboard,
+    create_back_keyboard,
+    create_openvpn_menu,
     create_openvpn_config_menu,
+    create_openvpn_create_days_keyboard,
+    create_openvpn_renew_clients_keyboard,
+    create_openvpn_renew_days_keyboard,
     create_request_actions_keyboard,
     create_request_client_list_keyboard,
     create_wireguard_config_menu,
@@ -38,9 +45,97 @@ from ..utils import (
     get_external_ip,
 )
 from ..audit import log_action, notify_admins
-from ..client_status_service import get_client_statuses, get_client_brief, set_client_block
+from ..client_status_service import (
+    get_client_statuses,
+    get_client_brief,
+    set_client_block,
+)
 
 router = Router()
+
+
+def _openvpn_renew_expiry_labels(clients: list[str]) -> dict[str, str]:
+    from src.ui.services.openvpn_service import get_openvpn_client_cert_expiry
+
+    labels = {}
+    now = datetime.utcnow()
+    for client_name in clients:
+        expiry_dt, expiry_label = get_openvpn_client_cert_expiry(client_name)
+        if expiry_dt is None:
+            labels[client_name] = "срок неизвестен"
+        elif expiry_dt <= now:
+            labels[client_name] = f"истёк {expiry_label}"
+        else:
+            labels[client_name] = f"до {expiry_label}"
+    return labels
+
+
+async def _show_openvpn_renew_clients(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    page: int = 1,
+):
+    clients = sorted(await get_clients("openvpn"), key=str.lower)
+    if not clients:
+        await state.clear()
+        await callback.message.edit_text(
+            "❌ Нет OpenVPN-клиентов для продления.",
+            reply_markup=create_openvpn_menu(),
+        )
+        return
+
+    total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    await state.clear()
+    await callback.message.edit_text(
+        "🔄 <b>Продление OpenVPN</b>\n\n"
+        "Выберите клиента. В списке указан текущий срок сертификата:",
+        reply_markup=create_openvpn_renew_clients_keyboard(
+            clients,
+            page,
+            total_pages,
+            _openvpn_renew_expiry_labels(clients),
+        ),
+    )
+
+
+async def _renew_openvpn_from_callback(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    client_name: str,
+    days: int,
+):
+    from src.ui.services.openvpn_service import run_openvpn_renew_client
+
+    await callback.answer("⏳ Продлеваю сертификат…")
+    await callback.message.edit_text(
+        f"⏳ Продлеваю сертификат <b>{client_name}</b> на {days} дн.…"
+    )
+    result = await asyncio.to_thread(run_openvpn_renew_client, client_name, days)
+    if not result.get("success"):
+        await callback.message.edit_text(
+            f"❌ {result.get('message', 'Не удалось продлить сертификат.')}",
+            reply_markup=create_openvpn_renew_days_keyboard(),
+        )
+        return
+
+    await state.clear()
+    await callback.message.edit_text(
+        f"✅ {result['message']}",
+        reply_markup=create_openvpn_menu(),
+    )
+    log_action(
+        "bot",
+        callback.from_user.id,
+        callback.from_user.full_name,
+        "client_cert_renew",
+        f"{client_name} (openvpn, {days} дн.)",
+    )
+    await notify_admins(
+        callback.from_user.id,
+        callback.from_user.full_name,
+        f"продлил сертификат <b>{client_name}</b> на {days} дн.",
+    )
 
 
 def _get_server_ip():
@@ -50,6 +145,7 @@ def _get_server_ip():
 async def _get_bot():
     """Получить экземпляр бота (ленивая инициализация)."""
     from ..bot import get_bot
+
     return get_bot()
 
 
@@ -58,8 +154,143 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
     """Обработка колбэк-запросов администратора."""
     data = callback.data
     admin_ids = get_admin_ids()
-    
+
     try:
+        if data == "ovpn_create_cancel":
+            await state.clear()
+            await callback.message.edit_text(
+                "Меню OpenVPN:", reply_markup=create_openvpn_menu()
+            )
+            await callback.answer()
+            return
+
+        if data == "ovpn_create_days_custom":
+            state_data = await state.get_data()
+            if state_data.get("action") != "1" or not state_data.get("client_name"):
+                await callback.answer("Сначала укажите имя клиента.", show_alert=True)
+                return
+            await state.set_state(VPNSetup.entering_days)
+            await callback.message.edit_text(
+                f"🆕 <b>{state_data['client_name']}</b>\n\n"
+                "Введите срок действия от 1 до 3650 дней:",
+                reply_markup=create_openvpn_create_days_keyboard(),
+            )
+            await callback.answer()
+            return
+
+        if data.startswith("ovpn_create_days_"):
+            days_raw = data.removeprefix("ovpn_create_days_")
+            allowed_days = {30, 90, 180, 365, 3650}
+            days = int(days_raw) if days_raw.isdigit() else 0
+            state_data = await state.get_data()
+            client_name = state_data.get("client_name")
+            if (
+                state_data.get("action") != "1"
+                or not client_name
+                or days not in allowed_days
+            ):
+                await callback.answer("Некорректный запрос.", show_alert=True)
+                return
+
+            await callback.answer("⏳ Создаю клиента…")
+            await callback.message.edit_text(
+                f"⏳ Создаю OpenVPN-клиента <b>{client_name}</b> на {days} дн.…"
+            )
+            result = await execute_script("1", client_name, str(days))
+            if result["returncode"] != 0:
+                await callback.message.edit_text(
+                    f"❌ Ошибка: {result['stderr']}",
+                    reply_markup=create_openvpn_create_days_keyboard(),
+                )
+                return
+
+            from .vpn import _send_config
+
+            await _send_config(callback.from_user.id, client_name, "1")
+            await state.clear()
+            await callback.message.edit_text(
+                f"✅ OpenVPN-клиент <b>{client_name}</b> создан на {days} дн.!",
+                reply_markup=create_openvpn_menu(),
+            )
+            log_action(
+                "bot",
+                callback.from_user.id,
+                callback.from_user.full_name,
+                "client_create",
+                f"{client_name} (openvpn, {days} дн.)",
+            )
+            await notify_admins(
+                callback.from_user.id,
+                callback.from_user.full_name,
+                f"создал клиента <b>{client_name}</b> (openvpn, {days} дн.)",
+            )
+            return
+
+        if data == "ovpn_renew":
+            await _show_openvpn_renew_clients(callback, state)
+            await callback.answer()
+            return
+
+        if data.startswith("ovpn_renew_page_"):
+            page_raw = data.removeprefix("ovpn_renew_page_")
+            page = int(page_raw) if page_raw.isdigit() else 1
+            await _show_openvpn_renew_clients(callback, state, page)
+            await callback.answer()
+            return
+
+        if data.startswith("ovpn_renew_client_"):
+            client_name = data.removeprefix("ovpn_renew_client_")
+            clients = await get_clients("openvpn")
+            if client_name not in clients:
+                await callback.answer(
+                    "OpenVPN-клиент не найден. Обновите список.",
+                    show_alert=True,
+                )
+                return
+            labels = _openvpn_renew_expiry_labels([client_name])
+            await state.set_state(None)
+            await state.update_data(renew_client_name=client_name)
+            await callback.message.edit_text(
+                f"🔄 <b>{client_name}</b>\n"
+                f"Текущий срок: <b>{labels[client_name]}</b>.\n\n"
+                "Выберите новый срок действия сертификата:",
+                reply_markup=create_openvpn_renew_days_keyboard(),
+            )
+            await callback.answer()
+            return
+
+        if data == "ovpn_renew_days_custom":
+            state_data = await state.get_data()
+            client_name = state_data.get("renew_client_name")
+            if not client_name:
+                await callback.answer("Сначала выберите клиента.", show_alert=True)
+                return
+            await state.set_state(VPNSetup.entering_renew_days)
+            await callback.message.edit_text(
+                f"🔄 <b>{client_name}</b>\n\n"
+                "Введите новый срок действия от 1 до 3650 дней:",
+                reply_markup=create_back_keyboard(f"ovpn_renew_client_{client_name}"),
+            )
+            await callback.answer()
+            return
+
+        if data.startswith("ovpn_renew_days_"):
+            days_raw = data.removeprefix("ovpn_renew_days_")
+            allowed_days = {30, 90, 180, 365, 3650}
+            days = int(days_raw) if days_raw.isdigit() else 0
+            state_data = await state.get_data()
+            client_name = state_data.get("renew_client_name")
+            if not client_name or days not in allowed_days:
+                await callback.answer("Некорректный запрос.", show_alert=True)
+                return
+            await _renew_openvpn_from_callback(
+                callback,
+                state,
+                client_name,
+                days,
+            )
+            return
+
         # Запрос доступа: Заблокировать (req_ban_<uid>)
         if data.startswith("req_ban_"):
             parts = data.split("_", 2)
@@ -70,7 +301,9 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                     await callback.answer("Нельзя заблокировать себя.", show_alert=True)
                     return
                 if uid_int in admin_ids:
-                    await callback.answer("Нельзя заблокировать администратора.", show_alert=True)
+                    await callback.answer(
+                        "Нельзя заблокировать администратора.", show_alert=True
+                    )
                     return
                 remove_client_mapping(uid)
                 ban_user(uid_int)
@@ -102,8 +335,16 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                 except Exception:
                     pass
                 remove_pending_access_request(uid)
-                await callback.message.edit_text(f"❌ Запрос от <code>{uid}</code> отклонён.")
-                log_action("bot", callback.from_user.id, callback.from_user.full_name, "request_reject", f"{uid}(отклонён)")
+                await callback.message.edit_text(
+                    f"❌ Запрос от <code>{uid}</code> отклонён."
+                )
+                log_action(
+                    "bot",
+                    callback.from_user.id,
+                    callback.from_user.full_name,
+                    "request_reject",
+                    f"{uid}(отклонён)",
+                )
             await callback.answer()
             return
 
@@ -133,7 +374,9 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                     )
                     await callback.answer()
                     return
-                total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+                total_pages = max(
+                    1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+                )
                 await callback.message.edit_text(
                     f"📋 Запрос от <code>{uid}</code>. Выберите клиента для привязки:",
                     reply_markup=create_request_client_list_keyboard(
@@ -153,7 +396,9 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                 page = 1
             if uid.isdigit():
                 clients = await get_all_clients_unique()
-                total_pages = max(1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+                total_pages = max(
+                    1, (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+                )
                 page = max(1, min(page, total_pages))
                 suggested = f"user_{uid}"
                 await callback.message.edit_text(
@@ -183,7 +428,13 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
                 await callback.message.edit_text(
                     f"✅ Запрос от <code>{uid}</code> одобрен. Привязан к клиенту: <b>{client_name}</b>"
                 )
-                log_action("bot", callback.from_user.id, callback.from_user.full_name, "request_approve", f"{uid}→{client_name}")
+                log_action(
+                    "bot",
+                    callback.from_user.id,
+                    callback.from_user.full_name,
+                    "request_approve",
+                    f"{uid}→{client_name}",
+                )
             await callback.answer()
             return
 
@@ -208,7 +459,9 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             page = int(page)
             clients = await get_clients(vpn_type)
             total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
-            statuses = get_client_statuses(vpn_type, clients) if action == "list" else None
+            statuses = (
+                get_client_statuses(vpn_type, clients) if action == "list" else None
+            )
             await callback.message.edit_text(
                 "Список клиентов:",
                 reply_markup=create_client_list_keyboard(
@@ -321,7 +574,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             await state.set_state(VPNSetup.choosing_config_type)
             await callback.answer()
             return
-        
+
         if data.startswith("delete_"):
             _, vpn_type, client_name = data.split("_", 2)
             await callback.message.edit_text(
@@ -330,63 +583,79 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             )
             await callback.answer()
             return
-        
+
         if data in ["2", "5"]:
             vpn_type = "openvpn" if data == "2" else "wireguard"
             clients = await get_clients(vpn_type)
-            
+
             if not clients:
                 await callback.message.edit_text("❌ Нет клиентов для удаления")
                 return
-            
+
             total_pages = (len(clients) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
             await callback.message.edit_text(
                 "Выберите клиента для удаления:",
-                reply_markup=create_client_list_keyboard(clients, 1, total_pages, vpn_type, "delete"),
+                reply_markup=create_client_list_keyboard(
+                    clients, 1, total_pages, vpn_type, "delete"
+                ),
             )
             await state.set_state(VPNSetup.list_for_delete)
             await callback.answer()
             return
-        
+
         if data.startswith("confirm_"):
             _, vpn_type, client_name = data.split("_", 2)
             option = "2" if vpn_type == "openvpn" else "5"
-            
+
             try:
                 result = await execute_script(option, client_name)
-                
+
                 if vpn_type == "openvpn" and result["returncode"] == 0:
                     deleted_files = await cleanup_openvpn_files(client_name)
                     if deleted_files:
                         result["additional_deleted"] = deleted_files
-                
+
                 if result["returncode"] == 0:
                     msg = f"✅ Клиент {client_name} удален!"
                     if vpn_type == "openvpn" and result.get("additional_deleted"):
                         msg += f"\nДополнительно удалено файлов: {len(result['additional_deleted'])}"
-                    
+
                     await callback.message.edit_text(msg)
                     server_ip = _get_server_ip()
-                    await callback.message.answer("Главное меню:", reply_markup=create_main_menu(server_ip))
-                    log_action("bot", callback.from_user.id, callback.from_user.full_name, "client_delete", f"{client_name} ({vpn_type})")
-                    await notify_admins(callback.from_user.id, callback.from_user.full_name, f"удалил клиента <b>{client_name}</b> ({vpn_type})")
+                    await callback.message.answer(
+                        "Главное меню:", reply_markup=create_main_menu(server_ip)
+                    )
+                    log_action(
+                        "bot",
+                        callback.from_user.id,
+                        callback.from_user.full_name,
+                        "client_delete",
+                        f"{client_name} ({vpn_type})",
+                    )
+                    await notify_admins(
+                        callback.from_user.id,
+                        callback.from_user.full_name,
+                        f"удалил клиента <b>{client_name}</b> ({vpn_type})",
+                    )
                 else:
                     await callback.message.edit_text(f"❌ Ошибка: {result['stderr']}")
-            
+
             except Exception as e:
                 print(f"Ошибка при удалении клиента: {e}")
-            
+
             finally:
                 await callback.answer()
                 await state.clear()
             return
-        
+
         if data == "cancel_delete":
             server_ip = _get_server_ip()
-            await callback.message.edit_text("❌ Удаление отменено", reply_markup=create_main_menu(server_ip))
+            await callback.message.edit_text(
+                "❌ Удаление отменено", reply_markup=create_main_menu(server_ip)
+            )
             await callback.answer()
             return
-        
+
         if data in ["3", "6"]:
             vpn_type = "openvpn" if data == "3" else "wireguard"
             clients = await get_clients(vpn_type)
@@ -405,42 +674,58 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             )
             await callback.answer()
             return
-        
+
         if data in ["1", "4"]:
             await state.update_data(action=data)
             await callback.message.edit_text("Введите имя нового клиента:")
             await state.set_state(VPNSetup.entering_client_name)
             await callback.answer()
             return
-        
+
         if data == "7":
             await callback.message.edit_text("⏳ Идет пересоздание файлов...")
             result = await execute_script("7")
             if result["returncode"] == 0:
                 await callback.message.edit_text("✅ Файлы успешно пересозданы!")
                 server_ip = _get_server_ip()
-                await callback.message.answer("Главное меню:", reply_markup=create_main_menu(server_ip))
-                log_action("bot", callback.from_user.id, callback.from_user.full_name, "files_recreate", "")
-                await notify_admins(callback.from_user.id, callback.from_user.full_name, "пересоздал файлы клиентов")
+                await callback.message.answer(
+                    "Главное меню:", reply_markup=create_main_menu(server_ip)
+                )
+                log_action(
+                    "bot",
+                    callback.from_user.id,
+                    callback.from_user.full_name,
+                    "files_recreate",
+                    "",
+                )
+                await notify_admins(
+                    callback.from_user.id,
+                    callback.from_user.full_name,
+                    "пересоздал файлы клиентов",
+                )
             else:
                 await callback.message.edit_text(f"❌ Ошибка: {result['stderr']}")
             await callback.answer()
             return
-        
+
         if data in ["8", "backup_vpn"]:
             await callback.message.edit_text("⏳ Создаю бэкап...")
             result = await execute_script("8")
-            
+
             if result["returncode"] == 0:
                 if await _send_backup(callback.from_user.id):
                     await callback.message.delete()
                     server_ip = _get_server_ip()
-                    await callback.message.answer("Главное меню:", reply_markup=create_main_menu(server_ip))
+                    await callback.message.answer(
+                        "Главное меню:", reply_markup=create_main_menu(server_ip)
+                    )
                 else:
                     await callback.message.edit_text("❌ Не удалось отправить бэкап")
             else:
-                await callback.message.edit_text(f"❌ Ошибка при создании бэкапа: {result['stderr']}")
-            
+                await callback.message.edit_text(
+                    f"❌ Ошибка при создании бэкапа: {result['stderr']}"
+                )
+
             await callback.answer()
             return
 
@@ -457,7 +742,7 @@ async def handle_callback_query(callback: types.CallbackQuery, state: FSMContext
             else:
                 await callback.answer("settings.json не найден", show_alert=True)
             return
-    
+
     except Exception as e:
         print(f"Error: {e}")
         await callback.answer("⚠️ Произошла ошибка!")
@@ -481,7 +766,9 @@ async def handle_request_client_name_input(message: types.Message, state: FSMCon
     uid = data.get("request_user_id")
     await state.clear()
     if not uid:
-        await message.answer("Сессия истекла. Попросите пользователя отправить запрос снова.")
+        await message.answer(
+            "Сессия истекла. Попросите пользователя отправить запрос снова."
+        )
         return
     uid_str = str(uid)
     add_client_mapping(uid_str, client_name)
@@ -498,19 +785,25 @@ async def handle_request_client_name_input(message: types.Message, state: FSMCon
         f"✅ Запрос от <code>{uid_str}</code> одобрен. Имя клиента: <b>{client_name}</b>",
         reply_markup=create_main_menu(server_ip),
     )
-    log_action("bot", message.from_user.id, message.from_user.full_name, "request_approve", f"{uid}→{client_name}")
+    log_action(
+        "bot",
+        message.from_user.id,
+        message.from_user.full_name,
+        "request_approve",
+        f"{uid}→{client_name}",
+    )
 
 
 async def _send_backup(chat_id: int) -> bool:
     """Отправить файл бэкапа пользователю."""
     bot = await _get_bot()
     server_ip = _get_server_ip()
-    
+
     paths_to_check = [
         f"/root/antizapret/backup-{server_ip}.tar.gz",
         "/root/antizapret/backup.tar.gz",
     ]
-    
+
     for backup_path in paths_to_check:
         try:
             if os.path.exists(backup_path):
@@ -523,7 +816,7 @@ async def _send_backup(chat_id: int) -> bool:
         except Exception as e:
             print(f"Ошибка отправки бэкапа ({backup_path}): {e}")
             return False
-    
+
     return False
 
 
@@ -596,9 +889,14 @@ def _get_statusopenvpn_backup_sources() -> list[tuple[str, str]]:
                     elif candidate.endswith("src"):
                         if not name.endswith(".db"):
                             continue
-                        archive_name = os.path.join("src", os.path.relpath(path, candidate))
+                        archive_name = os.path.join(
+                            "src", os.path.relpath(path, candidate)
+                        )
                     else:
-                        archive_name = os.path.join(os.path.basename(candidate), os.path.relpath(path, candidate))
+                        archive_name = os.path.join(
+                            os.path.basename(candidate),
+                            os.path.relpath(path, candidate),
+                        )
                     real_path = os.path.realpath(path)
                     if real_path not in seen:
                         seen.add(real_path)

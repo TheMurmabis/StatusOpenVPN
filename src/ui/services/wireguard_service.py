@@ -1,3 +1,6 @@
+import os
+import re
+import shutil
 import sqlite3
 import subprocess
 from datetime import datetime
@@ -10,6 +13,44 @@ from src.ui.utils.format_utils import (
     parse_bytes,
 )
 from src.ui.utils.time_utils import is_peer_online, parse_relative_time
+from src.wireguard_filter import is_warp_interface
+
+
+_WG_INTERFACE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+
+def set_wireguard_peer_enabled(interface, public_key, enable):
+    """Updates a peer in its config and applies the config to the live interface."""
+    interface = str(interface or "").strip()
+    public_key = str(public_key or "").strip()
+    if not _WG_INTERFACE_PATTERN.fullmatch(interface):
+        raise ValueError("Некорректное имя интерфейса")
+    if not public_key:
+        raise ValueError("Не указан публичный ключ пира")
+
+    config_path = f"/etc/wireguard/{interface}.conf"
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("Конфигурация не найдена")
+    if not toggle_peer_config(config_path, public_key, bool(enable)):
+        raise LookupError("Пир не найден в конфигурации")
+
+    wg_quick = shutil.which("wg-quick") or "/usr/bin/wg-quick"
+    wg_bin = shutil.which("wg") or "/usr/bin/wg"
+    if not os.path.isfile(wg_quick):
+        raise RuntimeError("wg-quick не найден. Установите wireguard-tools.")
+    if not os.path.isfile(wg_bin):
+        raise RuntimeError("wg не найден. Установите wireguard-tools.")
+
+    subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            f"{wg_bin} syncconf {interface} <({wg_quick} strip {interface})",
+        ],
+        check=True,
+        env={**os.environ, "PATH": "/usr/bin:/bin"},
+    )
+    return True
 
 
 def get_wireguard_stats():
@@ -247,7 +288,13 @@ def get_daily_stats_map():
     conn = sqlite3.connect(app.config["WG_STATS_PATH"])
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM wg_daily_stats WHERE date = ?", (today,))
+    cursor.execute(
+        """SELECT * FROM wg_daily_stats
+           WHERE date = ?
+             AND lower(interface) != 'warp'
+             AND lower(interface) NOT LIKE 'warp-%'""",
+        (today,),
+    )
     rows = cursor.fetchall()
     conn.close()
     return {(row["peer"], row["interface"]): row for row in rows}
@@ -382,7 +429,7 @@ def parse_wireguard_output(output, hide_ip=True, hide_warp=False):
         stats = [
             interface_item
             for interface_item in stats
-            if interface_item.get("interface", "").lower() != "warp"
+            if not is_warp_interface(interface_item.get("interface"))
         ]
 
     return stats

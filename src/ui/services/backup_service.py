@@ -19,6 +19,7 @@ MAX_SETTINGS_RESTORE_BYTES = 1_000_000
 SETTINGS_KEY_TYPES = {
     "app_name": str,
     "telegram_admins": dict,
+    "telegram_profiles": dict,
     "telegram_clients": dict,
     "tg_bot_banned_user_ids": list,
     "tg_bot_pending_requests": dict,
@@ -26,11 +27,14 @@ SETTINGS_KEY_TYPES = {
     "show_ovpn_menu": bool,
     "show_wg_menu": bool,
     "hide_ovpn_ip": bool,
+    "group_ovpn_history": bool,
     "hide_wg_ip": bool,
     "hide_wg_warp_interface": bool,
     "shorten_wg_filenames": bool,
     "stats_retention_days": int,
     "history_max_records": int,
+    "subscription_link_lifetime_minutes": int,
+    "subscriptions_enabled": bool,
     "load_thresholds": dict,
     "vpn_service_monitoring_enabled": bool,
     "vpn_monitored_services": dict,
@@ -54,6 +58,8 @@ def get_statusopenvpn_backup_sources() -> list[tuple[str, str]]:
                 for name in files:
                     path = os.path.join(root, name)
                     if candidate.endswith(os.path.join("src", "databases")):
+                        if not name.endswith(".db"):
+                            continue
                         archive_name = os.path.join(
                             "src",
                             "databases",
@@ -218,6 +224,14 @@ def restore_statusopenvpn_from_archive(file_storage: BinaryIO, filename: str) ->
                 restored.append(dest_name)
         except OSError as e:
             return False, f"Ошибка записи баз данных: {e}"
+
+        # The restored database may contain permanent links encrypted with a
+        # key that is intentionally not part of the backup.
+        from src.ui.services.ovpn_subscription_service import (
+            reset_subscription_key_recovery,
+        )
+
+        reset_subscription_key_recovery()
 
         return True, f"Восстановлено файлов: {len(restored)} ({', '.join(sorted(restored))})."
 

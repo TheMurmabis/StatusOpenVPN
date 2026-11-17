@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminAlert = document.getElementById("adminAlert");
   const adminList = document.getElementById("adminList");
   const adminIdInput = document.getElementById("admin_id");
-  const botStatusIndicator = document.getElementById("botStatusIndicator");
+  const botStatusDot = document.getElementById("botServiceStatusDot");
+  const botStatusText = document.getElementById("botServiceStatusText");
   const adminCandidatesListId = adminAddInput?.dataset?.listId;
   const input = document.getElementById("bot_token");
   const toggle = document.getElementById("toggleToken");
@@ -55,10 +56,13 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const updateBotStatus = (active) => {
-    if (!botStatusIndicator) return;
-    botStatusIndicator.textContent = active ? "on" : "off";
-    botStatusIndicator.classList.toggle("bg-success", active);
-    botStatusIndicator.classList.toggle("bg-danger", !active);
+    if (botStatusDot) {
+      botStatusDot.classList.toggle("on", active);
+      botStatusDot.classList.toggle("off", !active);
+    }
+    if (botStatusText) {
+      botStatusText.textContent = active ? "Активна" : "Не активна";
+    }
   };
 
   const applyResponse = (data) => {

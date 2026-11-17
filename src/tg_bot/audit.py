@@ -8,6 +8,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIT_DB_PATH = os.path.join(BASE_DIR, "databases", "admin_audit.db")
 
 RETENTION_DAYS = 30
+_HIDDEN_ACTIONS = ("client_protocols_bulk_change",)
 
 
 def _get_conn():
@@ -23,9 +24,19 @@ def _get_conn():
             admin_name TEXT NOT NULL,
             action TEXT NOT NULL,
             details TEXT DEFAULT '',
-            ip_address TEXT DEFAULT ''
+            ip_address TEXT DEFAULT '',
+            event_key TEXT
         )
     """)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(admin_log)")}
+    if "event_key" not in columns:
+        conn.execute("ALTER TABLE admin_log ADD COLUMN event_key TEXT")
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_log_event_key
+        ON admin_log(event_key) WHERE event_key IS NOT NULL
+        """
+    )
     conn.commit()
     return conn
 
@@ -44,6 +55,8 @@ def log_action(
     action: str,
     details: str = "",
     ip_address: str = "",
+    event_key: str = None,
+    timestamp=None,
 ):
     """Записать действие администратора в БД.
 
@@ -57,18 +70,22 @@ def log_action(
     """
     with _get_conn() as conn:
         _cleanup_old_logs(conn)
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+        timestamp = str(timestamp or datetime.now().isoformat())
         conn.execute(
-            """INSERT INTO admin_log 
-               (timestamp, source, admin_id, admin_name, action, details, ip_address)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT OR IGNORE INTO admin_log
+               (timestamp, source, admin_id, admin_name, action, details, ip_address, event_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                datetime.now().isoformat(),
+                timestamp,
                 source,
                 str(admin_id),
                 admin_name,
                 action,
                 details,
                 ip_address,
+                event_key or None,
             ),
         )
         conn.commit()
@@ -85,33 +102,56 @@ def get_logs(limit: int = 50, offset: int = 0, action_filter: str = None):
     Возвращает:
         Список записей в виде словарей
     """
+    hidden = ", ".join("?" for _ in _HIDDEN_ACTIONS)
     with _get_conn() as conn:
         if action_filter:
+            if action_filter in _HIDDEN_ACTIONS:
+                return []
             rows = conn.execute(
                 """SELECT * FROM admin_log 
                    WHERE action = ?
-                   ORDER BY id DESC LIMIT ? OFFSET ?""",
+                   ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?""",
                 (action_filter, limit, offset),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT * FROM admin_log 
-                   ORDER BY id DESC LIMIT ? OFFSET ?""",
-                (limit, offset),
+                f"""SELECT * FROM admin_log
+                   WHERE action NOT IN ({hidden})
+                   ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?""",
+                (*_HIDDEN_ACTIONS, limit, offset),
             ).fetchall()
         return [dict(row) for row in rows]
 
 
+def format_log_details(row):
+    details = str(row.get("details") or "").strip()
+    if not details:
+        return "—"
+    action = row.get("action")
+    if action == "subscription_opened":
+        kind = "Временная" if row.get("admin_id") == "temporary" else "Постоянная"
+        return f"{kind} публичная ссылка клиента «{details}» открыта."
+    if action == "subscription_expired":
+        return f"Срок временной публичной ссылки клиента «{details}» истёк."
+    return details
+
+
 def get_logs_count(action_filter: str = None) -> int:
     """Получить общее количество записей аудита."""
+    hidden = ", ".join("?" for _ in _HIDDEN_ACTIONS)
     with _get_conn() as conn:
         if action_filter:
+            if action_filter in _HIDDEN_ACTIONS:
+                return 0
             result = conn.execute(
                 "SELECT COUNT(*) FROM admin_log WHERE action = ?",
                 (action_filter,),
             ).fetchone()
         else:
-            result = conn.execute("SELECT COUNT(*) FROM admin_log").fetchone()
+            result = conn.execute(
+                f"SELECT COUNT(*) FROM admin_log WHERE action NOT IN ({hidden})",
+                _HIDDEN_ACTIONS,
+            ).fetchone()
         return result[0] if result else 0
 
 

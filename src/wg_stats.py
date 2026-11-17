@@ -9,8 +9,13 @@ import subprocess
 import json
 import schedule
 
+try:
+    from src.wireguard_filter import is_warp_interface
+except ModuleNotFoundError:
+    from wireguard_filter import is_warp_interface
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "databases" , "wireguard_stats.db")
+DB_PATH = os.path.join(BASE_DIR, "databases", "wireguard_stats.db")
 SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 
 SAVE_TIME = "23:59"  # Время для фиксирования дневного трафика
@@ -41,8 +46,7 @@ def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS wg_daily_stats (
                 date TEXT NOT NULL,
                 peer TEXT NOT NULL,
@@ -52,11 +56,9 @@ def init_db():
                 interface TEXT NOT NULL,
                 PRIMARY KEY (date, peer, interface)
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS wg_intermediate (
                 peer TEXT NOT NULL,
                 interface TEXT NOT NULL,
@@ -65,11 +67,9 @@ def init_db():
                 date TEXT NOT NULL,
                 PRIMARY KEY (peer, interface)
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS wg_total_stats (
                 peer TEXT NOT NULL,
                 client TEXT NOT NULL,
@@ -78,11 +78,9 @@ def init_db():
                 interface TEXT NOT NULL,
                 PRIMARY KEY (peer, interface)
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS wg_hourly_stats (
                 hour TEXT NOT NULL,
                 peer TEXT NOT NULL,
@@ -92,11 +90,9 @@ def init_db():
                 interface TEXT NOT NULL,
                 PRIMARY KEY (hour, peer, interface)
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS wg_monthly_stats (
                 month TEXT NOT NULL,
                 peer TEXT NOT NULL,
@@ -106,8 +102,7 @@ def init_db():
                 interface TEXT NOT NULL,
                 PRIMARY KEY (month, peer, interface)
             )
-        """
-        )
+        """)
         conn.commit()
 
 
@@ -222,7 +217,9 @@ def get_wg_daily_stats():
     """Получение данных с таблицы wg_daily_stats"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM wg_daily_stats")
+        cursor.execute("""SELECT * FROM wg_daily_stats
+               WHERE lower(interface) != 'warp'
+                 AND lower(interface) NOT LIKE 'warp-%'""")
         return cursor.fetchall()
 
 
@@ -230,7 +227,9 @@ def get_wg_total_stats():
     """Получение данных с таблицы wg_total_stats"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("""SELECT * from wg_total_stats""")
+        cursor.execute("""SELECT * FROM wg_total_stats
+               WHERE lower(interface) != 'warp'
+                 AND lower(interface) NOT LIKE 'warp-%'""")
         conn.commit()
         return cursor.fetchall()
 
@@ -276,6 +275,8 @@ def parse_wireguard_stats(output):
         if line.startswith("interface:"):
             interface_name = line.split(": ")[1]  # Запоминаем интерфейс
         elif line.startswith("peer:"):
+            if is_warp_interface(interface_name):
+                continue
             peer = line.split(": ")[1].strip()
             client_name = client_mapping.get(peer, "Unknown")
             stats.append(
@@ -287,7 +288,11 @@ def parse_wireguard_stats(output):
                     "interface": interface_name if interface_name else "Unknown",
                 }
             )
-        elif line.startswith("transfer:") and stats:
+        elif (
+            line.startswith("transfer:")
+            and stats
+            and not is_warp_interface(interface_name)
+        ):
             transfer_data = line.split(":")[1].strip().split(", ")
             stats[-1]["received"] = transfer_data[0].replace(" received", "").strip()
             stats[-1]["sent"] = transfer_data[1].replace(" sent", "").strip()
@@ -501,16 +506,14 @@ def sync_new_peers():
             date = datetime.now().strftime("%Y-%m-%d")
 
             # Находим новые комбинации peer+interface, которых нет в wg_intermediate
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT t.peer, t.interface 
                 FROM wg_total_stats t
                 LEFT JOIN wg_intermediate i 
                 ON t.peer = i.peer AND t.interface = i.interface
                 WHERE i.peer IS NULL
                 GROUP BY t.peer, t.interface
-            """
-            )
+            """)
 
             new_combinations = cursor.fetchall()
 
@@ -573,31 +576,37 @@ def clean_old_daily_stats(days=365):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                """
+            cursor.execute("""
                 INSERT INTO wg_monthly_stats (month, peer, client, received, sent, interface)
                 SELECT substr(date, 1, 7), peer, MAX(client),
                        SUM(received), SUM(sent), interface
                 FROM wg_daily_stats
+                WHERE lower(interface) != 'warp'
+                  AND lower(interface) NOT LIKE 'warp-%'
                 GROUP BY peer, interface, substr(date, 1, 7)
                 ON CONFLICT(month, peer, interface) DO UPDATE SET
                     received = excluded.received,
                     sent = excluded.sent,
                     client = excluded.client
-                """
-            )
+                """)
 
-            thirty_days_ago = (datetime.now() - timedelta(days=hourly_days)).strftime("%Y-%m-%d")
+            thirty_days_ago = (datetime.now() - timedelta(days=hourly_days)).strftime(
+                "%Y-%m-%d"
+            )
             cursor.execute(
                 "DELETE FROM wg_hourly_stats WHERE hour < ?", (thirty_days_ago,)
             )
 
-            ninety_days_ago = (datetime.now() - timedelta(days=daily_days)).strftime("%Y-%m-%d")
+            ninety_days_ago = (datetime.now() - timedelta(days=daily_days)).strftime(
+                "%Y-%m-%d"
+            )
             cursor.execute(
                 "DELETE FROM wg_daily_stats WHERE date < ?", (ninety_days_ago,)
             )
 
-            one_year_ago = (datetime.now() - timedelta(days=monthly_days)).strftime("%Y-%m")
+            one_year_ago = (datetime.now() - timedelta(days=monthly_days)).strftime(
+                "%Y-%m"
+            )
             cursor.execute(
                 "DELETE FROM wg_monthly_stats WHERE month < ?", (one_year_ago,)
             )

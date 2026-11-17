@@ -14,9 +14,9 @@ ANTIZAPRET_SETUP_PATH = "/root/antizapret/setup"
 STATUSOPENVPN_SETUP_PATH = os.path.join(BASE_DIR, "setup")
 ENV_PATH = os.path.join(BASE_DIR, "src", ".env")
 SETTINGS_PATH = os.path.join(BASE_DIR, "src", "settings.json")
+OPENVPN_SUBSCRIPTION_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+OPENVPN_SUBSCRIPTION_SLUG_PATTERN = re.compile(r"^[a-z0-9-]{1,64}$")
 SETUP_DESCRIPTIONS_PATH = os.path.join(BASE_DIR, "src", "setup_descriptions.json")
-LEGACY_ADMIN_INFO_PATH = os.path.join(BASE_DIR, "src", "telegram_admins.json")
-
 CACHE_DURATION = 5
 MAX_CPU_HISTORY = 60 * 12
 DB_SAVE_INTERVAL = 300
@@ -25,6 +25,7 @@ MAX_HISTORY_SECONDS = 7 * 24 * 3600
 LIVE_POINTS = 60
 
 BOT_SERVICE_NAME = "telegram-bot"
+WG_STATS_SERVICE_NAME = "wg_stats.service"
 GITHUB_REPO = "TheMurmabis/StatusOpenVPN"
 UPDATE_SCRIPT = os.path.join(BASE_DIR, "scripts", "update.sh")
 UPDATE_LOG_PATH = "/tmp/statusopenvpn-update.log"
@@ -110,15 +111,19 @@ PROTOCOL_TO_SERVER_CONFIG = {
 
 DEFAULT_SETTINGS = {
     "app_name": "StatusOpenVPN",
-    "telegram_admins": {},
+    "telegram_profiles": {},
     "bot_enabled": False,
     "show_ovpn_menu": True,
     "show_wg_menu": True,
+    "wg_stats_enabled": True,
     "hide_ovpn_ip": True,
+    "group_ovpn_history": False,
     "hide_wg_ip": True,
-    "hide_wg_warp_interface": False,
+    "hide_wg_warp_interface": True,
     "stats_retention_days": 365,
     "history_max_records": 1000,
+    "subscription_link_lifetime_minutes": 15,
+    "subscriptions_enabled": False,
 }
 
 MONTH_OPTIONS_RU = [

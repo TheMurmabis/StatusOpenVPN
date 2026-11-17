@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% if not_found %}{{ error_title }}{% else %}{% if display_name %}{{ display_name }}{% else %}Подключение{% endif %}{% endif %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/font/bootstrap-icons.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ovpn_subscribe.css') }}" />
+  <meta name="robots" content="noindex, nofollow" />
+</head>
+
+<body class="ovpn-subscribe-body{% if not_found %} ovpn-subscribe-body--not-found{% endif %}">
+  <main class="ovpn-subscribe-page">
+    {% if not_found %}
+    <header class="sub-hero" role="alert">
+      <span class="sub-error-icon" aria-hidden="true"><i class="bi {{ error_icon }}"></i></span>
+      <h1 class="sub-title">{{ error_title }}</h1>
+      <p class="sub-lead">{{ error_message }}</p>
+    </header>
+    {% else %}
+    <header class="sub-hero">
+      {% if summary %}
+      {% set fam_stats = summary[start_family] if start_family else summary.openvpn %}
+      {% set st = fam_stats.by_profile.antizapret if fam_stats.by_profile else fam_stats %}
+      <div class="sub-summary-head">
+        <h1 class="sub-title">{% if display_name %}{{ display_name }}{% else %}Публичная ссылка{% endif %}</h1>
+        <span id="subStatStatus" class="sub-status-pill sub-stat-value--{{ st.status_kind }}">{{ st.status_label }}</span>
+      </div>
+      <div class="sub-summary-meta">
+        <span class="sub-summary-item">
+          <span class="sub-summary-label">Трафик</span>
+          <strong id="subStatTraffic">{{ fam_stats.traffic_total }}</strong>
+        </span>
+        <span class="sub-summary-divider" aria-hidden="true">•</span>
+        <span class="sub-summary-item">
+          <span class="sub-summary-label">Был в сети</span>
+          <strong id="subStatLastSeen">{{ fam_stats.last_seen }}</strong>
+        </span>
+      </div>
+      {% else %}
+      <h1 class="sub-title">{% if display_name %}{{ display_name }}{% else %}Публичная ссылка{% endif %}</h1>
+      {% endif %}
+      {% if temporary %}
+      <div id="subExpiryBadge" class="sub-expiry-row" role="status" aria-live="polite">
+        <i class="bi bi-lock-fill" aria-hidden="true"></i>
+        <span id="subExpiryText">Временная ссылка · осталось <strong id="subExpiryTimer">{{ link_lifetime_minutes }}:00</strong></span>
+      </div>
+      {% endif %}
+    </header>
+
+    {% if not items %}
+    <p class="sub-empty">Конфигурация пока недоступна. Обратитесь к администратору.</p>
+    {% else %}
+    <aside class="sub-security-note" role="note">
+      <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
+      <span>Не передавайте ссылку, конфигурацию или QR-код третьим лицам.</span>
+    </aside>
+
+    <div id="subFamilyTabs" class="sub-tabs" role="group" aria-label="Тип VPN">
+      <button type="button" class="sub-tab" data-family="openvpn" aria-pressed="false">OpenVPN</button>
+      <button type="button" class="sub-tab" data-family="wireguard" aria-pressed="false">WireGuard</button>
+    </div>
+    <section class="sub-step">
+      <div class="sub-step-head">
+        <span class="sub-step-num">1</span>
+        <div>
+          <h2 id="subAppStepTitle" class="sub-step-title">Выберите приложение</h2>
+          <p class="sub-step-desc">Укажите приложение, в котором хотите использовать конфигурацию.</p>
+        </div>
+      </div>
+
+      <div id="subAppType" class="sub-picks sub-picks--apps" role="group" aria-label="Приложение">
+        <button type="button" class="sub-pick" data-app="openvpn" aria-pressed="false">
+          <span class="sub-pick-check" aria-hidden="true"><i class="bi bi-check2"></i></span>
+          <span class="sub-pick-title">OpenVPN</span>
+          <span class="sub-pick-hint">OpenVPN Connect</span>
+        </button>
+        <button type="button" class="sub-pick" data-app="wireguard" aria-pressed="false">
+          <span class="sub-pick-check" aria-hidden="true"><i class="bi bi-check2"></i></span>
+          <span class="sub-pick-title">WireGuard</span>
+          <span class="sub-pick-hint">Обычный клиент</span>
+        </button>
+        <button type="button" class="sub-pick" data-app="amnezia" aria-pressed="false">
+          <span class="sub-pick-check" aria-hidden="true"><i class="bi bi-check2"></i></span>
+          <span class="sub-pick-title">AmneziaWG</span>
+          <span class="sub-pick-hint">С обфускацией</span>
+        </button>
+      </div>
+
+    </section>
+
+    <section class="sub-step">
+      <div class="sub-step-head">
+        <span class="sub-step-num">2</span>
+        <div>
+          <h2 class="sub-step-title">Откройте конфигурацию</h2>
+          <p id="subStep2Desc" class="sub-step-desc">Выберите режим и откройте конфигурацию.</p>
+        </div>
+      </div>
+
+      <div id="subProfileWrap">
+        <div class="sub-label">Профиль</div>
+        <div id="subProfileType" class="sub-picks sub-picks--profiles" role="group" aria-label="Профиль">
+          <button type="button" class="sub-pick" data-profile="antizapret" aria-pressed="false">
+            <span class="sub-pick-check" aria-hidden="true"><i class="bi bi-check2"></i></span>
+            <span class="sub-pick-title">AntiZapret</span>
+            <span class="sub-pick-hint">Только заблокированные ресурсы</span>
+          </button>
+          <button type="button" class="sub-pick" data-profile="vpn" aria-pressed="false">
+            <span class="sub-pick-check" aria-hidden="true"><i class="bi bi-check2"></i></span>
+            <span class="sub-pick-title">VPN</span>
+            <span class="sub-pick-hint">Весь интернет-трафик</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="subProtocolWrap">
+        <details class="sub-more sub-advanced" id="subProtocolAdvanced">
+          <summary>Дополнительные настройки</summary>
+          <div class="sub-advanced-body">
+            <div class="sub-label">Протокол</div>
+            <div id="subProtocolType" class="sub-segment" role="group" aria-label="Протокол OpenVPN">
+              <button type="button" class="sub-segment-btn" data-protocol="auto" aria-pressed="false">
+                Auto
+                <span class="sub-segment-note">рекомендуется</span>
+              </button>
+              <button type="button" class="sub-segment-btn" data-protocol="tcp" aria-pressed="false">TCP</button>
+              <button type="button" class="sub-segment-btn" data-protocol="udp" aria-pressed="false">UDP</button>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <a id="subOpenBtn" class="sub-cta" href="#" aria-disabled="true">Открыть в приложении</a>
+      <p id="subActionFeedback" class="sub-action-feedback" role="status" aria-live="polite" hidden></p>
+      <div class="sub-secondary">
+        <a id="subDownloadBtn" class="sub-secondary-btn" href="#" aria-disabled="true">Скачать файл</a>
+        <button type="button" id="subQrBtn" class="sub-secondary-btn d-none">QR-код</button>
+      </div>
+      <div id="subQrWrap" class="sub-qr d-none" hidden>
+        <img id="subQrImg" alt="QR-код конфигурации" />
+        <p class="sub-cta-meta">Откройте WireGuard или AmneziaWG → добавьте туннель → отсканируйте QR-код.</p>
+        <div class="sub-qr-actions">
+          <button type="button" id="subQrFullscreenBtn" class="sub-secondary-btn">На весь экран</button>
+          <a id="subQrDownloadBtn" class="sub-secondary-btn" href="#" download="wireguard-qr.png">Скачать QR-код</a>
+        </div>
+      </div>
+
+      <details class="sub-more sub-howto">
+        <summary>Как подключиться?</summary>
+        <ol id="subHowTo" class="sub-howto-list"></ol>
+      </details>
+
+      <details class="sub-more sub-install">
+        <summary>Приложение не установлено?</summary>
+        <div class="sub-install-body">
+          <p>Скачайте выбранное приложение, затем вернитесь на эту страницу и откройте конфигурацию.</p>
+          <a id="subAppDownload" class="sub-cta sub-cta--install" href="#" target="_blank" rel="noopener noreferrer">
+            Скачать приложение
+          </a>
+          <p id="subAppDownloadHint" class="sub-cta-meta" hidden></p>
+          <details class="sub-more">
+            <summary>Версии для других платформ</summary>
+            <div id="subAppOtherLinks" class="sub-more-links"></div>
+          </details>
+        </div>
+      </details>
+    </section>
+
+    <dialog id="subQrDialog" class="sub-qr-dialog" aria-labelledby="subQrDialogTitle">
+      <div class="sub-qr-dialog-head">
+        <strong id="subQrDialogTitle">QR-код конфигурации</strong>
+        <button type="button" id="subQrDialogClose" class="sub-qr-dialog-close" aria-label="Закрыть">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+      <img id="subQrDialogImg" alt="QR-код конфигурации крупным планом" />
+      <p>Откройте WireGuard или AmneziaWG → добавьте туннель → отсканируйте QR-код.</p>
+      <a id="subQrDialogDownload" class="sub-cta" href="#" download="wireguard-qr.png">Скачать QR-код</a>
+    </dialog>
+    {% endif %}
+    {% endif %}
+  </main>
+
+  {% if not not_found and items %}
+  <script>
+    window.ovpnSubscribe = {
+      token: {{ token | tojson }},
+      items: {{ items | tojson }},
+      temporary: {{ temporary | tojson }},
+      expiresAt: {{ expires_at | tojson }},
+      stats: {
+        openvpn: {{ summary.openvpn | tojson }},
+        wireguard: {{ summary.wireguard | tojson }}
+      }
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/ovpn_subscribe.js') }}"></script>
+  {% endif %}
+</body>
+
+</html>

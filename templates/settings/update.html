@@ -103,6 +103,7 @@
         зависимости Python и перезапуск служб. Панель может быть недоступна несколько минут.
       </p>
       <form method="post" id="updateForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-sm btn-primary settings-action-btn">
           <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
           Обновить до {{ latest_version }}

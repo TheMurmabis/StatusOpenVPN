@@ -35,7 +35,7 @@
       </div>
 
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="form-check m-0">
+        <div class="form-check m-0 login-remember-check">
           {{ form.remember_me(class="form-check-input", id="remember_me") }}
           <label for="remember_me" class="form-check-label">Запомнить меня</label>
         </div>
@@ -46,6 +46,14 @@
       <div style="display: none;">
         <input type="text" name="email_confirmation" value="">
       </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="alert alert-{{ category }}" role="alert">
+        <i class="fas fa-clock me-2" aria-hidden="true"></i>{{ message }}
+      </div>
+      {% endfor %}
+      {% endwith %}
 
       {% if error_message %}
       <div class="alert alert-danger" role="alert">{{ error_message }}</div>

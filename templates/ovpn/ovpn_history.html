@@ -29,6 +29,10 @@
   <div class="alert alert-danger" role="alert">
     {{ error_message }}
   </div>
+  {% elif (group_history and not groups) or (not group_history and not logs) %}
+  <div class="vpn-empty-panel show text-center mb-3">
+    <p class="text-muted mb-0">Нет записей в истории подключений.</p>
+  </div>
   {% else %}
   
   <section class="dash-panel mb-3">
@@ -41,9 +45,59 @@
             <th class="text-center">Локальный IP</th>
             <th class="text-center">Подключен</th>
             <th class="text-center">Протокол</th>
+            {% if group_history %}
+            <th class="text-center">Подключений</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
+          {% if group_history %}
+          {% for group in groups %}
+          {% set group_key = loop.index %}
+          {% set expandable = group.sessions|length > 1 %}
+          <tr class="log-row ovpn-history-group{% if expandable %} ovpn-history-group--expandable{% endif %}"
+            {% if expandable %}
+            data-history-key="{{ group_key }}"
+            tabindex="0"
+            role="button"
+            aria-expanded="false"
+            title="{{ group.connection_count_label }} — нажмите, чтобы показать все сессии"
+            {% endif %}>
+            <td class="text-center client-name vpn-table-client">
+              <span class="vpn-client-name-cell">
+                {% if expandable %}
+                <i class="bi bi-chevron-right ovpn-history-chev" aria-hidden="true"></i>
+                {% endif %}
+                <a href="{{ url_for('ovpn_stats', client=group['client_name']) }}"
+                  class="vpn-client-link" title="Статистика клиента">{{ group['client_name'] }}</a>
+              </span>
+            </td>
+            <td class="text-center real-ip">{{ group['real_ip'] }}</td>
+            <td class="text-center local-ip">{{ group['local_ip'] }}</td>
+            <td class="text-center connection-time" data-utc="{{ group['connection_since'] }}">{{
+              group['connection_since'] }}</td>
+            <td class="text-center protocol">{{ group['protocol'] }}</td>
+            <td class="text-center">
+              <span class="vpn-table-metric" title="{{ group.connection_count_label }}">{{ group.connection_count }}</span>
+            </td>
+          </tr>
+          {% if expandable %}
+          {% for session in group.sessions[1:] %}
+          <tr class="log-row ovpn-history-session d-none" data-history-parent="{{ group_key }}">
+            <td class="text-center client-name vpn-table-client">
+              <span class="ovpn-history-session-mark" aria-hidden="true"></span>
+            </td>
+            <td class="text-center real-ip">{{ session['real_ip'] }}</td>
+            <td class="text-center local-ip">{{ session['local_ip'] }}</td>
+            <td class="text-center connection-time" data-utc="{{ session['connection_since'] }}">{{
+              session['connection_since'] }}</td>
+            <td class="text-center protocol">{{ session['protocol'] }}</td>
+            <td class="text-center"></td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+          {% else %}
           {% for log in logs %}
           <tr class="log-row">
             <td class="text-center client-name vpn-table-client">
@@ -57,6 +111,7 @@
             <td class="text-center protocol">{{ log['protocol'] }}</td>
           </tr>
           {% endfor %}
+          {% endif %}
         </tbody>
       </table>
     </div>

@@ -168,6 +168,10 @@
       <div class="dash-panel__hd">
         <i class="bi bi-activity dash-panel__hd-ic" aria-hidden="true"></i>
         <span class="dash-panel__hd-t">Скорость · интерфейсы</span>
+        <span class="dash-live" title="Данные обновляются каждые 5 секунд">
+          <span class="dash-live__dot" aria-hidden="true"></span>
+          Live
+        </span>
         <button type="button" id="toggleChartBtn" class="btn btn-sm btn-outline-secondary ms-auto flex-shrink-0" title="График трафика">
           <i class="bi bi-graph-up" aria-hidden="true"></i>
         </button>
@@ -202,20 +206,46 @@
       <div class="dash-panel__hd">
         <i class="bi bi-ethernet dash-panel__hd-ic text-primary" aria-hidden="true"></i>
         <span class="dash-panel__hd-t">Накопленный трафик</span>
-        <code id="network_interface" class="dash-mon__iface small ms-auto text-truncate" style="max-width: 12rem;">Загрузка…</code>
+        <span class="dash-traffic-period">с запуска интерфейса</span>
+        <span class="dash-traffic-iface ms-auto" title="Сетевой интерфейс">
+          <i class="bi bi-diagram-2" aria-hidden="true"></i>
+          <code id="network_interface" class="dash-mon__iface text-truncate">Загрузка…</code>
+        </span>
       </div>
-      <div class="row g-2 g-md-3">
-        <div class="col-12 col-sm-6">
-          <div class="dash-mini">
-            <span class="dash-mini__lbl text-success"><i class="bi bi-arrow-down-circle me-1" aria-hidden="true"></i>RX</span>
-            <div id="rx_bytes" class="dash-mini__val font-monospace">Загрузка…</div>
-          </div>
+      <div class="dash-traffic-grid">
+        <div class="dash-traffic-card dash-traffic-card--total">
+          <span class="dash-traffic-card__icon" aria-hidden="true"><i class="bi bi-database"></i></span>
+          <span class="dash-traffic-card__body">
+            <span class="dash-traffic-card__label">Всего</span>
+            <span id="traffic_total" class="dash-traffic-card__value">Загрузка…</span>
+          </span>
         </div>
-        <div class="col-12 col-sm-6">
-          <div class="dash-mini">
-            <span class="dash-mini__lbl text-primary"><i class="bi bi-arrow-up-circle me-1" aria-hidden="true"></i>TX</span>
-            <div id="tx_bytes" class="dash-mini__val font-monospace">Загрузка…</div>
-          </div>
+        <div class="dash-traffic-card dash-traffic-card--rx">
+          <span class="dash-traffic-card__icon" aria-hidden="true"><i class="bi bi-arrow-down-left"></i></span>
+          <span class="dash-traffic-card__body">
+            <span class="dash-traffic-card__label">Получено <small>RX</small></span>
+            <span id="rx_bytes" class="dash-traffic-card__value">Загрузка…</span>
+          </span>
+        </div>
+        <div class="dash-traffic-card dash-traffic-card--tx">
+          <span class="dash-traffic-card__icon" aria-hidden="true"><i class="bi bi-arrow-up-right"></i></span>
+          <span class="dash-traffic-card__body">
+            <span class="dash-traffic-card__label">Отправлено <small>TX</small></span>
+            <span id="tx_bytes" class="dash-traffic-card__value">Загрузка…</span>
+          </span>
+        </div>
+      </div>
+      <div class="dash-traffic-share">
+        <div class="dash-traffic-share__labels">
+          <span>Соотношение трафика</span>
+          <span class="dash-traffic-share__values">
+            <span class="dash-traffic-share__rx">RX <strong id="traffic_rx_share">—</strong></span>
+            <span class="dash-traffic-share__tx">TX <strong id="traffic_tx_share">—</strong></span>
+          </span>
+        </div>
+        <div class="dash-traffic-share__bar" role="img" aria-label="Соотношение входящего и исходящего трафика">
+          <span id="traffic_rx_bar" class="dash-traffic-share__segment dash-traffic-share__segment--rx"></span>
+          <span id="traffic_tx_bar" class="dash-traffic-share__segment dash-traffic-share__segment--tx"></span>
         </div>
       </div>
     </section>

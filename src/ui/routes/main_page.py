@@ -6,6 +6,7 @@ from flask_login import login_required
 from src.ui.constants import HOST_STATIC_INFO
 from src.ui.extensions import app
 from src.ui.services.settings_service import read_settings
+from src.ui.services.ovpn_subscription_service import are_subscriptions_active
 from src.ui.services.system_info_service import get_git_version, get_system_info
 from src.ui.services.update_service import is_update_available
 from src.ui.utils.network_utils import get_external_ip
@@ -13,6 +14,12 @@ from src.ui.utils.network_utils import get_external_ip
 
 @app.context_processor
 def inject_info():
+    if request.path.startswith("/s/"):
+        settings_data = read_settings()
+        return {
+            "app_name": settings_data.get("app_name", "StatusOpenVPN"),
+            "base_path": request.script_root or "",
+        }
     settings_data = read_settings()
     app_name = settings_data.get("app_name", "StatusOpenVPN")
     show_ovpn_menu = bool(settings_data.get("show_ovpn_menu", True))
@@ -29,6 +36,7 @@ def inject_info():
         "show_ovpn_menu": show_ovpn_menu,
         "show_wg_menu": show_wg_menu,
         "host_os_label": HOST_STATIC_INFO["os_label"],
+        "ovpn_subscription_enabled": are_subscriptions_active(),
     }
 
 

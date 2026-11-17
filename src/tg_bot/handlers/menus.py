@@ -64,7 +64,8 @@ def _get_server_ip():
 
 
 @router.callback_query(
-    lambda c: c.data in [
+    lambda c: c.data
+    in [
         "main_menu",
         "vpn_services_menu",
         "openvpn_menu",
@@ -78,22 +79,28 @@ def _get_server_ip():
 async def handle_main_menus(callback: types.CallbackQuery, state: FSMContext):
     """Обработка навигации по главному меню."""
     admin_ids = get_admin_ids()
-    
+
     if callback.from_user.id not in admin_ids:
         await callback.answer("Доступ запрещен!", show_alert=True)
         return
-    
+
     if callback.data == "main_menu":
         server_ip = _get_server_ip()
-        await callback.message.edit_text("Главное меню:", reply_markup=create_main_menu(server_ip))
+        await callback.message.edit_text(
+            "Главное меню:", reply_markup=create_main_menu(server_ip)
+        )
     elif callback.data == "vpn_services_menu":
         await callback.message.edit_text(
             "Выберите VPN сервис:", reply_markup=create_vpn_services_menu()
         )
     elif callback.data == "openvpn_menu":
-        await callback.message.edit_text("Меню OpenVPN:", reply_markup=create_openvpn_menu())
+        await callback.message.edit_text(
+            "Меню OpenVPN:", reply_markup=create_openvpn_menu()
+        )
     elif callback.data == "server_menu":
-        await callback.message.edit_text("Меню сервера:", reply_markup=create_server_menu())
+        await callback.message.edit_text(
+            "Меню сервера:", reply_markup=create_server_menu()
+        )
     elif callback.data == "clients_menu":
         await state.clear()
         mapping = get_client_mapping()
@@ -104,17 +111,24 @@ async def handle_main_menus(callback: types.CallbackQuery, state: FSMContext):
             reply_markup=create_clients_menu(admin_ids, 1),
         )
     elif callback.data == "admins_menu":
-        await callback.message.edit_text("Администраторы:", reply_markup=create_admins_menu(admin_ids))
+        await callback.message.edit_text(
+            "Администраторы:", reply_markup=create_admins_menu(admin_ids)
+        )
     elif callback.data == "backups_menu":
-        await callback.message.edit_text("📦 Бэкапы:", reply_markup=create_backups_menu())
+        await callback.message.edit_text(
+            "📦 Бэкапы:", reply_markup=create_backups_menu()
+        )
     else:
-        await callback.message.edit_text("Меню WireGuard:", reply_markup=create_wireguard_menu())
-    
+        await callback.message.edit_text(
+            "Меню WireGuard:", reply_markup=create_wireguard_menu()
+        )
+
     await callback.answer()
 
 
 @router.callback_query(
-    lambda c: c.data.startswith("clients_p_") and c.data.removeprefix("clients_p_").isdigit()
+    lambda c: c.data.startswith("clients_p_")
+    and c.data.removeprefix("clients_p_").isdigit()
 )
 async def handle_clients_list_nav(callback: types.CallbackQuery, state: FSMContext):
     """Пагинация списка привязок клиентов бота."""
@@ -129,7 +143,9 @@ async def handle_clients_list_nav(callback: types.CallbackQuery, state: FSMConte
     total_users = len(mapping)
     total_bindings = sum(len(names) for names in mapping.values())
     total_pages = (
-        max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total_users else 1
+        max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+        if total_users
+        else 1
     )
     page = max(1, min(page, total_pages))
 
@@ -172,7 +188,10 @@ async def handle_client_user_nav(callback: types.CallbackQuery, state: FSMContex
         return
     if len(client_names) == 1:
         client_name = client_names[0]
-        from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+        from ..keyboards import (
+            create_client_protocols_menu,
+            clients_menu_page_for_telegram_id,
+        )
 
         return_page = clients_menu_page_for_telegram_id(telegram_id)
         await callback.message.edit_text(
@@ -201,13 +220,13 @@ async def handle_client_user_nav(callback: types.CallbackQuery, state: FSMContex
 async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMContext):
     """Обработка действий с привязками клиентов."""
     admin_ids = get_admin_ids()
-    
+
     if callback.from_user.id not in admin_ids:
         await callback.answer("Доступ запрещен!", show_alert=True)
         return
-    
+
     data = callback.data
-    
+
     if data == "clientmap_add":
         await callback.message.edit_text(
             "Выберите пользователя для привязки клиента.\n"
@@ -321,7 +340,7 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
             )
         await callback.answer()
         return
-    
+
     if data.startswith("clientmap_delete_confirm_"):
         payload = data.removeprefix("clientmap_delete_confirm_")
         if "_" not in payload:
@@ -335,7 +354,10 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
         client_names = get_client_mapping().get(telegram_id, [])
         if client_names:
             if len(client_names) == 1:
-                from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+                from ..keyboards import (
+                    create_client_protocols_menu,
+                    clients_menu_page_for_telegram_id,
+                )
 
                 return_page = clients_menu_page_for_telegram_id(telegram_id)
                 await callback.message.edit_text(
@@ -361,7 +383,9 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
             total_users = len(mapping)
             total_bindings = sum(len(names) for names in mapping.values())
             total_pages = (
-                max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if total_users else 1
+                max(1, (total_users + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+                if total_users
+                else 1
             )
             show_page = max(1, min(return_page, total_pages))
             await callback.message.edit_text(
@@ -415,7 +439,10 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
             await callback.answer()
             return
         if len(client_names) == 1:
-            from ..keyboards import create_client_protocols_menu, clients_menu_page_for_telegram_id
+            from ..keyboards import (
+                create_client_protocols_menu,
+                clients_menu_page_for_telegram_id,
+            )
 
             return_page = clients_menu_page_for_telegram_id(telegram_id)
             await callback.message.edit_text(
@@ -474,7 +501,9 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
     if data.startswith("client_proto_menu_"):
         telegram_id = data.split("_", 3)[3]
         client_entries = get_client_mapping_entries()
-        client_name = next((name for tid, name in client_entries if tid == telegram_id), None)
+        client_name = next(
+            (name for tid, name in client_entries if tid == telegram_id), None
+        )
         if not client_name:
             mapping = get_client_mapping()
             total_users = len(mapping)
@@ -503,9 +532,7 @@ async def handle_clientmap_actions(callback: types.CallbackQuery, state: FSMCont
 
 @router.callback_query(
     lambda c: c.data == "pending_requests_menu"
-    or (
-        c.data.startswith("pending_p_") and c.data.removeprefix("pending_p_").isdigit()
-    )
+    or (c.data.startswith("pending_p_") and c.data.removeprefix("pending_p_").isdigit())
 )
 async def handle_pending_requests_nav(callback: types.CallbackQuery, state: FSMContext):
     admin_ids = get_admin_ids()
@@ -520,9 +547,7 @@ async def handle_pending_requests_nav(callback: types.CallbackQuery, state: FSMC
 
     user_ids = get_pending_request_user_ids()
     count = len(user_ids)
-    total_pages = (
-        max(1, (count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if count else 1
-    )
+    total_pages = max(1, (count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE) if count else 1
     page = max(1, min(page, total_pages))
 
     await callback.message.edit_text(
@@ -750,7 +775,9 @@ async def handle_ban_user_id_input(message: types.Message, state: FSMContext):
 
 
 @router.message(VPNSetup.entering_client_mapping_user_id)
-async def handle_client_mapping_user_id_input(message: types.Message, state: FSMContext):
+async def handle_client_mapping_user_id_input(
+    message: types.Message, state: FSMContext
+):
     """Обработка ручного ввода Telegram ID для мастера привязки."""
     admin_ids = get_admin_ids()
     if message.from_user.id not in admin_ids:
@@ -782,7 +809,8 @@ async def handle_client_mapping_user_id_input(message: types.Message, state: FSM
 
 
 @router.callback_query(
-    lambda c: c.data in [
+    lambda c: c.data
+    in [
         "notifications_menu",
         "toggle_notifications",
         "toggle_load_notifications",
@@ -793,11 +821,11 @@ async def handle_client_mapping_user_id_input(message: types.Message, state: FSM
 async def handle_notifications_menu(callback: types.CallbackQuery):
     """Обработка меню уведомлений."""
     admin_ids = get_admin_ids()
-    
+
     if callback.from_user.id not in admin_ids:
         await callback.answer("Доступ запрещен!", show_alert=True)
         return
-    
+
     if callback.data == "toggle_notifications":
         current = is_admin_notification_enabled(callback.from_user.id)
         set_admin_notification(callback.from_user.id, not current)
@@ -810,7 +838,7 @@ async def handle_notifications_menu(callback: types.CallbackQuery):
     elif callback.data == "toggle_vpn_service_notifications":
         current = is_admin_vpn_service_notification_enabled(callback.from_user.id)
         set_admin_vpn_service_notification(callback.from_user.id, not current)
-    
+
     await callback.message.edit_text(
         "Настройка уведомлений:",
         reply_markup=create_notifications_menu(callback.from_user.id),
@@ -820,153 +848,97 @@ async def handle_notifications_menu(callback: types.CallbackQuery):
 
 @router.callback_query(lambda c: c.data.startswith("toggle_proto_"))
 async def handle_toggle_protocol(callback: types.CallbackQuery):
-    """Обработка переключения доступных протоколов для клиента."""
-    admin_ids = get_admin_ids()
-
-    if callback.from_user.id not in admin_ids:
+    """Менять те же настройки VPN-клиента, что и веб-вкладка «Доступ»."""
+    if callback.from_user.id not in get_admin_ids():
         await callback.answer("Доступ запрещен!", show_alert=True)
         return
 
-    from ..config import get_client_allowed_protocols, set_client_allowed_protocols
+    from src.ui.services.settings_service import (
+        get_available_vpn_client_protocol_keys,
+        get_vpn_client_protocols,
+        set_vpn_client_protocols,
+    )
     from ..keyboards import create_client_protocols_menu
 
-    data = callback.data
-    telegram_id = None
-
-    # Получаем текущие настройки
-    if data.startswith("toggle_proto_ovpn_vpn_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_vpn=not protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
-            wireguard_vpn=protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
-        )
-    elif data.startswith("toggle_proto_ovpn_az_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_vpn=protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=not protocols.get("openvpn_antizapret", True),
-            wireguard_vpn=protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
-        )
-    elif data.startswith("toggle_proto_wg_vpn_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_vpn=protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
-            wireguard_vpn=not protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=protocols.get("wireguard_antizapret", True)
-        )
-    elif data.startswith("toggle_proto_wg_az_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_vpn=protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=protocols.get("openvpn_antizapret", True),
-            wireguard_vpn=protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=not protocols.get("wireguard_antizapret", True)
-        )
-    elif data.startswith("toggle_proto_ovpn_default_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        next_default = not protocols.get("openvpn_default", True)
-        next_tcp = protocols.get("openvpn_tcp", True)
-        next_udp = protocols.get("openvpn_udp", True)
-        disable_openvpn_sections = not next_default and not next_tcp and not next_udp
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_default=next_default,
-            openvpn_vpn=False if disable_openvpn_sections else protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=False if disable_openvpn_sections else protocols.get("openvpn_antizapret", True),
-        )
-    elif data.startswith("toggle_proto_ovpn_tcp_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        new_tcp = not protocols.get("openvpn_tcp", True)
-        new_udp = protocols.get("openvpn_udp", True)
-        current_default = protocols.get("openvpn_default", True)
-        disable_openvpn_sections = not current_default and not new_tcp and not new_udp
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_tcp=new_tcp,
-            openvpn_default=current_default,
-            openvpn_vpn=False if disable_openvpn_sections else protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=False if disable_openvpn_sections else protocols.get("openvpn_antizapret", True),
-        )
-    elif data.startswith("toggle_proto_ovpn_udp_"):
-        telegram_id = data.split("_", 4)[4]
-        protocols = get_client_allowed_protocols(telegram_id)
-        new_udp = not protocols.get("openvpn_udp", True)
-        new_tcp = protocols.get("openvpn_tcp", True)
-        current_default = protocols.get("openvpn_default", True)
-        disable_openvpn_sections = not current_default and not new_tcp and not new_udp
-        set_client_allowed_protocols(
-            telegram_id,
-            openvpn_udp=new_udp,
-            openvpn_default=current_default,
-            openvpn_vpn=False if disable_openvpn_sections else protocols.get("openvpn_vpn", True),
-            openvpn_antizapret=False if disable_openvpn_sections else protocols.get("openvpn_antizapret", True),
-        )
-    elif data.startswith("toggle_proto_wg_type_wg_"):
-        telegram_id = data.split("_", 5)[5]
-        protocols = get_client_allowed_protocols(telegram_id)
-        new_wg = not protocols.get("wireguard_wg", True)
-        new_am = protocols.get("wireguard_am", True)
-        disable_wireguard_sections = not new_wg and not new_am
-        set_client_allowed_protocols(
-            telegram_id,
-            wireguard_wg=new_wg,
-            wireguard_vpn=False if disable_wireguard_sections else protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=False if disable_wireguard_sections else protocols.get("wireguard_antizapret", True),
-        )
-    elif data.startswith("toggle_proto_wg_type_am_"):
-        telegram_id = data.split("_", 5)[5]
-        protocols = get_client_allowed_protocols(telegram_id)
-        new_am = not protocols.get("wireguard_am", True)
-        new_wg = protocols.get("wireguard_wg", True)
-        disable_wireguard_sections = not new_wg and not new_am
-        set_client_allowed_protocols(
-            telegram_id,
-            wireguard_am=new_am,
-            wireguard_vpn=False if disable_wireguard_sections else protocols.get("wireguard_vpn", True),
-            wireguard_antizapret=False if disable_wireguard_sections else protocols.get("wireguard_antizapret", True),
-        )
-    else:
-        await callback.answer()
+    callback_keys = {
+        "toggle_proto_ovpn_vpn_": "openvpn_vpn",
+        "toggle_proto_ovpn_az_": "openvpn_antizapret",
+        "toggle_proto_wg_vpn_": "wireguard_vpn",
+        "toggle_proto_wg_az_": "wireguard_antizapret",
+        "toggle_proto_ovpn_default_": "openvpn_default",
+        "toggle_proto_ovpn_tcp_": "openvpn_tcp",
+        "toggle_proto_ovpn_udp_": "openvpn_udp",
+        "toggle_proto_wg_type_wg_": "wireguard_wg",
+        "toggle_proto_wg_type_am_": "wireguard_am",
+    }
+    match = next(
+        (
+            (prefix, key)
+            for prefix, key in callback_keys.items()
+            if (callback.data or "").startswith(prefix)
+        ),
+        None,
+    )
+    if not match:
+        await callback.answer("Некорректная настройка.", show_alert=True)
         return
 
-    if not telegram_id:
-        await callback.answer()
+    prefix, key = match
+    telegram_id = callback.data[len(prefix) :]
+    mapped_names = get_client_mapping().get(telegram_id, [])
+    heading = ((callback.message.text or "").splitlines() or [""])[0]
+    client_name = heading.rsplit("→", 1)[-1].strip() if "→" in heading else ""
+    if not telegram_id.isdigit() or client_name not in mapped_names:
+        await callback.answer(
+            "Привязка изменилась. Откройте меню клиента заново.", show_alert=True
+        )
         return
 
-    client_entries = get_client_mapping_entries()
-    client_name = next((name for tid, name in client_entries if tid == telegram_id), "неизвестен")
+    available_keys = get_available_vpn_client_protocol_keys(client_name)
+    if key not in available_keys:
+        await callback.answer(
+            "Эта конфигурация у клиента больше недоступна.", show_alert=True
+        )
+        return
+
+    protocols = get_vpn_client_protocols(client_name)
+    protocols[key] = not protocols[key]
+    try:
+        set_vpn_client_protocols(client_name, protocols)
+    except OSError:
+        await callback.answer("Не удалось сохранить настройку.", show_alert=True)
+        return
 
     await callback.message.edit_text(
         f"Настройка клиента <code>{get_user_label(telegram_id)}</code> → <b>{client_name}</b>\n\n"
         "Настройка протоколов:",
         reply_markup=create_client_protocols_menu(
-            telegram_id,
-            client_name,
-            f"clientmap_user_{telegram_id}",
+            telegram_id, client_name, f"clientmap_user_{telegram_id}"
         ),
     )
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "no_action" or c.data == "no_protocols")
+@router.callback_query(
+    lambda c: c.data
+    in ("no_action", "no_protocols", "client_access_locked", "telegram_access_info")
+)
 async def handle_no_action(callback: types.CallbackQuery):
     """Обработка кнопок без действия."""
     if callback.data == "no_protocols":
-        await callback.answer("У вас нет доступных протоколов. Обратитесь к администратору.", show_alert=True)
+        await callback.answer(
+            "У вас нет доступных протоколов. Обратитесь к администратору.",
+            show_alert=True,
+        )
+    elif callback.data == "client_access_locked":
+        await callback.answer(
+            "Обновите меню клиента: настройки теперь можно менять и в боте.",
+            show_alert=True,
+        )
+    elif callback.data == "telegram_access_info":
+        await callback.answer(
+            "Настройки VPN-клиента изменяются здесь и в вебе. Старые ограничения Telegram ID действуют дополнительно.",
+            show_alert=True,
+        )
     else:
         await callback.answer()
-    await callback.answer("В разработке", show_alert=False)

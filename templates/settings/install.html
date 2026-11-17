@@ -16,6 +16,7 @@
   <header class="dash-mon__hero">
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
       <a href="{{ url_for('settings_telegram') }}"
         class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
       <a href="{{ url_for('settings_backups') }}"
@@ -92,7 +93,7 @@
             </div>
 
             <div class="text-end flex-shrink-0">
-              {{ install_value_badge(key, value) }}
+              {{ install_value_badge(key, value, antizapret_setup_schema) }}
             </div>
 
           </div>

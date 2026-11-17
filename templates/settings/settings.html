@@ -14,6 +14,7 @@
   <header class="dash-mon__hero">
     <nav class="settings-tabs" aria-label="Разделы настроек">
       <a href="{{ url_for('settings') }}" class="settings-tab {% if active_page == 'settings' %}active{% endif %}">Общие</a>
+      <a href="{{ url_for('settings_links') }}" class="settings-tab {% if active_page == 'settings_links' %}active{% endif %}">Публичные ссылки</a>
       <a href="{{ url_for('settings_telegram') }}" class="settings-tab {% if active_page == 'settings_telegram' %}active{% endif %}">Телеграм</a>
       <a href="{{ url_for('settings_backups') }}" class="settings-tab {% if active_page == 'settings_backups' %}active{% endif %}">Резервные копии</a>
       <a href="{{ url_for('settings_audit') }}" class="settings-tab {% if active_page == 'settings_audit' %}active{% endif %}">Журнал</a>
@@ -22,6 +23,7 @@
   </header>
 
   <form method="post" autocomplete="off" class="settings-general-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="hidden" name="form_type" value="settings_all" />
 
     {% if settings_message %}
@@ -54,11 +56,11 @@
         <span class="dash-panel__hd-t">OpenVPN</span>
       </div>
       <p class="settings-field-hint small mb-3">
-        Отдельные настройки отображения раздела и приватности данных OpenVPN.
+        Отдельные настройки отображения раздела, истории и приватности данных OpenVPN.
       </p>
 
       <div class="mb-3">
-        <div class="form-check">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="show_ovpn_menu" name="show_ovpn_menu" {% if show_ovpn_menu %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="show_ovpn_menu">
             Пункт меню
@@ -67,12 +69,22 @@
         </div>
       </div>
 
-      <div class="mb-0">
-        <div class="form-check">
+      <div class="mb-3">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="hide_ovpn_ip" name="hide_ovpn_ip" {% if hide_ovpn_ip %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="hide_ovpn_ip">
             Реальные IP
             <small class="settings-field-hint d-block">Скрывать реальные IP в таблице клиентов OpenVPN</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="mb-0">
+        <div class="form-check settings-toggle">
+          <input class="form-check-input" type="checkbox" id="group_ovpn_history" name="group_ovpn_history" {% if group_ovpn_history %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="group_ovpn_history">
+            Группировка истории
+            <small class="settings-field-hint d-block">Объединять записи истории подключений по клиенту и показывать счётчик сессий</small>
           </label>
         </div>
       </div>
@@ -88,7 +100,7 @@
       </p>
 
       <div class="mb-3">
-        <div class="form-check">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="show_wg_menu" name="show_wg_menu" {% if show_wg_menu %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="show_wg_menu">
             Пункт меню
@@ -98,7 +110,17 @@
       </div>
 
       <div class="mb-3">
-        <div class="form-check">
+        <div class="form-check settings-toggle">
+          <input class="form-check-input" type="checkbox" id="wg_stats_enabled" name="wg_stats_enabled" {% if wg_stats_enabled %}checked{% endif %}>
+          <label class="form-check-label settings-check-label" for="wg_stats_enabled">
+            Сбор статистики
+            <small class="settings-field-hint d-block">Собирать данные для раздела статистики WireGuard</small>
+          </label>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="hide_wg_ip" name="hide_wg_ip" {% if hide_wg_ip %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="hide_wg_ip">
             Реальные IP
@@ -108,7 +130,7 @@
       </div>
 
       <div class="mb-3 settings-anchor-target" id="shorten_wg_filenames-wrap">
-        <div class="form-check">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="shorten_wg_filenames" name="shorten_wg_filenames" {% if shorten_wg_filenames %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="shorten_wg_filenames">
             Короткие имена файлов
@@ -118,14 +140,15 @@
       </div>
 
       <div class="mb-0">
-        <div class="form-check">
+        <div class="form-check settings-toggle">
           <input class="form-check-input" type="checkbox" id="hide_wg_warp_interface" name="hide_wg_warp_interface" {% if hide_wg_warp_interface %}checked{% endif %}>
           <label class="form-check-label settings-check-label" for="hide_wg_warp_interface">
             Интерфейс WARP
-            <small class="settings-field-hint d-block">Скрывать отображение интерфейса WARP в списке WireGuard</small>
+            <small class="settings-field-hint d-block">Скрывать интерфейсы WARP в списке WireGuard</small>
           </label>
         </div>
       </div>
+
     </section>
 
     <section class="dash-panel mb-3">
@@ -248,6 +271,7 @@
           <p class="mb-2">Будут удалены <strong>все</strong> записи статистики OpenVPN (месячные данные, логи подключений, последние счётчики). Это действие нельзя отменить.</p>
           <p class="small text-muted mb-2">Для подтверждения введите слово <strong class="text-body">{{ stats_clear_ovpn_phrase }}</strong> (как показано, с учётом регистра).</p>
           <form method="post" id="statsClearFormOvpn" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="form_type" value="stats_db_clear_ovpn" />
             <label for="statsClearPhraseOvpn" class="form-label">Подтверждение</label>
             <input type="text" class="form-control font-monospace" id="statsClearPhraseOvpn" name="confirm_phrase" autocomplete="off" placeholder="{{ stats_clear_ovpn_phrase }}" />
@@ -272,6 +296,7 @@
           <p class="mb-2">Будут удалены <strong>все</strong> записи статистики WireGuard (дневные и суммарные данные по пирам). Это действие нельзя отменить.</p>
           <p class="small text-muted mb-2">Для подтверждения введите слово <strong class="text-body">{{ stats_clear_wg_phrase }}</strong> (как показано, с учётом регистра).</p>
           <form method="post" id="statsClearFormWg" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="form_type" value="stats_db_clear_wg" />
             <label for="statsClearPhraseWg" class="form-label">Подтверждение</label>
             <input type="text" class="form-control font-monospace" id="statsClearPhraseWg" name="confirm_phrase" autocomplete="off" placeholder="{{ stats_clear_wg_phrase }}" />
@@ -312,6 +337,33 @@
   }
   bindModal('statsClearModalOvpn', 'statsClearPhraseOvpn', 'statsClearSubmitOvpn', ovpn);
   bindModal('statsClearModalWg', 'statsClearPhraseWg', 'statsClearSubmitWg', wg);
+
+  (function syncWireGuardStatsSwitch() {
+    const menuToggle = document.getElementById('show_wg_menu');
+    const statsToggle = document.getElementById('wg_stats_enabled');
+    if (!menuToggle || !statsToggle) return;
+    function sync() {
+      if (!menuToggle.checked) {
+        statsToggle.checked = false;
+      }
+      statsToggle.disabled = !menuToggle.checked;
+    }
+    menuToggle.addEventListener('change', sync);
+    sync();
+  })();
+
+  (function syncSubscriptionsSwitch() {
+    const toggle = document.getElementById('subscriptions_enabled');
+    const state = document.getElementById('subscriptionsSwitchState');
+    if (!toggle || !state) return;
+    function sync() {
+      state.textContent = toggle.disabled ? 'Недоступны' : (toggle.checked ? 'Включены' : 'Выключены');
+      state.classList.toggle('is-on', !toggle.disabled && toggle.checked);
+      state.classList.toggle('is-disabled', toggle.disabled);
+    }
+    toggle.addEventListener('change', sync);
+    sync();
+  })();
 
   (function syncStatsDbSizeChevron() {
     const panel = document.getElementById('statsDbSizeCollapse');

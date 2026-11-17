@@ -20,6 +20,11 @@ from src.ui.services.openvpn_service import (
     read_csv,
 )
 from src.ui.services.settings_service import read_settings
+from src.ui.services.scheduled_block_service import get_scheduled_openvpn_blocks
+from src.ui.services.ovpn_subscription_service import (
+    are_subscriptions_active,
+    subscription_urls_by_client,
+)
 from src.ui.utils.format_utils import (
     format_bytes,
     mask_ip,
@@ -170,6 +175,19 @@ def _build_openvpn_client_status_sorted(sort_by, order):
         row["cert_renew_state"] = get_openvpn_cert_renew_state(exp_dt)
 
     all_clients_list = _dedupe_openvpn_client_status_rows(all_clients_list)
+
+    scheduled_blocks = get_scheduled_openvpn_blocks()
+    server_tz = get_localzone()
+    for row in all_clients_list:
+        scheduled = scheduled_blocks.get(row["name"])
+        if not scheduled:
+            row["scheduled_block_at"] = ""
+            row["scheduled_block_label"] = ""
+            continue
+        row["scheduled_block_at"] = scheduled["scheduled_at"]
+        row["scheduled_block_label"] = datetime.fromtimestamp(
+            scheduled["scheduled_at_timestamp"], tz=server_tz
+        ).strftime("%d.%m.%Y %H:%M")
 
     if sort_by == "cert":
         valid = [x for x in all_clients_list if x["cert_expiry_dt"] is not None]
@@ -368,6 +386,8 @@ def ovpn_client_status():
             errors=errors,
             sort_by=sort_by,
             order=order,
+            ovpn_subscription_enabled=are_subscriptions_active(),
+            subscription_urls=subscription_urls_by_client(),
         )
 
     except ZoneInfoNotFoundError:
@@ -383,6 +403,7 @@ def ovpn_client_status():
                 error_message=error_message,
                 active_section="ovpn",
                 active_page="client_status",
+                ovpn_subscription_enabled=False,
             ),
             500,
         )
@@ -395,9 +416,22 @@ def ovpn_client_status():
                 error_message=error_message,
                 active_section="ovpn",
                 active_page="client_status",
+                ovpn_subscription_enabled=False,
             ),
             500,
         )
+
+
+def _pluralize_connections(count):
+    if 11 <= count % 100 <= 19:
+        word = "подключений"
+    elif count % 10 == 1:
+        word = "подключение"
+    elif 2 <= count % 10 <= 4:
+        word = "подключения"
+    else:
+        word = "подключений"
+    return f"{count} {word}"
 
 
 @app.route("/ovpn/history")
@@ -408,7 +442,12 @@ def ovpn_history():
         page = request.args.get("page", 1, type=int)
         per_page = 20
 
+        settings_data = read_settings()
+        group_history = bool(settings_data.get("group_ovpn_history", False))
+        hide_ovpn_ip = settings_data.get("hide_ovpn_ip", True)
+
         conn_logs = sqlite3.connect(app.config["LOGS_DATABASE_PATH"])
+        conn_logs.row_factory = sqlite3.Row
 
         filter_clause = "client_name != 'UNDEF'"
         filter_params = []
@@ -420,45 +459,123 @@ def ovpn_history():
             )
             filter_params.extend([like_value, like_value, like_value, like_value])
 
-        total_count = conn_logs.execute(
-            f"SELECT COUNT(*) FROM connection_logs WHERE {filter_clause}",
-            filter_params,
-        ).fetchone()[0]
+        def format_ip(ip):
+            real_ip = normalize_real_address(ip or "")
+            return mask_ip(real_ip, hide=hide_ovpn_ip)
+
+        def format_session(row):
+            return {
+                "client_name": row["client_name"],
+                "real_ip": format_ip(row["real_ip"]),
+                "local_ip": row["local_ip"] or "",
+                "connection_since": row["connected_since"],
+                "protocol": row["protocol"] or "",
+            }
+
+        groups = []
+        logs = []
+
+        if group_history:
+            total_count = conn_logs.execute(
+                f"""SELECT COUNT(*) FROM (
+                        SELECT 1 FROM connection_logs
+                        WHERE {filter_clause}
+                        GROUP BY client_name
+                    )""",
+                filter_params,
+            ).fetchone()[0]
+        else:
+            total_count = conn_logs.execute(
+                f"SELECT COUNT(*) FROM connection_logs WHERE {filter_clause}",
+                filter_params,
+            ).fetchone()[0]
 
         total_pages = max(1, (total_count + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * per_page
 
-        logs_reader = conn_logs.execute(
-            f"""SELECT * FROM connection_logs
-               WHERE {filter_clause}
-               ORDER BY connected_since DESC
-               LIMIT ? OFFSET ?""",
-            (*filter_params, per_page, offset),
-        ).fetchall()
+        if group_history:
+            group_rows = conn_logs.execute(
+                f"""SELECT client_name,
+                           COUNT(*) AS connection_count,
+                           MAX(connected_since) AS last_connected
+                    FROM connection_logs
+                    WHERE {filter_clause}
+                    GROUP BY client_name
+                    ORDER BY last_connected DESC
+                    LIMIT ? OFFSET ?""",
+                (*filter_params, per_page, offset),
+            ).fetchall()
+
+            client_names = [row["client_name"] for row in group_rows]
+            sessions_by_client = {name: [] for name in client_names}
+
+            if client_names:
+                placeholders = ",".join("?" * len(client_names))
+                session_rows = conn_logs.execute(
+                    f"""SELECT client_name, local_ip, real_ip, connected_since, protocol
+                        FROM connection_logs
+                        WHERE {filter_clause}
+                          AND client_name IN ({placeholders})
+                        ORDER BY connected_since DESC""",
+                    (*filter_params, *client_names),
+                ).fetchall()
+                for row in session_rows:
+                    sessions_by_client[row["client_name"]].append(row)
+
+            for row in group_rows:
+                sessions = [
+                    format_session(item)
+                    for item in sessions_by_client.get(row["client_name"], [])
+                ]
+                latest = sessions[0] if sessions else {
+                    "client_name": row["client_name"],
+                    "real_ip": "",
+                    "local_ip": "",
+                    "connection_since": row["last_connected"],
+                    "protocol": "",
+                }
+                protocols = []
+                for session in sessions:
+                    proto = session["protocol"]
+                    if proto and proto not in protocols:
+                        protocols.append(proto)
+                connection_count = row["connection_count"]
+                groups.append(
+                    {
+                        "client_name": row["client_name"],
+                        "connection_count": connection_count,
+                        "connection_count_label": _pluralize_connections(
+                            connection_count
+                        ),
+                        "real_ip": latest["real_ip"],
+                        "local_ip": latest["local_ip"],
+                        "connection_since": latest["connection_since"],
+                        "protocol": (
+                            ", ".join(protocols) if protocols else latest["protocol"]
+                        ),
+                        "sessions": sessions,
+                    }
+                )
+        else:
+            logs_reader = conn_logs.execute(
+                f"""SELECT client_name, local_ip, real_ip, connected_since, protocol
+                    FROM connection_logs
+                    WHERE {filter_clause}
+                    ORDER BY connected_since DESC
+                    LIMIT ? OFFSET ?""",
+                (*filter_params, per_page, offset),
+            ).fetchall()
+            logs = [format_session(row) for row in logs_reader]
+
         conn_logs.close()
-
-        hide_ovpn_ip = read_settings().get("hide_ovpn_ip", True)
-
-        def format_ip(ip):
-            real_ip = normalize_real_address(ip)
-            return mask_ip(real_ip, hide=hide_ovpn_ip)
-
-        logs = [
-            {
-                "client_name": row[1],
-                "real_ip": format_ip(row[3]),
-                "local_ip": row[2],
-                "connection_since": row[4],
-                "protocol": row[7],
-            }
-            for row in logs_reader
-        ]
 
         return render_template(
             "ovpn/ovpn_history.html",
             active_section="ovpn",
             active_page="history",
+            group_history=group_history,
+            groups=groups,
             logs=logs,
             page=page,
             total_pages=total_pages,
@@ -473,6 +590,9 @@ def ovpn_history():
                 error_message=error_message,
                 active_section="ovpn",
                 active_page="history",
+                group_history=False,
+                groups=[],
+                logs=[],
                 q=q,
             ),
             500,

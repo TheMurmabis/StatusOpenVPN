@@ -1,12 +1,36 @@
 import os
 import sqlite3
+import subprocess
 from datetime import datetime, timedelta
 from statistics import mean
 
-from src.ui.constants import DB_SAVE_INTERVAL
+from src.ui.constants import DB_SAVE_INTERVAL, WG_STATS_SERVICE_NAME
 from src.ui.extensions import app
 from src.ui.state import cpu_history
 from src.ui.utils.format_utils import format_bytes
+
+
+WG_STATS_SERVICE_PATH = "/etc/systemd/system/wg_stats.service"
+
+
+def set_wireguard_stats_service_enabled(enabled):
+    """Включить или полностью отключить фоновый сбор статистики WireGuard."""
+    if not os.path.exists(WG_STATS_SERVICE_PATH):
+        return False, "служба wg_stats не установлена"
+
+    action = "enable" if enabled else "disable"
+    try:
+        subprocess.run(
+            ["/bin/systemctl", action, "--now", WG_STATS_SERVICE_NAME],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return True, None
+    except (OSError, subprocess.CalledProcessError) as exc:
+        error = getattr(exc, "stderr", "") or str(exc)
+        return False, error.strip() or "неизвестная ошибка"
 
 
 def ensure_db():
