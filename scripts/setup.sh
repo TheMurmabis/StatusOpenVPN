@@ -761,8 +761,7 @@ update_flow() {
 
     restart_vnstat_if_needed
 
-    run_as_root systemctl restart StatusOpenVPN
-    if systemctl cat telegram-bot &>/dev/null; then
+    if systemctl is-active --quiet telegram-bot; then
         echo "Restarting telegram-bot service..."
         run_as_root systemctl restart telegram-bot
     fi
@@ -774,6 +773,8 @@ update_flow() {
     echo -e "${GREEN}✅ Update completed successfully${RESET}"
     echo -e "Server is available at: \e[4;38;5;33m$SERVER_URL\e[0m"
     echo "--------------------------------------------"
+
+    run_as_root systemctl restart StatusOpenVPN
 }
 
 main() {
