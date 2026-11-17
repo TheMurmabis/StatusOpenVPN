@@ -271,14 +271,6 @@ bash -c "$(curl -sL https://raw.githubusercontent.com/TheMurmabis/StatusOpenVPN/
 </details>
 
 <details>
-  <summary>Как восстановить настройки и базы данных?</summary>
-
-Перед началом  
-
-
-</details>
-
-<details>
   <summary>Как сменить пароль администратора?</summary>
 
 Чтобы сменить пароль администратора, выполните следующий скрипт: ``change_passwd.sh``. 
